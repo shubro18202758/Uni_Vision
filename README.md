@@ -1,6 +1,6 @@
 # Uni Vision — Real-Time Visual Anomaly Detection with Databricks Analytics
 
-Uni Vision is a GPU-accelerated, real-time computer vision pipeline that ingests video feeds, runs multi-stage anomaly detection (YOLO + Ollama LLM reasoning), and stores every detection event in **Delta Lake** with **MLflow** experiment tracking, **PySpark** batch analytics, and **FAISS** vector search — orchestrated by an agentic AI manager.
+Uni Vision is a GPU-accelerated, real-time computer vision pipeline that ingests video feeds, runs multi-stage anomaly detection using **YOLOv8** object detection and **Qwen 3.5 9B** vision-language reasoning (with **Navarasa 2.0 7B** for multilingual user interaction in 16 Indian languages + English), and stores every detection event in **Delta Lake** with **MLflow** experiment tracking, **PySpark** batch analytics, and **FAISS** vector search — orchestrated by an agentic AI manager. Both LLMs run locally via Ollama on a single 8 GB GPU.
 
 ---
 
@@ -12,9 +12,9 @@ Uni Vision is a GPU-accelerated, real-time computer vision pipeline that ingests
 │                                                                            │
 │  ┌──────────┐   ┌───────────┐   ┌───────────────────────────────┐          │
 │  │  Video   │──▶│ Ingestion │──▶│   Inference Pipeline          │          │
-│  │  Upload  │   │  Layer    │   │  (YOLO + Ollama LLM Agent)    │          │
-│  └──────────┘   └───────────┘   └──────────┬────────────────────┘          │
-│                                             │                              │
+│  │  Upload  │   │  Layer    │   │  (YOLOv8 + Qwen 3.5 9B +     │          │
+│  └──────────┘   └───────────┘   │   Navarasa 2.0 7B via Ollama) │          │
+│                                 └──────────┬────────────────────┘          │
 │                                             ▼                              │
 │                              ┌──────────────────────────┐                  │
 │                              │    Manager Agent (LLM)    │                  │
@@ -70,7 +70,25 @@ Uni Vision is a GPU-accelerated, real-time computer vision pipeline that ingests
 
 All four are **optional add-ons** gated behind `databricks.enabled` in `config/default.yaml` and installed via `pip install '.[databricks]'`.
 
-**Stages:**
+---
+
+### LLM Models — Qwen 3.5 9B & Navarasa 2.0 7B
+
+The entire inference brain runs on **two open-weight LLMs** served locally via [Ollama](https://ollama.com), both quantised to Q4_K_M to fit inside an **8 GB RTX 4070** VRAM budget:
+
+| Model | Architecture | Role | VRAM |
+|---|---|---|---|
+| **Qwen 3.5 9B** (Q4_K_M) | Qwen 9B Vision | **Manager Agent brain** — performs all computer-vision reasoning: scene analysis, anomaly detection, OCR interpretation, chain-of-thought risk assessment, confidence scoring, and agentic pipeline decisions. Runs as three Ollama variants (`uni-vision-ocr`, `uni-vision-adjudicator`, and the base `qwen3.5:9b-q4_K_M`) that share the same underlying weights via hard-linking. | ~5.1 GB weights + 512 MB KV cache |
+| **Navarasa 2.0 7B** (Q4_K_M) | Gemma 7B fine-tuned (Telugu-LLM-Labs) | **Multilingual conversational UI** — handles user-facing chat in **16 languages** (Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Bengali, Gujarati, Punjabi, Odia, Urdu, Assamese, Konkani, Nepali, Sindhi, English). Translates user queries → English for Qwen, translates Qwen's English responses → user's language, and translates real-time WebSocket alerts into the user's preferred language. | ~5.3 GB weights + 300 MB KV cache |
+
+Ollama swaps models on demand — both share the same GPU **sequentially** (never concurrently), so the system runs entirely on a single 8 GB GPU. No cloud API keys required.
+
+The Modelfiles live in [`config/ollama/`](config/ollama/) and are built during setup:
+```bash
+ollama create uni-vision-ocr -f config/ollama/Modelfile.ocr
+ollama create uni-vision-adjudicator -f config/ollama/Modelfile.adjudicator
+ollama create uni-vision-navarasa -f config/ollama/Modelfile.navarasa
+```
 
 ---
 
