@@ -102,6 +102,17 @@
 
 > 💡 All four are **optional add-ons** gated behind `databricks.enabled` in `config/default.yaml` and installed via `pip install '.[databricks]'`.
 
+<div align="center">
+
+<img src="https://media1.tenor.com/m/5oRaZZg9uZ8AAAAC/nana-patekar-seh-lenge-thodasa.gif" width="300">
+
+*"Seh lenge thoda sa!"*
+— Uday Shetty, **Welcome** (2007) 🤵
+
+*^^ The GPU handling Delta Lake + MLflow + Spark + FAISS simultaneously*
+
+</div>
+
 ---
 
 ## 🧠 LLM Models — Qwen 3.5 9B & Navarasa 2.0 7B
@@ -151,6 +162,17 @@ ollama create uni-vision-navarasa -f config/ollama/Modelfile.navarasa
 | 🦙 Ollama | [latest](https://ollama.com/download) |
 | 🟢 NVIDIA GPU | CUDA (RTX 4070 8 GB recommended) |
 
+<div align="center">
+
+<img src="https://media1.tenor.com/m/fxwLnM3W1LgAAAAC/awesome-aamir.gif" width="300">
+
+*"Jhakaas!"*
+— Amar, **Andaz Apna Apna** (1994) 🎩
+
+*^^ You, after successfully installing all prerequisites*
+
+</div>
+
 ### 1️⃣ Backend — Install & Start
 
 ```bash
@@ -199,6 +221,17 @@ docker compose up -d
 ```
 
 > 🐳 This brings up: API (8000), Ollama (11434), PostgreSQL, MinIO, Redis, Prometheus (9090), Grafana (3000).
+
+<div align="center">
+
+<img src="https://media1.tenor.com/m/12flE7vVhe4AAAAC/dhamaal-javed-jaffrey.gif" width="300">
+
+*"Pata nahi aise dangerous situations mein mai automatically aage kaise aa jaata hoon!"*
+— Manav, **Dhamaal** (2007) 🪂
+
+*^^ Docker Compose spinning up 7 containers on your machine*
+
+</div>
 
 ---
 <img width="3199" height="1787" alt="Screenshot 2026-03-29 142356" src="https://github.com/user-attachments/assets/d5c0298e-bc75-4cb4-b1a8-2adfcc815bcd" />
@@ -256,6 +289,17 @@ pytest -x
 <img width="3199" height="1789" alt="Screenshot 2026-03-29 142406" src="https://github.com/user-attachments/assets/6102e9c0-548e-4505-bd3a-9d17a0340662" />
 <img width="3196" height="1798" alt="Screenshot 2026-03-29 142402" src="https://github.com/user-attachments/assets/9dd83250-9e33-40df-a6a2-e2b2526de544" />
 
+<div align="center">
+
+<img src="https://media1.tenor.com/m/3Wol6b87J_4AAAAC/chup-chup-ke-rajpal-yadav-bandya.gif" width="300">
+
+*"Hey bhagwan! Kya zulum hai!"*
+— Bandya, **Chup Chup Ke** (2006) 😱
+
+*^^ First time looking at the project structure below*
+
+</div>
+
 ---
 
 ## 📂 Project Structure
@@ -293,6 +337,15 @@ Uni_Vision/
 [![forthebadge](https://img.shields.io/badge/Powered%20By-Jugaad-orange?style=for-the-badge)](https://github.com/shubro18202758/Uni_Vision)
 [![forthebadge](https://img.shields.io/badge/Runs%20On-Single%20GPU-green?style=for-the-badge&logo=nvidia)](https://github.com/shubro18202758/Uni_Vision)
 [![forthebadge](https://img.shields.io/badge/Speaks-16%20Languages-blue?style=for-the-badge&logo=googletranslate)](https://github.com/shubro18202758/Uni_Vision)
+
+<br>
+
+<img src="https://media1.tenor.com/m/PI_Pv8RRhT4AAAAC/golmaal-paresh-rawal.gif" width="300">
+
+*"Bachpan mein dekha tha... lollypop khata tha..."*
+— Babli, **Golmaal** (2006) 🍭
+
+*^^ You, explaining this project in your viva*
 
 <br>
 
