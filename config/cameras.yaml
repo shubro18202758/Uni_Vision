@@ -1,0 +1,22 @@
+# ─── Camera Source Definitions ───
+# Each entry maps a logical camera ID to a stream source.
+
+cameras:
+  - camera_id: "cam_01"
+    source_url: "rtsp://192.168.1.100:554/stream1"
+    location_tag: "toll_gate_lane_1"
+    fps_target: 10
+    enabled: true
+
+  - camera_id: "cam_02"
+    source_url: "rtsp://192.168.1.101:554/stream1"
+    location_tag: "toll_gate_lane_2"
+    fps_target: 10
+    enabled: true
+
+  # Example: local video file for development
+  # - camera_id: "dev_file"
+  #   source_url: "/data/test_video.mp4"
+  #   location_tag: "dev_local"
+  #   fps_target: 15
+  #   enabled: false

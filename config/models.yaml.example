@@ -1,0 +1,62 @@
+# ─── Uni_Vision — Model Configuration ───
+# Copy to config/models.yaml and adjust paths for your environment.
+#
+# Defines detection model entries, frame sampling, and preprocessing
+# overrides that are merged into the AppConfig at startup.
+
+# ── Frame Sampling ────────────────────────────────────────────────
+frame_sampling:
+  phash_size: 32
+  hamming_distance_threshold: 5
+
+# ── Preprocessing Overrides ───────────────────────────────────────
+preprocessing:
+  padding_px: 5
+  deskew:
+    enabled: true
+    max_skew_degrees: 30.0
+    skip_threshold_degrees: 3.0
+  enhance:
+    resize_enabled: true
+    resize_min_height: 200
+    clahe_enabled: true
+    clahe_clip_limit: 2.0
+    bilateral_enabled: true
+
+# ── Vehicle Detector (S2) ────────────────────────────────────────
+vehicle_detector:
+  model_path: "models/yolov8n-vehicles.engine"     # TensorRT INT8
+  model_format: "tensorrt"
+  input_size: [640, 640]
+  confidence_threshold: 0.60
+  nms_iou_threshold: 0.45
+  classes:
+    0: "car"
+    1: "truck"
+    2: "bus"
+    3: "motorcycle"
+  multi_plate_policy: "highest_confidence"
+
+# ── Plate Detector (S3) ──────────────────────────────────────────
+plate_detector:
+  model_path: "models/yolov8n-plates.engine"        # TensorRT INT8
+  model_format: "tensorrt"
+  input_size: [640, 640]
+  confidence_threshold: 0.50
+  nms_iou_threshold: 0.40
+  classes:
+    0: "plate"
+  multi_plate_policy: "highest_confidence"
+
+# ── ONNX Fallback (for non-NVIDIA hardware) ──────────────────────
+# vehicle_detector:
+#   model_path: "models/yolov8n-vehicles.onnx"
+#   model_format: "onnx"
+#   input_size: [640, 640]
+#   confidence_threshold: 0.55
+#   nms_iou_threshold: 0.45
+#   classes:
+#     0: "car"
+#     1: "truck"
+#     2: "bus"
+#     3: "motorcycle"

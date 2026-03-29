@@ -1,0 +1,56 @@
+# ─── Model Paths & Inference Configuration ───
+# All paths are relative to the project root /models/ directory.
+
+vehicle_detector:
+  model_path: "models/vehicle_detector.onnx"  # or .engine for TensorRT
+  model_format: "onnx"                  # tensorrt | onnx
+  input_size: [640, 640]
+  confidence_threshold: 0.60
+  nms_iou_threshold: 0.45
+  classes:
+    0: "car"
+    1: "truck"
+    2: "bus"
+    3: "motorcycle"
+
+plate_detector:
+  model_path: "models/plate_detector.onnx"    # or .engine for TensorRT
+  model_format: "onnx"                  # tensorrt | onnx
+  input_size: [640, 640]
+  confidence_threshold: 0.65
+  nms_iou_threshold: 0.45
+  multi_plate_policy: "highest_confidence"
+
+frame_sampling:
+  phash_size: 32
+  hamming_distance_threshold: 5
+
+# ─── Plate Preprocessing Pipeline (S4 → S6) ───
+preprocessing:
+  padding_px: 5
+
+  deskew:
+    enabled: true
+    max_skew_degrees: 30.0
+    skip_threshold_degrees: 3.0
+    canny_low: 50
+    canny_high: 150
+    hough_threshold: 80
+    hough_min_line_length: 50
+    hough_max_line_gap: 10
+
+  enhance:
+    resize_enabled: true
+    resize_min_height: 200
+
+    clahe_enabled: true
+    clahe_clip_limit: 2.0
+    clahe_tile_grid_size: [8, 8]
+
+    gaussian_blur_enabled: true
+    gaussian_kernel_size: [3, 3]
+
+    bilateral_enabled: true
+    bilateral_d: 9
+    bilateral_sigma_color: 75.0
+    bilateral_sigma_space: 75.0

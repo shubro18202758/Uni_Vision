@@ -1,0 +1,105 @@
+# Uni_Vision — Prometheus Alerting Rules
+groups:
+  - name: uni_vision_alerts
+    interval: 30s
+    rules:
+
+      # ── Pipeline Latency ────────────────────────────────────────
+      - alert: PipelineLatencyHigh
+        expr: histogram_quantile(0.90, rate(uv_pipeline_latency_seconds_bucket[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pipeline p90 latency exceeds 3s SLA"
+          description: "End-to-end pipeline latency p90 is {{ $value | humanizeDuration }}."
+
+      - alert: PipelineLatencyCritical
+        expr: histogram_quantile(0.99, rate(uv_pipeline_latency_seconds_bucket[5m])) > 8
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pipeline p99 latency exceeds 8s"
+          description: "End-to-end pipeline latency p99 is {{ $value | humanizeDuration }}."
+
+      # ── OCR Accuracy ────────────────────────────────────────────
+      - alert: OCRAccuracyLow
+        expr: >
+          (sum(rate(uv_ocr_success_total[10m])) / sum(rate(uv_ocr_requests_total[10m]))) < 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OCR accuracy below 85%"
+          description: "OCR success rate is {{ $value | humanizePercentage }} (target ≥88%)."
+
+      - alert: OCRFallbackRateHigh
+        expr: rate(uv_ocr_fallback_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OCR fallback engine in heavy use"
+          description: "Fallback engine handling {{ $value }} requests/sec — primary may be degraded."
+
+      # ── VRAM Usage ──────────────────────────────────────────────
+      - alert: VRAMUsageHigh
+        expr: (sum(uv_vram_usage_bytes) / 1024 / 1024) > 7000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Total VRAM usage exceeds 7 GB"
+          description: "VRAM usage is {{ $value | humanize }}MB of 8192MB budget."
+
+      - alert: VRAMUsageCritical
+        expr: (sum(uv_vram_usage_bytes) / 1024 / 1024) > 7800
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VRAM near exhaustion (>7.8GB)"
+          description: "Immediate OOM risk. Current usage: {{ $value | humanize }}MB."
+
+      # ── Queue Depth ─────────────────────────────────────────────
+      - alert: InferenceQueueBackpressure
+        expr: uv_inference_queue_depth > 50
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Inference queue depth exceeds 50"
+          description: "Queue depth is {{ $value }}. Frames may be dropped."
+
+      # ── Stream Health ───────────────────────────────────────────
+      - alert: CameraStreamDown
+        expr: uv_stream_status == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Camera stream disconnected: {{ $labels.camera_id }}"
+          description: "Camera {{ $labels.camera_id }} has been disconnected for >2 minutes."
+
+      # ── Dispatch Health ─────────────────────────────────────────
+      - alert: DispatchErrorRate
+        expr: rate(uv_dispatch_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dispatch error rate elevated"
+          description: "Dispatch errors at {{ $value }}/sec for target {{ $labels.target }}."
+
+      # ── Frame Drop ──────────────────────────────────────────────
+      - alert: FrameDropRateHigh
+        expr: >
+          sum(rate(uv_frames_dropped_total[5m])) /
+          sum(rate(uv_frames_ingested_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frame drop rate exceeds 10%"
+          description: "{{ $value | humanizePercentage }} of ingested frames are being dropped."

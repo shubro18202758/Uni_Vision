@@ -1,0 +1,55 @@
+# ── Build context exclusions ──────────────────────────────────────
+.git
+.github
+.pytest_cache
+.mypy_cache
+.ruff_cache
+__pycache__
+*.pyc
+*.pyo
+
+# Virtual environments
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test artefacts
+tests/
+htmlcov/
+coverage.xml
+.coverage
+
+# Documentation (not needed in image)
+*.md
+!README.md
+docs/
+prd.md
+abstract.md
+literatureabstract.md
+spec.md
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI
+.github/
+Makefile
+
+# Data volumes (should never be in context)
+data/
+*.engine
+*.onnx
+*.gguf

@@ -1,0 +1,46 @@
+# ── Python ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+coverage.xml
+*.cover
+
+# ── Node / Frontend ──────────────────────────────────────────────
+node_modules/
+univision/dist/
+univision/node_modules/
+*.tsbuildinfo
+
+# ── IDE / OS ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sw?
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Data & uploads (large / user-generated) ──────────────────────
+data/
+backend.log
+*.log
+
+# ── Vite cache ───────────────────────────────────────────────────
+.vite/
+
+# ── Environment ──────────────────────────────────────────────────
+.env
+!.env.example

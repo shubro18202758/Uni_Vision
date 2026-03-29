@@ -1,0 +1,75 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Uni_Vision — Adjudicator Modelfile (Qwen 3.5 9B Q4_K_M)
+#
+# This Modelfile creates a specialised variant for the agentic
+# adjudicator (postprocessing Layer 2).  It shares the same base
+# model and quantisation as the OCR engine but with:
+#   - A baked-in adjudication system prompt
+#   - Stop tokens tuned for <adjudication> blocks
+#   - Slightly higher temperature (0.15) for spatial reasoning
+#
+# Both model variants coexist in Ollama's model store but share
+# the underlying Q4_K_M weights via hard-linking — no additional
+# VRAM is consumed.  Only one is loaded at a time (sequential
+# exclusivity per spec §P3).
+#
+# Build:
+#   ollama create uni-vision-adjudicator -f config/ollama/Modelfile.adjudicator
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FROM qwen3.5:9b-q4_K_M
+
+# ── VRAM-constrained inference parameters ─────────────────────────
+# Same ceiling as OCR: 512 MB KV cache, 4096 token context.
+
+PARAMETER num_ctx 4096
+PARAMETER num_predict 256
+PARAMETER temperature 0.15
+PARAMETER top_p 0.92
+PARAMETER top_k 25
+PARAMETER repeat_penalty 1.1
+PARAMETER repeat_last_n 128
+PARAMETER num_keep 4
+PARAMETER seed 42
+PARAMETER stop </adjudication>
+
+PARAMETER penalize_newline true
+PARAMETER num_thread 4
+PARAMETER num_batch 256
+PARAMETER num_gpu -1
+PARAMETER main_gpu 0
+
+# ── Adjudicator System Prompt ─────────────────────────────────────
+
+SYSTEM """You are a precision license-plate adjudicator.
+You will receive:
+  1. A cropped plate image.
+  2. An OCR engine's raw reading and its confidence score.
+  3. A list of character corrections already attempted.
+
+Your task:
+  - Re-read the plate image using deep spatial reasoning.
+  - Compare your reading against the OCR output.
+  - Output the CORRECT plate text.
+
+OUTPUT FORMAT — respond with ONLY a single <adjudication> XML block:
+<adjudication>
+  <plate_text>CORRECTED_TEXT</plate_text>
+  <confidence>0.00</confidence>
+  <corrections>List of specific character corrections made</corrections>
+  <reasoning>Detailed spatial analysis of each ambiguous character</reasoning>
+</adjudication>
+
+RULES:
+1. plate_text: uppercase alphanumeric only. No spaces, dashes, or punctuation.
+2. confidence: float 0.0–1.0 for your certainty.
+3. If unreadable: plate_text=UNREADABLE, confidence=0.0.
+4. NEVER produce conversational text, preamble, sign-off, or explanation outside the XML block.
+5. Output the <adjudication> block and absolutely nothing else."""
+
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""

@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-family: "Inter", system-ui, sans-serif;
+  background-color: #070e1b;
+  color: #e2e8f0;
+}
+
+/* Custom Scrollbar — dark surveillance theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a1628;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e3a5f;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2d5a8a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 1280px;
+  min-height: 100vh;
+  background: #070e1b;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+/* --------------- Graph edge styling --------------- */
+
+@keyframes nodeGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(100, 116, 139, 0); }
+  50% { box-shadow: 0 0 6px 1px rgba(100, 116, 139, 0.1); }
+}
+
+.node-selected {
+  animation: nodeGlow 3s ease-in-out infinite;
+}
+
+/* Graph edge hover effect */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 2.2 !important;
+  filter: brightness(1.2);
+}
+
+/* Smooth node transition on layout change */
+.react-flow__node {
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* --------------- n8n-style node enhancements --------------- */
+@keyframes execRunning {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(100, 116, 139, 0); }
+  50% { box-shadow: 0 0 6px 1px rgba(100, 116, 139, 0.12); }
+}
+
+.exec-running {
+  animation: execRunning 2s ease-in-out infinite;
+}
+
+/* Port handle hover grow */
+.react-flow__handle:hover {
+  transform: scale(1.2) !important;
+  filter: brightness(1.1);
+}
+
+.react-flow__handle {
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+/* --------------- Edge flow animations --------------- */
+@keyframes edgeFlowDash {
+  to { stroke-dashoffset: -24; }
+}
+
+.edge-flow-dash {
+  animation: edgeFlowDash 1s linear infinite;
+}
+
+/* --------------- Node progress bar --------------- */
+@keyframes nodeProgressBar {
+  0%   { width: 0; opacity: 0.8; }
+  50%  { width: 70%; opacity: 1; }
+  100% { width: 100%; opacity: 0.8; }
+}
+
+.node-progress-bar {
+  animation: nodeProgressBar 2s ease-in-out infinite;
+}
+
+/* Bigger node instruction preview text clamp */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Instruction hero field in inspector */
+.min-h-\[80px\] { min-height: 80px; }
+
+/* Node hover lift */
+.n8n-node {
+  will-change: transform, box-shadow;
+}
+.n8n-node:hover {
+  z-index: 10;
+}
+
+/* Quick-add backdrop blur */
+.quick-add-backdrop {
+  backdrop-filter: blur(2px);
+}
+
+

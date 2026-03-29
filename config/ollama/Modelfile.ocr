@@ -1,0 +1,102 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Uni_Vision — Primary OCR Modelfile (Qwen 3.5 9B Q4_K_M)
+#
+# This Modelfile creates a quantised, context-clamped variant of
+# Qwen 3.5 9B Vision optimised for single-image OCR extraction on
+# an 8 GiB VRAM budget (RTX 4070).
+#
+# VRAM Budget Allocation:
+#   Region A (weights):  5120 MB  (Q4_K_M quantised)
+#   Region B (KV cache):  512 MB  (4096 token hard cap)
+#   Region C (vision):   1024 MB  (reserved for YOLO)
+#   Region D (system):    512 MB  (CUDA runtime + OS)
+#   Total:               7168 MB  / 8192 MB ceiling
+#
+# Build:
+#   ollama create uni-vision-ocr -f config/ollama/Modelfile.ocr
+#
+# Run validation:
+#   ollama show uni-vision-ocr --modelfile
+#   ollama run uni-vision-ocr "test"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FROM qwen3.5:9b-q4_K_M
+
+# ── Quantization & Memory Parameters ─────────────────────────────
+# Q4_K_M provides 4-bit mixed quantisation (K-quants) with
+# medium-quality dequantisation.  This is the best accuracy/VRAM
+# trade-off for 9B models on 8 GiB GPUs.
+#
+# Key KV-cache constraint:
+#   num_ctx = 4096 hard-caps the context window.
+#   KV memory ≈ 36 layers × 2 × 4096 × 128 × 2B ≈ 72 MB base
+#   + Ollama scratch workspace ≈ 440 MB → 512 MB Region B total.
+#
+# num_predict = 256 limits generation length, preventing runaway
+# token production on ambiguous inputs.
+
+PARAMETER num_ctx 4096
+PARAMETER num_predict 256
+PARAMETER temperature 0.1
+PARAMETER top_p 0.9
+PARAMETER top_k 20
+PARAMETER repeat_penalty 1.15
+PARAMETER repeat_last_n 128
+PARAMETER num_keep 4
+PARAMETER seed 42
+PARAMETER stop </result>
+PARAMETER stop </adjudication>
+
+# Penalise common LLM verbiage that is never valid OCR output
+PARAMETER penalize_newline true
+PARAMETER num_thread 4
+
+# ── Low-level GGML parameters ────────────────────────────────────
+# num_batch: tokens processed in parallel per forward pass.
+#   Lower = less transient VRAM; 256 is safe for 8 GiB.
+# num_gpu: layers offloaded to GPU.
+#   -1 = all layers (9B Q4_K_M fits entirely in Region A).
+# main_gpu: device ordinal for primary inference.
+
+PARAMETER num_batch 256
+PARAMETER num_gpu -1
+PARAMETER main_gpu 0
+
+# ── System Prompt (baked into the model) ──────────────────────────
+# The SYSTEM block is prepended to every conversation and cannot
+# be overridden by user messages.  This forces structured XML
+# output without conversational filler.
+
+SYSTEM """You are a precision OCR extraction engine for vehicle license plates.
+You will receive an image of a license plate crop.
+Extract the alphanumeric text exactly as printed on the plate.
+
+OUTPUT FORMAT — respond with ONLY a single <result> XML block:
+<result>
+  <plate_text>EXTRACTED_TEXT</plate_text>
+  <confidence>0.00</confidence>
+  <char_bboxes>x1,y1,x2,y2;x1,y1,x2,y2;...</char_bboxes>
+  <reasoning>Brief analysis of character clarity</reasoning>
+</result>
+
+RULES:
+1. plate_text: uppercase alphanumeric characters only. No spaces, dashes, or punctuation.
+2. confidence: float 0.0–1.0 representing your certainty.
+3. char_bboxes: semicolon-separated x1,y1,x2,y2 pixel coordinates per character. Output NONE if undetermined.
+4. reasoning: one sentence only.
+5. If unreadable: plate_text=UNREADABLE, confidence=0.0.
+6. Never guess. Lower confidence on ambiguity.
+7. NEVER produce conversational text, preamble, sign-off, or explanation outside the XML block.
+8. Output the <result> block and absolutely nothing else."""
+
+# ── Template Override ─────────────────────────────────────────────
+# Force Qwen's chat template to suppress any assistant preamble.
+# The {{.System}} block is injected once at conversation start.
+# {{.Prompt}} contains the user message (image + context).
+
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""

@@ -1,0 +1,37 @@
+# ─── Uni_Vision — Camera Source Configuration ───
+# Copy to config/cameras.yaml and adjust for your deployment.
+#
+# Each entry defines one RTSP/file video source.
+# The system processes ≥4 simultaneous streams (FR-01).
+
+cameras:
+  - camera_id: "cam-gate-a"
+    source_url: "rtsp://192.168.1.100:554/stream1"
+    location_tag: "Toll Gate A — Inbound"
+    fps_target: 5
+    enabled: true
+
+  - camera_id: "cam-gate-b"
+    source_url: "rtsp://192.168.1.101:554/stream1"
+    location_tag: "Toll Gate B — Inbound"
+    fps_target: 5
+    enabled: true
+
+  - camera_id: "cam-gate-c"
+    source_url: "rtsp://192.168.1.102:554/stream1"
+    location_tag: "Toll Gate C — Outbound"
+    fps_target: 3
+    enabled: true
+
+  - camera_id: "cam-gate-d"
+    source_url: "rtsp://192.168.1.103:554/stream1"
+    location_tag: "Toll Gate D — Outbound"
+    fps_target: 3
+    enabled: true
+
+  # ── Local file for testing ─────────────────────────────────────
+  # - camera_id: "test-file"
+  #   source_url: "/data/test-video.mp4"
+  #   location_tag: "Test — Local File"
+  #   fps_target: 5
+  #   enabled: false

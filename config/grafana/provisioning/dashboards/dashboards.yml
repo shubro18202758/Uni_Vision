@@ -1,0 +1,13 @@
+# Grafana auto-provisioning — dashboard loader
+apiVersion: 1
+
+providers:
+  - name: Uni_Vision
+    orgId: 1
+    folder: Uni_Vision
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

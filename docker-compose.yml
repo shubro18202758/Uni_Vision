@@ -1,0 +1,198 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Uni_Vision — Full Local Development Stack
+#
+# Usage:
+#   docker compose up -d            # start everything
+#   docker compose up -d --build    # rebuild app image + start
+#   docker compose logs -f app      # tail application logs
+#   docker compose down -v          # tear down + delete volumes
+#
+# Services:
+#   app          — Uni_Vision FastAPI + pipeline (port 8000)
+#   postgres     — PostgreSQL 16 (port 5432)
+#   ollama       — Ollama LLM server with GPU (port 11434)
+#   minio        — S3-compatible object storage (API: 9000, UI: 9001)
+#   redis        — Message queue / pub-sub (port 6379)
+#   prometheus   — Metrics scraper (port 9090)
+#   grafana      — Dashboards (port 3000)
+#
+# Prerequisites:
+#   - Docker Engine ≥ 24.0 with Compose V2
+#   - NVIDIA Container Toolkit (for GPU passthrough)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+services:
+
+  # ── Application ─────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uni-vision-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      UV_POSTGRES_DSN: postgresql://uni_vision:uni_vision@postgres:5432/uni_vision
+      UV_OLLAMA_BASE_URL: http://ollama:11434
+      UV_S3_ENDPOINT: http://minio:9000
+      UV_REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  # ── PostgreSQL ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: uni-vision-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: uni_vision
+      POSTGRES_PASSWORD: uni_vision
+      POSTGRES_DB: uni_vision
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uni_vision -d uni_vision"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Ollama (LLM Server) ────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: uni-vision-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./config/ollama:/config/ollama:ro
+      - ./scripts:/scripts:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 15s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+
+  # ── Ollama Model Initializer ────────────────────────────────────
+  # One-shot container: pulls the Qwen base model, then creates
+  # three custom Modelfile variants (OCR, Adjudicator, Navarasa).
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: uni-vision-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "/scripts/init-ollama.sh"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./config/ollama:/config/ollama:ro
+
+  # ── MinIO (S3-compatible Object Storage) ────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: uni-vision-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ───────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: uni-vision-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Prometheus ──────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: uni-vision-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus_alerts.yml:/etc/prometheus/alerts/prometheus_alerts.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # ── Grafana ─────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: uni-vision-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+  ollama_data:
+  minio_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:

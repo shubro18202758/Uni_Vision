@@ -1,0 +1,176 @@
+# ─── Uni_Vision — Default Pipeline Configuration ───
+# Values here are overridden by environment variables prefixed UV_.
+
+hardware:
+  device: "cuda"
+  cuda_device_index: 0
+  vram_ceiling_mb: 8192
+  vram_safety_margin_mb: 256
+  vram_poll_interval_ms: 500
+
+vram_budgets:
+  llm_weights_mb: 5120       # Region A — Qwen 3.5 9B Q4_K_M GGUF weights
+  kv_cache_mb: 512            # Region B — 36L × 2 × 4096ctx × 128dim × FP16
+  vision_workspace_mb: 1024   # Region C — 2× YOLOv8n INT8 TensorRT engines
+  system_overhead_mb: 512     # Region D — OS + CUDA driver context
+
+pipeline:
+  stream_queue_maxsize: 50
+  inference_queue_maxsize: 10
+  inference_queue_high_water: 8
+  inference_queue_low_water: 3
+  adaptive_throttle_factor: 0.5
+
+preprocessing:
+  straightener:
+    enabled: true
+    max_skew_degrees: 30.0
+    skip_threshold_degrees: 3.0
+  enhancer:
+    resize:
+      enabled: true
+      min_height_px: 200
+      interpolation: "INTER_CUBIC"
+    clahe:
+      enabled: true
+      clip_limit: 2.0
+      tile_grid_size: [8, 8]
+    gaussian_blur:
+      enabled: true
+      kernel_size: [3, 3]
+    bilateral_filter:
+      enabled: true
+      d: 9
+      sigma_color: 75.0
+      sigma_space: 75.0
+
+ollama:
+  base_url: "http://localhost:11434"
+  model: "qwen3.5:9b-q4_K_M"
+  timeout_s: 60
+  num_ctx: 4096
+  temperature: 0.1
+  top_p: 0.9
+  top_k: 20
+  repeat_penalty: 1.15
+  repeat_last_n: 128
+  num_predict: 1024
+  num_batch: 256
+  num_gpu: -1                 # offload all layers to GPU
+  seed: 42
+  stream: false
+  max_retries: 2
+
+circuit_breaker:
+  failure_threshold: 3
+  failure_window_s: 60
+  recovery_timeout_s: 30
+
+profiling:
+  enabled: true
+  device_index: 0
+  history_size: 512
+  validate_vram_budget_on_start: true
+
+quantization:
+  llm_format: "Q4_K_M"       # GGUF mixed 4-bit K-quants
+  llm_model_tag: "qwen3.5:9b-q4_K_M"
+  vision_format: "INT8"       # TensorRT INT8 calibrated
+  vision_engine_ext: ".engine"
+
+database:
+  dsn: "postgresql://uni_vision:changeme@localhost:5432/uni_vision"
+  pool_min: 2
+  pool_max: 8
+
+storage:
+  endpoint: "http://localhost:9000"
+  bucket: "uni-vision-images"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  region: "us-east-1"
+
+redis:
+  url: "redis://localhost:6379/0"
+
+manager:
+  enabled: true
+  hub_cache_dir: "~/.cache/uni_vision/hub"
+  vram_total_mb: 8192
+  vram_reserved_for_llm_mb: 5800
+  max_search_results: 10
+  http_timeout_s: 30.0
+  default_scene: "traffic"
+  prefer_trusted: true
+  auto_download: true
+  max_concurrent_downloads: 2
+  component_warmup: true
+
+navarasa:
+  enabled: true
+  model: "uni-vision-navarasa"
+  base_url: "http://localhost:11434"
+  timeout_s: 15.0
+  num_ctx: 4096
+  temperature: 0.15
+  top_p: 0.9
+  top_k: 30
+  num_predict: 512
+  num_gpu: -1
+  seed: 42
+  max_retries: 2
+  default_language: "hi"           # Hindi as default target language
+  supported_languages: "hi,te,ta,kn,ml,mr,bn,gu,pa,or,ur,as,kok,ne,sd,en"
+  translate_alerts: true           # translate WebSocket broadcast alerts
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+
+logging:
+  log_level: "INFO"
+  log_format: "json"
+
+visualizer_enabled: false
+
+# ─── Databricks Add-on Integrations ───
+# All Databricks components are optional add-ons.  Set enabled: true
+# and install the [databricks] extra to activate.
+databricks:
+  enabled: false
+
+  delta:
+    table_path: "./data/delta/detections"
+    audit_table_path: "./data/delta/audit_log"
+    partition_columns: ["camera_id"]
+    checkpoint_interval: 50
+    vacuum_retain_hours: 168       # 7-day retention
+    enable_time_travel: true
+    max_versions: 500
+
+  mlflow:
+    tracking_uri: "./data/mlflow"
+    experiment_name: "uni-vision-inference"
+    log_every_n_frames: 50
+    log_system_metrics: true
+    register_models: true
+    run_name_prefix: "uv-pipeline"
+
+  spark:
+    master: "local[*]"
+    app_name: "UniVisionAnalytics"
+    driver_memory: "2g"
+    executor_memory: "1g"
+    shuffle_partitions: 4
+    delta_table_path: "./data/delta/detections"
+
+  faiss:
+    index_path: "./data/faiss/plate_index.bin"
+    metadata_path: "./data/faiss/plate_metadata.json"
+    embedding_model: "all-MiniLM-L6-v2"
+    embedding_dim: 384
+    nprobe: 10
+    top_k: 20
+    similarity_threshold: 0.65
+    rebuild_interval_s: 3600.0
