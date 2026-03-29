@@ -2,6 +2,7 @@
 
 Uni Vision is a GPU-accelerated, real-time computer vision pipeline that ingests video feeds, runs multi-stage anomaly detection using **YOLOv8** object detection and **Qwen 3.5 9B** vision-language reasoning (with **Navarasa 2.0 7B** for multilingual user interaction in 16 Indian languages + English), and stores every detection event in **Delta Lake** with **MLflow** experiment tracking, **PySpark** batch analytics, and **FAISS** vector search — orchestrated by an agentic AI manager. Both LLMs run locally via Ollama on a single 8 GB GPU.
 
+<img width="3199" height="1799" alt="Screenshot 2026-03-29 142217" src="https://github.com/user-attachments/assets/71a5c201-d654-4adc-aec8-6ff76d3a714d" />
 ---
 
 ## Architecture — How Databricks Components Connect
@@ -58,6 +59,7 @@ Uni Vision is a GPU-accelerated, real-time computer vision pipeline that ingests
 │  └───────────────┘   └──────────────────────┘   └──────────────────────┘   │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
+<img width="3198" height="1791" alt="Screenshot 2026-03-29 142420" src="https://github.com/user-attachments/assets/0734b9c7-8e3a-4860-b45d-3fe08641a7bd" />
 
 ### Databricks Components
 
@@ -91,6 +93,7 @@ ollama create uni-vision-navarasa -f config/ollama/Modelfile.navarasa
 ```
 
 ---
+<img width="3199" height="1793" alt="Screenshot 2026-03-29 142352" src="https://github.com/user-attachments/assets/03d34713-7410-4011-9af0-12be5297384d" />
 
 ## How to Run
 
@@ -151,6 +154,7 @@ docker compose up -d
 This brings up: API (8000), Ollama (11434), PostgreSQL, MinIO, Redis, Prometheus (9090), Grafana (3000).
 
 ---
+<img width="3199" height="1787" alt="Screenshot 2026-03-29 142356" src="https://github.com/user-attachments/assets/d5c0298e-bc75-4cb4-b1a8-2adfcc815bcd" />
 
 ## Demo Steps
 
@@ -184,6 +188,8 @@ pytest --cov=src/uni_vision --cov-report=term-missing
 # Quick — stop on first failure
 pytest -x
 ```
+<img width="3199" height="1789" alt="Screenshot 2026-03-29 142406" src="https://github.com/user-attachments/assets/6102e9c0-548e-4505-bd3a-9d17a0340662" />
+<img width="3196" height="1798" alt="Screenshot 2026-03-29 142402" src="https://github.com/user-attachments/assets/9dd83250-9e33-40df-a6a2-e2b2526de544" />
 
 ---
 
