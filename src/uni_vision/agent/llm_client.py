@@ -11,14 +11,14 @@ JSON-structured reasoning and tool-call output.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from uni_vision.common.config import OllamaConfig
+if TYPE_CHECKING:
+    from uni_vision.common.config import OllamaConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class LLMResponse:
 
     content: str
     role: str = "assistant"
-    raw_body: Optional[Dict[str, Any]] = None
+    raw_body: dict[str, Any] | None = None
     total_duration_ns: int = 0
     eval_count: int = 0
 
@@ -64,10 +64,10 @@ class AgentLLMClient:
 
     async def chat(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         *,
         temperature: float = 0.2,
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> LLMResponse:
         """Send a chat completion request to Ollama.
 
@@ -85,7 +85,7 @@ class AgentLLMClient:
         LLMResponse
             The parsed assistant response.
         """
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": self._cfg.model,
             "messages": messages,
             "stream": False,

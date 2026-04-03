@@ -20,10 +20,10 @@ from uni_vision.postprocessing.validator import (
 
 __all__ = [
     "CognitiveOrchestrator",
-    "DeterministicValidator",
     "ConsensusAdjudicator",
-    "SlidingWindowDeduplicator",
+    "DeterministicValidator",
     "MultiDispatcher",
+    "SlidingWindowDeduplicator",
     "ValidationVerdict",
     "Verdict",
 ]

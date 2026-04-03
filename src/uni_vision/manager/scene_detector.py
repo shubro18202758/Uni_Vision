@@ -12,17 +12,17 @@ Uses a multi-layer approach:
 
 from __future__ import annotations
 
-import structlog
-import math
 import time
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import structlog
 
-from uni_vision.manager.schemas import FrameContext, SceneType
+if TYPE_CHECKING:
+    from uni_vision.manager.schemas import SceneType
 
 log = structlog.get_logger(__name__)
 
@@ -50,19 +50,17 @@ class CameraSceneState:
     """Tracked scene state for a single camera."""
 
     camera_id: str
-    current_scene: Optional[SceneType] = None
-    pending_scene: Optional[SceneType] = None
+    current_scene: SceneType | None = None
+    pending_scene: SceneType | None = None
     state: TransitionState = TransitionState.STABLE
     confirmation_count: int = 0
-    observations: Deque[SceneObservation] = field(
-        default_factory=lambda: deque(maxlen=60)
-    )
-    transitions: Deque[Tuple[SceneType, SceneType, float]] = field(
+    observations: deque[SceneObservation] = field(default_factory=lambda: deque(maxlen=60))
+    transitions: deque[tuple[SceneType, SceneType, float]] = field(
         default_factory=lambda: deque(maxlen=20)
     )  # (from, to, timestamp)
 
     # Histogram-based drift tracking
-    _prev_hist: Optional[np.ndarray] = field(default=None, repr=False)
+    _prev_hist: np.ndarray | None = field(default=None, repr=False)
 
     @property
     def scene_stability(self) -> float:
@@ -104,7 +102,7 @@ class SceneTransitionDetector:
         self._hist_bins = histogram_bins
         self._drift_threshold = drift_threshold
         self._min_confidence = min_confidence
-        self._cameras: Dict[str, CameraSceneState] = {}
+        self._cameras: dict[str, CameraSceneState] = {}
 
     def observe(
         self,
@@ -112,8 +110,8 @@ class SceneTransitionDetector:
         scene_type: SceneType,
         confidence: float,
         *,
-        frame_gray: Optional[np.ndarray] = None,
-    ) -> Optional[Tuple[SceneType, SceneType]]:
+        frame_gray: np.ndarray | None = None,
+    ) -> tuple[SceneType, SceneType] | None:
         """Record a scene observation and return transition if confirmed.
 
         Parameters
@@ -197,7 +195,7 @@ class SceneTransitionDetector:
 
         return None
 
-    def get_camera_state(self, camera_id: str) -> Dict[str, Any]:
+    def get_camera_state(self, camera_id: str) -> dict[str, Any]:
         cam = self._cameras.get(camera_id)
         if cam is None:
             return {"status": "unknown"}
@@ -210,7 +208,7 @@ class SceneTransitionDetector:
             "total_transitions": len(cam.transitions),
         }
 
-    def get_transition_history(self, camera_id: str) -> List[Dict[str, Any]]:
+    def get_transition_history(self, camera_id: str) -> list[dict[str, Any]]:
         cam = self._cameras.get(camera_id)
         if cam is None:
             return []
@@ -223,13 +221,10 @@ class SceneTransitionDetector:
             for t in cam.transitions
         ]
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         return {
             "tracked_cameras": len(self._cameras),
-            "cameras": {
-                cid: self.get_camera_state(cid)
-                for cid in self._cameras
-            },
+            "cameras": {cid: self.get_camera_state(cid) for cid in self._cameras},
         }
 
     # ── Internal ──────────────────────────────────────────────

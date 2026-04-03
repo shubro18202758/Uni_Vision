@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,18 +12,22 @@ from uni_vision.api.middleware import RequestLoggingMiddleware
 from uni_vision.api.middleware.auth import APIKeyMiddleware
 from uni_vision.api.middleware.rate_limit import RateLimitMiddleware
 from uni_vision.api.middleware.security_headers import SecurityHeadersMiddleware
-from uni_vision.api.routes import health, sources, detections, metrics, stats
-from uni_vision.api.routes.ws_events import router as ws_router, start_redis_subscriber
+from uni_vision.api.routes import detections, health, metrics, sources, stats
 from uni_vision.api.routes.agent_chat import router as agent_router
-from uni_vision.api.routes.ws_agent import router as ws_agent_router
-from uni_vision.api.routes.pipeline_graph import router as pipeline_graph_router
-from uni_vision.api.routes.risk_analysis import router as risk_analysis_router
-from uni_vision.api.routes.ws_pipeline import router as ws_pipeline_router
 from uni_vision.api.routes.databricks_routes import router as databricks_router
-from uni_vision.api.routes.video_upload import router as video_upload_router
+from uni_vision.api.routes.pipeline_graph import router as pipeline_graph_router
 from uni_vision.api.routes.pipeline_process import router as pipeline_process_router
+from uni_vision.api.routes.risk_analysis import router as risk_analysis_router
+from uni_vision.api.routes.video_upload import router as video_upload_router
+from uni_vision.api.routes.ws_agent import router as ws_agent_router
+from uni_vision.api.routes.ws_events import router as ws_router
+from uni_vision.api.routes.ws_events import start_redis_subscriber
+from uni_vision.api.routes.ws_pipeline import router as ws_pipeline_router
 from uni_vision.common.config import AppConfig
 from uni_vision.common.logging import configure_logging
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 def create_app(
@@ -91,6 +95,7 @@ def create_app(
             await model_router.activate_navarasa()
         except Exception:
             import logging
+
             logging.getLogger(__name__).warning("model_router_initial_activation_failed", exc_info=True)
 
         if start_pipeline:
@@ -111,6 +116,7 @@ def create_app(
                 app.state.redis_subscriber = task
             except Exception:
                 import logging
+
                 logging.getLogger(__name__).warning("redis_subscriber_start_failed", exc_info=True)
 
             # Start data-retention background task when enabled

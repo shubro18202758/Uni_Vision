@@ -7,13 +7,11 @@ rate limiting, and route→DB interactions using in-memory fakes.
 from __future__ import annotations
 
 import sys
-from types import ModuleType
 from unittest.mock import MagicMock
-
-import pytest
 
 # Ensure real httpx for TestClient
 import httpx as _real_httpx
+import pytest
 
 if isinstance(sys.modules.get("httpx"), MagicMock):
     sys.modules["httpx"] = _real_httpx
@@ -21,12 +19,15 @@ if isinstance(sys.modules.get("httpx"), MagicMock):
         if key.startswith("httpx."):
             sys.modules.pop(key, None)
 
-from fastapi import FastAPI
+from typing import TYPE_CHECKING
+
 from fastapi.testclient import TestClient
 
 from uni_vision.api import create_app
 from uni_vision.common.config import AppConfig
 
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 # ── Fake DB layer ─────────────────────────────────────────────────
 
@@ -166,24 +167,29 @@ class TestSourcesCRUDIntegration:
             app.state.pg_client = _FakePG(conn)
 
             # Register
-            resp = tc.post("/sources", json={
-                "camera_id": "cam-integration-01",
-                "source_url": "rtsp://192.168.1.100/live",
-                "location_tag": "Parking A",
-                "fps_target": 5,
-            })
+            resp = tc.post(
+                "/sources",
+                json={
+                    "camera_id": "cam-integration-01",
+                    "source_url": "rtsp://192.168.1.100/live",
+                    "location_tag": "Parking A",
+                    "fps_target": 5,
+                },
+            )
             assert resp.status_code == 201
             assert resp.json()["camera_id"] == "cam-integration-01"
 
             # The registration should have triggered an execute call
-            assert any("execute" == op[0] for op in conn.executed)
+            assert any(op[0] == "execute" for op in conn.executed)
 
     def test_delete_nonexistent_returns_404(self, app: FastAPI) -> None:
         conn = _FakeConn()
+
         # Override execute to simulate "DELETE 0" for a missing row
         async def _execute_delete_0(sql, *args):
             conn.executed.append(("execute", sql, args))
             return "DELETE 0"
+
         conn.execute = _execute_delete_0
 
         with TestClient(app) as tc:

@@ -22,11 +22,10 @@ Server → Client (JSON, one per step)::
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -35,7 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["agent-websocket"])
 
 # Connected agent-stream clients
-_agent_clients: Set[WebSocket] = set()
+_agent_clients: set[WebSocket] = set()
 
 
 @router.websocket("/ws/agent")
@@ -56,18 +55,26 @@ async def websocket_agent(websocket: WebSocket) -> None:
             try:
                 payload = json.loads(raw)
             except json.JSONDecodeError:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "content": "Invalid JSON",
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "content": "Invalid JSON",
+                        }
+                    )
+                )
                 continue
 
             message = payload.get("message", "").strip()
             if not message:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "content": "Empty message",
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "content": "Empty message",
+                        }
+                    )
+                )
                 continue
 
             session_id = payload.get("session_id")
@@ -76,24 +83,33 @@ async def websocket_agent(websocket: WebSocket) -> None:
             # Get coordinator from app state
             coordinator = getattr(websocket.app.state, "agent_coordinator", None)
             if coordinator is None or not coordinator.is_running:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "content": "Agent not available",
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "content": "Agent not available",
+                        }
+                    )
+                )
                 continue
 
             if msg_type == "design_workflow":
                 # Autonomous workflow design mode
                 model_router = getattr(websocket.app.state, "model_router", None)
                 await _stream_workflow_design(
-                    websocket, coordinator, message,
+                    websocket,
+                    coordinator,
+                    message,
                     language=payload.get("language", "auto"),
                     session_id=session_id,
                     model_router=model_router,
                 )
             else:
                 await _stream_agent_response(
-                    websocket, coordinator, message, session_id,
+                    websocket,
+                    coordinator,
+                    message,
+                    session_id,
                 )
 
     except WebSocketDisconnect:
@@ -109,7 +125,7 @@ async def _stream_agent_response(
     ws: WebSocket,
     coordinator: Any,
     message: str,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
 ) -> None:
     """Execute agent loop and stream each step to the WebSocket client."""
     from uni_vision.agent.intent import classify_intent
@@ -121,12 +137,16 @@ async def _stream_agent_response(
     role = route_to_role(classification.primary_intent)
 
     # Send intent classification
-    await ws.send_text(json.dumps({
-        "type": "intent",
-        "intent": classification.primary_intent.value,
-        "role": role.value,
-        "confidence": classification.confidence,
-    }))
+    await ws.send_text(
+        json.dumps(
+            {
+                "type": "intent",
+                "intent": classification.primary_intent.value,
+                "role": role.value,
+                "confidence": classification.confidence,
+            }
+        )
+    )
 
     # Run the agent (response comes all at once — we stream the steps)
     response = await coordinator.chat(message, session_id=session_id)
@@ -134,53 +154,77 @@ async def _stream_agent_response(
     # Stream each step
     for step in response.steps:
         if step.thought:
-            await ws.send_text(json.dumps({
-                "type": "thought",
-                "step": step.step_number,
-                "content": step.thought,
-            }))
+            await ws.send_text(
+                json.dumps(
+                    {
+                        "type": "thought",
+                        "step": step.step_number,
+                        "content": step.thought,
+                    }
+                )
+            )
 
         if step.action:
-            await ws.send_text(json.dumps({
-                "type": "tool_call",
-                "step": step.step_number,
-                "tool": step.action.get("tool", ""),
-                "args": step.action.get("arguments", {}),
-            }))
+            await ws.send_text(
+                json.dumps(
+                    {
+                        "type": "tool_call",
+                        "step": step.step_number,
+                        "tool": step.action.get("tool", ""),
+                        "args": step.action.get("arguments", {}),
+                    }
+                )
+            )
 
         if step.observation:
-            await ws.send_text(json.dumps({
-                "type": "observation",
-                "step": step.step_number,
-                "tool": step.action.get("tool", "") if step.action else "",
-                "content": step.observation[:2000],
-            }))
+            await ws.send_text(
+                json.dumps(
+                    {
+                        "type": "observation",
+                        "step": step.step_number,
+                        "tool": step.action.get("tool", "") if step.action else "",
+                        "content": step.observation[:2000],
+                    }
+                )
+            )
 
         if step.answer:
-            await ws.send_text(json.dumps({
-                "type": "answer",
-                "step": step.step_number,
-                "content": step.answer,
-                "role": role.value,
-            }))
+            await ws.send_text(
+                json.dumps(
+                    {
+                        "type": "answer",
+                        "step": step.step_number,
+                        "content": step.answer,
+                        "role": role.value,
+                    }
+                )
+            )
 
     # Final done frame
     elapsed = (time.perf_counter() - t0) * 1000
-    await ws.send_text(json.dumps({
-        "type": "done",
-        "answer": response.answer,
-        "total_steps": response.total_steps,
-        "elapsed_ms": round(elapsed, 1),
-        "success": response.success,
-        "role": role.value,
-        "session_id": session_id,
-    }))
+    await ws.send_text(
+        json.dumps(
+            {
+                "type": "done",
+                "answer": response.answer,
+                "total_steps": response.total_steps,
+                "elapsed_ms": round(elapsed, 1),
+                "success": response.success,
+                "role": role.value,
+                "session_id": session_id,
+            }
+        )
+    )
 
     if response.error:
-        await ws.send_text(json.dumps({
-            "type": "error",
-            "content": response.error,
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "error",
+                    "content": response.error,
+                }
+            )
+        )
 
 
 # ── Autonomous workflow design streaming ──────────────────────────
@@ -192,7 +236,7 @@ async def _stream_workflow_design(
     description: str,
     *,
     language: str = "auto",
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
     model_router: Any = None,
 ) -> None:
     """Run the autonomous workflow designer and stream phase progress.
@@ -212,18 +256,26 @@ async def _stream_workflow_design(
     t0 = time.perf_counter()
 
     # Signal UI to enter lock mode
-    await ws.send_text(json.dumps({
-        "type": "workflow_lock",
-        "locked": True,
-    }))
+    await ws.send_text(
+        json.dumps(
+            {
+                "type": "workflow_lock",
+                "locked": True,
+            }
+        )
+    )
 
     async def _progress(phase: str, message: str) -> None:
         """Callback invoked by WorkflowDesigner for each phase."""
-        await ws.send_text(json.dumps({
-            "type": "workflow_phase",
-            "phase": phase,
-            "message": message,
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "workflow_phase",
+                    "phase": phase,
+                    "message": message,
+                }
+            )
+        )
 
     try:
         result = await coordinator.design_workflow(
@@ -236,30 +288,42 @@ async def _stream_workflow_design(
 
         elapsed = (time.perf_counter() - t0) * 1000
 
-        await ws.send_text(json.dumps({
-            "type": "workflow_complete",
-            "success": result.get("success", False),
-            "graph": result.get("graph"),
-            "phases": result.get("phases", []),
-            "detected_language": result.get("detected_language"),
-            "english_input": result.get("english_input"),
-            "original_input": result.get("original_input"),
-            "error": result.get("error"),
-            "total_elapsed_ms": round(elapsed, 1),
-            "session_id": session_id,
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "workflow_complete",
+                    "success": result.get("success", False),
+                    "graph": result.get("graph"),
+                    "phases": result.get("phases", []),
+                    "detected_language": result.get("detected_language"),
+                    "english_input": result.get("english_input"),
+                    "original_input": result.get("original_input"),
+                    "error": result.get("error"),
+                    "total_elapsed_ms": round(elapsed, 1),
+                    "session_id": session_id,
+                }
+            )
+        )
 
     except Exception as exc:
         logger.error("workflow_design_ws_error: %s", exc, exc_info=True)
-        await ws.send_text(json.dumps({
-            "type": "workflow_complete",
-            "success": False,
-            "error": str(exc),
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "workflow_complete",
+                    "success": False,
+                    "error": str(exc),
+                }
+            )
+        )
 
     finally:
         # Always release lock mode
-        await ws.send_text(json.dumps({
-            "type": "workflow_lock",
-            "locked": False,
-        }))
+        await ws.send_text(
+            json.dumps(
+                {
+                    "type": "workflow_lock",
+                    "locked": False,
+                }
+            )
+        )

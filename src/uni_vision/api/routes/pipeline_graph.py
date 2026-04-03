@@ -19,7 +19,7 @@ POST /api/pipeline/graph/validate – Validate a graph without deploying
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -30,6 +30,7 @@ router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 
 
 # ── Pydantic models ──────────────────────────────────────────────
+
 
 class PortDefinitionModel(BaseModel):
     id: str
@@ -42,11 +43,11 @@ class ConfigFieldModel(BaseModel):
     key: str
     label: str
     type: str
-    placeholder: Optional[str] = None
-    required: Optional[bool] = None
-    min: Optional[float] = None
-    max: Optional[float] = None
-    options: Optional[List[Dict[str, str]]] = None
+    placeholder: str | None = None
+    required: bool | None = None
+    min: float | None = None
+    max: float | None = None
+    options: list[dict[str, str]] | None = None
 
 
 class BlockDefinitionModel(BaseModel):
@@ -54,10 +55,10 @@ class BlockDefinitionModel(BaseModel):
     label: str = Field(..., min_length=1, max_length=100)
     description: str = ""
     category: str = "Utility"
-    inputs: List[PortDefinitionModel] = Field(default_factory=list)
-    outputs: List[PortDefinitionModel] = Field(default_factory=list)
-    defaults: Dict[str, Any] = Field(default_factory=dict)
-    configSchema: List[ConfigFieldModel] = Field(default_factory=list)
+    inputs: list[PortDefinitionModel] = Field(default_factory=list)
+    outputs: list[PortDefinitionModel] = Field(default_factory=list)
+    defaults: dict[str, Any] = Field(default_factory=dict)
+    configSchema: list[ConfigFieldModel] = Field(default_factory=list)
     backend_handler: str = ""
 
 
@@ -72,7 +73,7 @@ class GraphBlockModel(BaseModel):
     label: str = ""
     category: str = "Utility"
     position: PositionModel = Field(default_factory=lambda: PositionModel(x=0, y=0))
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
     status: str = "idle"
 
 
@@ -91,25 +92,26 @@ class ProjectModel(BaseModel):
 
 class ProjectGraphModel(BaseModel):
     project: ProjectModel = Field(default_factory=ProjectModel)
-    blocks: List[GraphBlockModel] = Field(default_factory=list)
-    connections: List[GraphConnectionModel] = Field(default_factory=list)
+    blocks: list[GraphBlockModel] = Field(default_factory=list)
+    connections: list[GraphConnectionModel] = Field(default_factory=list)
 
 
 class ValidationIssueModel(BaseModel):
     id: str = ""
     level: str = "error"
     message: str = ""
-    blockId: Optional[str] = None
+    blockId: str | None = None
 
 
 class DeployResponse(BaseModel):
     success: bool
-    issues: List[ValidationIssueModel] = Field(default_factory=list)
+    issues: list[ValidationIssueModel] = Field(default_factory=list)
     deployed_nodes: int = 0
     deployed_edges: int = 0
 
 
 # ── Helpers to get engine / registry from app state ───────────────
+
 
 def _get_registry(request: Request):
     reg = getattr(request.app.state, "block_registry", None)
@@ -127,7 +129,8 @@ def _get_engine(request: Request):
 
 # ── Block palette routes ──────────────────────────────────────────
 
-@router.get("/blocks", response_model=List[Dict[str, Any]])
+
+@router.get("/blocks", response_model=list[dict[str, Any]])
 async def list_blocks(request: Request):
     """Return all registered block definitions for the palette."""
     registry = _get_registry(request)
@@ -159,6 +162,7 @@ async def register_block(defn: BlockDefinitionModel, request: Request):
 
 
 # ── Graph deployment routes ───────────────────────────────────────
+
 
 @router.post("/graph", response_model=DeployResponse)
 async def deploy_graph(graph: ProjectGraphModel, request: Request):
@@ -206,7 +210,7 @@ async def clear_graph(request: Request):
     return {"cleared": True}
 
 
-@router.post("/graph/validate", response_model=List[ValidationIssueModel])
+@router.post("/graph/validate", response_model=list[ValidationIssueModel])
 async def validate_graph_endpoint(graph: ProjectGraphModel, request: Request):
     """Validate a graph without deploying it."""
     from uni_vision.orchestrator.graph_engine import (
@@ -241,6 +245,7 @@ async def validate_graph_endpoint(graph: ProjectGraphModel, request: Request):
 
 
 # ── Model routing routes ──────────────────────────────────────────
+
 
 class ModelStateResponse(BaseModel):
     phase: str

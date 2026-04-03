@@ -14,11 +14,15 @@ Falls back gracefully when `pynvml` or `torch` isn't available.
 
 from __future__ import annotations
 
-import structlog
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generator, List, Optional
+from typing import TYPE_CHECKING, Any
+
+import structlog
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 log = structlog.get_logger(__name__)
 
@@ -28,6 +32,7 @@ _HAS_TORCH = False
 
 try:
     import pynvml
+
     pynvml.nvmlInit()
     _HAS_NVML = True
 except Exception:
@@ -36,13 +41,14 @@ except Exception:
 if not _HAS_NVML:
     try:
         import torch
+
         if torch.cuda.is_available():
             _HAS_TORCH = True
     except (ImportError, AttributeError):
         pass
 
 
-def _get_gpu_memory_mb(device_index: int = 0) -> Optional[Dict[str, float]]:
+def _get_gpu_memory_mb(device_index: int = 0) -> dict[str, float] | None:
     """Return current GPU memory stats in MB."""
     if _HAS_NVML:
         try:
@@ -59,14 +65,15 @@ def _get_gpu_memory_mb(device_index: int = 0) -> Optional[Dict[str, float]]:
 
     if _HAS_TORCH:
         import torch
+
         try:
             return {
                 "total_mb": torch.cuda.get_device_properties(device_index).total_mem / (1024 * 1024),
                 "used_mb": torch.cuda.memory_allocated(device_index) / (1024 * 1024),
                 "free_mb": (
-                    torch.cuda.get_device_properties(device_index).total_mem
-                    - torch.cuda.memory_allocated(device_index)
-                ) / (1024 * 1024),
+                    torch.cuda.get_device_properties(device_index).total_mem - torch.cuda.memory_allocated(device_index)
+                )
+                / (1024 * 1024),
                 "reserved_mb": torch.cuda.memory_reserved(device_index) / (1024 * 1024),
             }
         except Exception as exc:
@@ -149,9 +156,9 @@ class GPUProfiler:
         self._available = _HAS_NVML or _HAS_TORCH
 
         # History
-        self._measurements: Dict[str, ComponentVRAMMeasurement] = {}
-        self._leaks: List[LeakSuspect] = []
-        self._snapshots: List[VRAMSnapshot] = []
+        self._measurements: dict[str, ComponentVRAMMeasurement] = {}
+        self._leaks: list[LeakSuspect] = []
+        self._snapshots: list[VRAMSnapshot] = []
         self._last_snapshot: float = 0.0
 
     @property
@@ -159,7 +166,7 @@ class GPUProfiler:
         """Whether GPU profiling is available."""
         return self._available
 
-    def snapshot(self, label: str = "") -> Optional[VRAMSnapshot]:
+    def snapshot(self, label: str = "") -> VRAMSnapshot | None:
         """Take a GPU memory snapshot."""
         mem = _get_gpu_memory_mb(self._device)
         if mem is None:
@@ -251,32 +258,28 @@ class GPUProfiler:
                 # Clean up measurement
                 self._measurements.pop(component_id, None)
 
-    def get_measured_vram(self, component_id: str) -> Optional[float]:
+    def get_measured_vram(self, component_id: str) -> float | None:
         """Return the actual measured VRAM for a loaded component."""
         m = self._measurements.get(component_id)
         return m.measured_mb if m else None
 
-    def get_vram_correction(self, component_id: str) -> Optional[int]:
+    def get_vram_correction(self, component_id: str) -> int | None:
         """Return corrected VRAM estimate based on measurement."""
         m = self._measurements.get(component_id)
         if m is None:
             return None
         return max(1, int(m.measured_mb))
 
-    def get_current_usage(self) -> Optional[Dict[str, float]]:
+    def get_current_usage(self) -> dict[str, float] | None:
         """Return current GPU memory usage."""
         return _get_gpu_memory_mb(self._device)
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         current = _get_gpu_memory_mb(self._device)
         return {
             "available": self._available,
             "device_index": self._device,
-            "current_usage": (
-                {k: round(v, 1) for k, v in current.items()}
-                if current
-                else None
-            ),
+            "current_usage": ({k: round(v, 1) for k, v in current.items()} if current else None),
             "tracked_components": len(self._measurements),
             "measurements": {
                 cid: {

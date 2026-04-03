@@ -13,11 +13,15 @@ Spec reference: §4 stage S5.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import cv2
 import numpy as np
-from numpy.typing import NDArray
 
-from uni_vision.common.config import DeskewConfig
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+    from uni_vision.common.config import DeskewConfig
 
 
 class HoughStraightener:
@@ -49,11 +53,13 @@ class HoughStraightener:
         if abs(angle) <= self._config.skip_threshold_degrees:
             return image
 
-        angle = float(np.clip(
-            angle,
-            -self._config.max_skew_degrees,
-            self._config.max_skew_degrees,
-        ))
+        angle = float(
+            np.clip(
+                angle,
+                -self._config.max_skew_degrees,
+                self._config.max_skew_degrees,
+            )
+        )
 
         return self._rotate(image, angle)
 

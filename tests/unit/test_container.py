@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from uni_vision.common.config import AppConfig
 from uni_vision.orchestrator.pipeline import Pipeline
 
@@ -19,6 +17,7 @@ class TestBuildPipeline:
         mock_cv2.createCLAHE.return_value = MagicMock()
         with patch("uni_vision.preprocessing.enhance.cv2", mock_cv2):
             from uni_vision.orchestrator.container import build_pipeline
+
             return build_pipeline(config or AppConfig())
 
     def test_returns_pipeline_instance(self) -> None:
@@ -39,12 +38,15 @@ class TestBuildPipeline:
     def test_loads_config_when_none(self) -> None:
         mock_cv2 = MagicMock()
         mock_cv2.createCLAHE.return_value = MagicMock()
-        with patch("uni_vision.preprocessing.enhance.cv2", mock_cv2), \
-             patch(
+        with (
+            patch("uni_vision.preprocessing.enhance.cv2", mock_cv2),
+            patch(
                 "uni_vision.orchestrator.container.load_config",
                 return_value=AppConfig(),
-             ) as mock_load:
+            ) as mock_load,
+        ):
             from uni_vision.orchestrator.container import build_pipeline
+
             pipeline = build_pipeline(None)
             mock_load.assert_called_once()
             assert isinstance(pipeline, Pipeline)
@@ -59,4 +61,3 @@ class TestBuildPipeline:
         strategy = pipeline._ocr_strategy
         assert hasattr(strategy, "_engines")
         assert len(strategy._engines) >= 1
-

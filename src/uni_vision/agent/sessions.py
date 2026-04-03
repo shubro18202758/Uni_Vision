@@ -14,9 +14,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
-from uni_vision.agent.memory import WorkingMemory
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +37,8 @@ class Session:
     session_id: str
     created_at: float = field(default_factory=time.time)
     last_active: float = field(default_factory=time.time)
-    turns: List[ConversationTurn] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    turns: list[ConversationTurn] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def turn_count(self) -> int:
@@ -77,7 +75,7 @@ class Session:
             return ""
 
         recent = self.turns[-max_turns:]
-        lines: List[str] = []
+        lines: list[str] = []
         for t in recent:
             prefix = "User" if t.role == "user" else "Agent"
             # Truncate long turns to keep context small
@@ -104,7 +102,7 @@ class SessionManager:
         ttl_seconds: float = 1800.0,
         max_sessions: int = 100,
     ) -> None:
-        self._sessions: Dict[str, Session] = {}
+        self._sessions: dict[str, Session] = {}
         self._ttl = ttl_seconds
         self._max_sessions = max_sessions
 
@@ -140,7 +138,7 @@ class SessionManager:
         """Delete a session. Returns True if found and deleted."""
         return self._sessions.pop(session_id, None) is not None
 
-    def list_sessions(self) -> List[Dict[str, Any]]:
+    def list_sessions(self) -> list[dict[str, Any]]:
         """List all active sessions (summary only)."""
         self._purge_expired()
         return [
@@ -161,11 +159,7 @@ class SessionManager:
     def _purge_expired(self) -> None:
         """Remove sessions that have exceeded the TTL."""
         now = time.time()
-        expired = [
-            sid
-            for sid, s in self._sessions.items()
-            if (now - s.last_active) > self._ttl
-        ]
+        expired = [sid for sid, s in self._sessions.items() if (now - s.last_active) > self._ttl]
         for sid in expired:
             del self._sessions[sid]
             logger.debug("session_expired id=%s", sid)

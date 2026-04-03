@@ -19,13 +19,15 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import Counter
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy.typing import NDArray
+from uni_vision.contracts.dtos import DetectionContext, OCRResult
 
-from uni_vision.common.config import AdjudicationConfig
-from uni_vision.contracts.dtos import DetectionContext, OCRResult, ValidationStatus
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+    from uni_vision.common.config import AdjudicationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,7 @@ logger = logging.getLogger(__name__)
 class AdjudicationResult:
     """Result of multi-engine consensus adjudication."""
 
-    __slots__ = ("plate_text", "confidence", "corrections", "reasoning")
+    __slots__ = ("confidence", "corrections", "plate_text", "reasoning")
 
     def __init__(
         self,
@@ -80,9 +82,9 @@ class ConsensusAdjudicator:
         plate_image: NDArray[np.uint8],
         ocr_text: str,
         ocr_confidence: float,
-        corrections_attempted: Dict[str, str],
+        corrections_attempted: dict[str, str],
         ocr_engine: str,
-    ) -> Optional[AdjudicationResult]:
+    ) -> AdjudicationResult | None:
         """Run multi-engine consensus on the plate image.
 
         Returns ``None`` if consensus cannot be reached (e.g. only
@@ -115,7 +117,7 @@ class ConsensusAdjudicator:
         raw_results = await asyncio.gather(*tasks)
 
         # Collect valid readings
-        valid: List[OCRResult] = []
+        valid: list[OCRResult] = []
         for r in raw_results:
             if r is not None and r.plate_text != "UNREADABLE":
                 valid.append(r)
@@ -137,9 +139,7 @@ class ConsensusAdjudicator:
 
         # Consensus confidence: agreement ratio weighted by average engine confidence
         agreement_ratio = count / total
-        matching_confs = [
-            r.confidence for r in valid if r.plate_text == best_text
-        ]
+        matching_confs = [r.confidence for r in valid if r.plate_text == best_text]
         avg_conf = sum(matching_confs) / len(matching_confs) if matching_confs else 0.5
         consensus_confidence = min(1.0, agreement_ratio * 0.5 + avg_conf * 0.5)
 
@@ -166,7 +166,7 @@ class ConsensusAdjudicator:
         engine: object,
         image: NDArray[np.uint8],
         context: DetectionContext,
-    ) -> Optional[OCRResult]:
+    ) -> OCRResult | None:
         """Run a single engine with error isolation."""
         try:
             return await engine.extract(image, context)  # type: ignore[union-attr]

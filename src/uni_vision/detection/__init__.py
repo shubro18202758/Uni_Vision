@@ -8,14 +8,14 @@ Public API:
 """
 
 from uni_vision.detection.engine import EngineConfig, InferenceEngine
-from uni_vision.detection.vehicle_detector import VehicleDetector
-from uni_vision.detection.plate_detector import PlateDetector
 from uni_vision.detection.gpu_memory import GPUMemoryManager
+from uni_vision.detection.plate_detector import PlateDetector
+from uni_vision.detection.vehicle_detector import VehicleDetector
 
 __all__ = [
     "EngineConfig",
-    "InferenceEngine",
-    "VehicleDetector",
-    "PlateDetector",
     "GPUMemoryManager",
+    "InferenceEngine",
+    "PlateDetector",
+    "VehicleDetector",
 ]

@@ -53,9 +53,7 @@ def render() -> None:
     if class_counts:
         import pandas as pd
 
-        df_classes = pd.DataFrame(
-            list(class_counts.items()), columns=["Vehicle Class", "Count"]
-        )
+        df_classes = pd.DataFrame(list(class_counts.items()), columns=["Vehicle Class", "Count"])
         st.bar_chart(df_classes.set_index("Vehicle Class"))
 
     # ── Confidence distribution ───────────────────────────────────

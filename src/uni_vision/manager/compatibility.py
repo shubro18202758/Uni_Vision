@@ -16,11 +16,12 @@ This data is consumed by:
 
 from __future__ import annotations
 
-import structlog
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
+from typing import Any
+
+import structlog
 
 log = structlog.get_logger(__name__)
 
@@ -45,7 +46,7 @@ class CompatibilityRecord:
     last_updated: float = field(default_factory=time.monotonic)
 
     @property
-    def pair_key(self) -> FrozenSet[str]:
+    def pair_key(self) -> frozenset[str]:
         return frozenset([self.component_a, self.component_b])
 
 
@@ -71,8 +72,8 @@ class CompatibilityMatrix:
     """
 
     def __init__(self, *, conflict_threshold: int = 3) -> None:
-        self._records: Dict[FrozenSet[str], CompatibilityRecord] = {}
-        self._package_conflicts: List[PackageConflict] = []
+        self._records: dict[frozenset[str], CompatibilityRecord] = {}
+        self._package_conflicts: list[PackageConflict] = []
         self._conflict_threshold = conflict_threshold
 
         # Static incompatibilities (known from the ecosystem)
@@ -91,7 +92,7 @@ class CompatibilityMatrix:
         status = self.check(component_a, component_b)
         return status in (CompatibilityStatus.COMPATIBLE, CompatibilityStatus.UNKNOWN)
 
-    def check_set(self, component_ids: Set[str]) -> List[Tuple[str, str, CompatibilityStatus]]:
+    def check_set(self, component_ids: set[str]) -> list[tuple[str, str, CompatibilityStatus]]:
         """Check all pairwise compatibilities in a set of components.
 
         Returns a list of incompatible or conditional pairs.
@@ -99,7 +100,7 @@ class CompatibilityMatrix:
         issues = []
         comp_list = sorted(component_ids)
         for i, a in enumerate(comp_list):
-            for b in comp_list[i + 1:]:
+            for b in comp_list[i + 1 :]:
                 status = self.check(a, b)
                 if status in (CompatibilityStatus.INCOMPATIBLE, CompatibilityStatus.CONDITIONAL):
                     issues.append((a, b, status))
@@ -138,7 +139,7 @@ class CompatibilityMatrix:
         rec.reason = reason or rec.reason
         rec.last_updated = time.monotonic()
 
-        # Count failures  
+        # Count failures
         # Use a simple heuristic: if confidence was going up, failures bring it down
         rec.confidence = max(0.0, rec.confidence - 0.15)
 
@@ -186,7 +187,7 @@ class CompatibilityMatrix:
         """Register a known package-level conflict."""
         self._package_conflicts.append(conflict)
 
-    def get_incompatible_with(self, component_id: str) -> List[str]:
+    def get_incompatible_with(self, component_id: str) -> list[str]:
         """Return all components known to be incompatible with the given one."""
         result = []
         for key, rec in self._records.items():
@@ -196,15 +197,9 @@ class CompatibilityMatrix:
                         result.append(other)
         return result
 
-    def status(self) -> Dict[str, Any]:
-        compatible = sum(
-            1 for r in self._records.values()
-            if r.status == CompatibilityStatus.COMPATIBLE
-        )
-        incompatible = sum(
-            1 for r in self._records.values()
-            if r.status == CompatibilityStatus.INCOMPATIBLE
-        )
+    def status(self) -> dict[str, Any]:
+        compatible = sum(1 for r in self._records.values() if r.status == CompatibilityStatus.COMPATIBLE)
+        incompatible = sum(1 for r in self._records.values() if r.status == CompatibilityStatus.INCOMPATIBLE)
         return {
             "total_pairs": len(self._records),
             "compatible": compatible,
@@ -226,20 +221,24 @@ class CompatibilityMatrix:
     def _init_static_rules(self) -> None:
         """Declare known static incompatibilities."""
         # Example: different ONNX runtime builds can conflict
-        self.add_package_conflict(PackageConflict(
-            package_a="onnxruntime-gpu",
-            version_a="*",
-            package_b="onnxruntime",
-            version_b="*",
-            conflict_type="version_clash",
-            description="Cannot install both onnxruntime and onnxruntime-gpu",
-        ))
+        self.add_package_conflict(
+            PackageConflict(
+                package_a="onnxruntime-gpu",
+                version_a="*",
+                package_b="onnxruntime",
+                version_b="*",
+                conflict_type="version_clash",
+                description="Cannot install both onnxruntime and onnxruntime-gpu",
+            )
+        )
         # TensorRT and standard ONNX often clash
-        self.add_package_conflict(PackageConflict(
-            package_a="tensorrt",
-            version_a=">=8",
-            package_b="onnxruntime-gpu",
-            version_b="<1.16",
-            conflict_type="abi_mismatch",
-            description="TensorRT 8+ requires onnxruntime-gpu >= 1.16",
-        ))
+        self.add_package_conflict(
+            PackageConflict(
+                package_a="tensorrt",
+                version_a=">=8",
+                package_b="onnxruntime-gpu",
+                version_b="<1.16",
+                conflict_type="abi_mismatch",
+                description="TensorRT 8+ requires onnxruntime-gpu >= 1.16",
+            )
+        )

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 
-import numpy as np
 import pytest
 
 
@@ -25,8 +24,7 @@ class TestEnums:
     def test_validation_status_members(self):
         from uni_vision.contracts.dtos import ValidationStatus
 
-        expected = {"valid", "low_confidence", "regex_fail", "llm_error",
-                    "fallback", "parse_fail", "unreadable"}
+        expected = {"valid", "low_confidence", "regex_fail", "llm_error", "fallback", "parse_fail", "unreadable"}
         assert {v.value for v in ValidationStatus} == expected
 
     def test_offload_mode_members(self):
@@ -74,8 +72,13 @@ class TestBoundingBox:
         from uni_vision.contracts.dtos import BoundingBox
 
         bb = BoundingBox(
-            x1=10, y1=20, x2=100, y2=200,
-            confidence=0.95, class_id=0, class_name="car",
+            x1=10,
+            y1=20,
+            x2=100,
+            y2=200,
+            confidence=0.95,
+            class_id=0,
+            class_name="car",
         )
         assert bb.confidence == 0.95
         assert bb.class_name == "car"
@@ -83,8 +86,7 @@ class TestBoundingBox:
     def test_frozen(self):
         from uni_vision.contracts.dtos import BoundingBox
 
-        bb = BoundingBox(x1=0, y1=0, x2=1, y2=1, confidence=0.5,
-                         class_id=0, class_name="truck")
+        bb = BoundingBox(x1=0, y1=0, x2=1, y2=1, confidence=0.5, class_id=0, class_name="truck")
         with pytest.raises(AttributeError):
             bb.x1 = 99  # type: ignore[misc]
 

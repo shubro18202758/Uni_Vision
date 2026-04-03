@@ -40,16 +40,14 @@ from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import (
+    TYPE_CHECKING,
     Any,
-    Callable,
-    Deque,
-    Dict,
-    Generator,
-    List,
-    Optional,
 )
 
 from uni_vision.monitoring.metrics import STAGE_LATENCY
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +66,7 @@ def set_profiling_enabled(enabled: bool) -> None:
 
 
 # Cached pynvml handles — avoids nvmlInit/nvmlShutdown on every probe.
-_NVML_HANDLES: Dict[int, Any] = {}
+_NVML_HANDLES: dict[int, Any] = {}
 _NVML_INITED: bool = False
 
 
@@ -162,10 +160,10 @@ class StageProfile:
 # ── Profile history (ring buffer — O(1) append via deque) ─────────
 
 _MAX_HISTORY: int = 512
-_profile_history: Deque[StageProfile] = deque(maxlen=_MAX_HISTORY)
+_profile_history: deque[StageProfile] = deque(maxlen=_MAX_HISTORY)
 
 
-def get_profile_history() -> List[StageProfile]:
+def get_profile_history() -> list[StageProfile]:
     """Return a **copy** of the most recent stage profiles."""
     return list(_profile_history)
 
@@ -368,7 +366,7 @@ class EventTelemetry:
     event_id: str = ""
     camera_id: str = ""
     total_wall_ms: float = 0.0
-    stage_profiles: List[StageProfile] = field(default_factory=list)
+    stage_profiles: list[StageProfile] = field(default_factory=list)
     peak_vram_mb: float = 0.0
     vram_at_fence_mb: float = 0.0
 
@@ -383,8 +381,8 @@ class PipelineTelemetryHook:
 
     def __init__(self, device_index: int = 0) -> None:
         self._device_index = device_index
-        self._current: Optional[EventTelemetry] = None
-        self._history: List[EventTelemetry] = []
+        self._current: EventTelemetry | None = None
+        self._history: list[EventTelemetry] = []
         self._max_history: int = 128
 
     def begin_event(self, camera_id: str, event_id: str = "") -> None:
@@ -397,19 +395,15 @@ class PipelineTelemetryHook:
     def record_fence_vram(self) -> None:
         """Snapshot VRAM at the memory fence point (after vision, before LLM)."""
         if self._current is not None:
-            self._current.vram_at_fence_mb = round(
-                _query_vram_used_mb(self._device_index), 1
-            )
+            self._current.vram_at_fence_mb = round(_query_vram_used_mb(self._device_index), 1)
 
-    def end_event(self, elapsed_ms: float) -> Optional[EventTelemetry]:
+    def end_event(self, elapsed_ms: float) -> EventTelemetry | None:
         """Finalise the current event telemetry and archive it."""
         if self._current is None:
             return None
 
         self._current.total_wall_ms = round(elapsed_ms, 2)
-        self._current.peak_vram_mb = round(
-            _query_vram_used_mb(self._device_index), 1
-        )
+        self._current.peak_vram_mb = round(_query_vram_used_mb(self._device_index), 1)
 
         # Capture stage profiles accumulated during this event
         recent = get_profile_history()
@@ -431,6 +425,6 @@ class PipelineTelemetryHook:
         )
         return event
 
-    def get_event_history(self) -> List[EventTelemetry]:
+    def get_event_history(self) -> list[EventTelemetry]:
         """Return a copy of archived event telemetry records."""
         return list(self._history)

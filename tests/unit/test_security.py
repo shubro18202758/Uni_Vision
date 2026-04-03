@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import sys
-from types import ModuleType
 from unittest.mock import MagicMock
-
-import pytest
 
 # Ensure real httpx is available
 import httpx as _real_httpx
@@ -22,8 +19,8 @@ from fastapi.testclient import TestClient
 from uni_vision.api import create_app
 from uni_vision.common.config import AppConfig
 
-
 # ── Helpers ───────────────────────────────────────────────────────
+
 
 def _make_client(api_keys: str = "", rate_limit_rpm: int = 0) -> TestClient:
     """Create a test client with specified auth/rate-limit settings."""
@@ -36,8 +33,8 @@ def _make_client(api_keys: str = "", rate_limit_rpm: int = 0) -> TestClient:
 
 # ── Auth Tests ────────────────────────────────────────────────────
 
-class TestAPIKeyAuth:
 
+class TestAPIKeyAuth:
     def test_no_auth_when_keys_empty(self) -> None:
         """When api_keys is empty, all requests pass through."""
         client = _make_client(api_keys="")
@@ -89,8 +86,8 @@ class TestAPIKeyAuth:
 
 # ── Rate Limit Tests ──────────────────────────────────────────────
 
-class TestRateLimit:
 
+class TestRateLimit:
     def test_no_rate_limit_when_zero(self) -> None:
         """When rate_limit_rpm=0, no limiting occurs."""
         client = _make_client(rate_limit_rpm=0)
@@ -118,8 +115,8 @@ class TestRateLimit:
 
 # ── Security Headers Tests ────────────────────────────────────────
 
-class TestSecurityHeaders:
 
+class TestSecurityHeaders:
     def test_security_headers_present(self) -> None:
         """All security headers are set on responses."""
         client = _make_client()
@@ -132,8 +129,8 @@ class TestSecurityHeaders:
 
 # ── Key Generation ────────────────────────────────────────────────
 
-class TestKeyGeneration:
 
+class TestKeyGeneration:
     def test_generate_api_key_length(self) -> None:
         """Generated keys are 64 hex characters (32 bytes)."""
         from uni_vision.api.middleware.auth import generate_api_key

@@ -11,14 +11,12 @@ import enum
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, FrozenSet, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
-from uni_vision.components.base import (
-    ComponentCapability,
-    ComponentMetadata,
-    ComponentType,
-)
-
+if TYPE_CHECKING:
+    from uni_vision.components.base import (
+        ComponentCapability,
+    )
 
 # ── Context analysis ──────────────────────────────────────────────
 
@@ -52,12 +50,12 @@ class DiscoveryQuery:
     with free-form search terms and contextual rationale.
     """
 
-    query: str                             # Free-form search string
-    source: str = "all"                    # huggingface | pypi | github | all
-    capability_hint: str = ""              # What capability this addresses
-    context_rationale: str = ""            # Why this search is needed
-    vram_budget_mb: int = 0                # Max VRAM for candidates
-    priority: int = 0                      # Higher = more important
+    query: str  # Free-form search string
+    source: str = "all"  # huggingface | pypi | github | all
+    capability_hint: str = ""  # What capability this addresses
+    context_rationale: str = ""  # Why this search is needed
+    vram_budget_mb: int = 0  # Max VRAM for candidates
+    priority: int = 0  # Higher = more important
 
 
 @dataclass(frozen=True)
@@ -96,29 +94,25 @@ class FrameContext:
     """
 
     scene_type: SceneType = SceneType.UNKNOWN
-    required_capabilities: FrozenSet[ComponentCapability] = frozenset()
-    optional_capabilities: FrozenSet[ComponentCapability] = frozenset()
-    dynamic_required: FrozenSet[str] = frozenset()
-    dynamic_optional: FrozenSet[str] = frozenset()
-    discovery_queries: List[DiscoveryQuery] = field(default_factory=list)
+    required_capabilities: frozenset[ComponentCapability] = frozenset()
+    optional_capabilities: frozenset[ComponentCapability] = frozenset()
+    dynamic_required: frozenset[str] = frozenset()
+    dynamic_optional: frozenset[str] = frozenset()
+    discovery_queries: list[DiscoveryQuery] = field(default_factory=list)
     detected_objects_hint: str = ""
     priority: TaskPriority = TaskPriority.NORMAL
     camera_id: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
-    def all_required_labels(self) -> FrozenSet[str]:
+    def all_required_labels(self) -> frozenset[str]:
         """Union of enum-based and dynamic required capability labels."""
-        return frozenset(
-            {c.value for c in self.required_capabilities} | self.dynamic_required
-        )
+        return frozenset({c.value for c in self.required_capabilities} | self.dynamic_required)
 
     @property
-    def all_optional_labels(self) -> FrozenSet[str]:
+    def all_optional_labels(self) -> frozenset[str]:
         """Union of enum-based and dynamic optional capability labels."""
-        return frozenset(
-            {c.value for c in self.optional_capabilities} | self.dynamic_optional
-        )
+        return frozenset({c.value for c in self.optional_capabilities} | self.dynamic_optional)
 
 
 # ── Pipeline composition ──────────────────────────────────────────
@@ -138,13 +132,13 @@ class StageSpec:
     """
 
     stage_name: str
-    required_capability: Optional[ComponentCapability] = None
-    dynamic_capability: Optional[str] = None  # free-form LLM-discovered
-    component_id: Optional[str] = None     # If resolved
+    required_capability: ComponentCapability | None = None
+    dynamic_capability: str | None = None  # free-form LLM-discovered
+    component_id: str | None = None  # If resolved
     is_optional: bool = False
     input_key: str = "image"
     output_key: str = "image"
-    config_overrides: Dict[str, Any] = field(default_factory=dict)
+    config_overrides: dict[str, Any] = field(default_factory=dict)
 
     @property
     def capability_label(self) -> str:
@@ -163,14 +157,14 @@ class PipelineBlueprint:
 
     blueprint_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     name: str = ""
-    context: Optional[FrameContext] = None
-    stages: List[StageSpec] = field(default_factory=list)
+    context: FrameContext | None = None
+    stages: list[StageSpec] = field(default_factory=list)
     estimated_vram_mb: int = 0
     estimated_latency_ms: float = 0.0
     created_at: float = field(default_factory=time.time)
 
     @property
-    def required_component_ids(self) -> Set[str]:
+    def required_component_ids(self) -> set[str]:
         return {s.component_id for s in self.stages if s.component_id}
 
 
@@ -196,14 +190,14 @@ class ComponentCandidate:
 
     component_id: str
     name: str
-    source: str                            # builtin | huggingface | pypi | github
-    source_id: str                         # e.g., "huggingface:keremberke/yolov8n-plate-detection"
-    capabilities: Set[ComponentCapability] = field(default_factory=set)
+    source: str  # builtin | huggingface | pypi | github
+    source_id: str  # e.g., "huggingface:keremberke/yolov8n-plate-detection"
+    capabilities: set[ComponentCapability] = field(default_factory=set)
     vram_mb: int = 0
-    score: float = 0.0                     # Relevance score (0.0–1.0)
-    python_requirements: List[str] = field(default_factory=list)
-    model_class: str = ""                  # For HuggingFace models
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    score: float = 0.0  # Relevance score (0.0–1.0)
+    python_requirements: list[str] = field(default_factory=list)
+    model_class: str = ""  # For HuggingFace models
+    metadata: dict[str, Any] = field(default_factory=dict)
     trusted: bool = False
 
     @property
@@ -217,8 +211,8 @@ class ResolutionResult:
 
     capability: ComponentCapability
     status: ResolutionStatus = ResolutionStatus.PENDING
-    selected_candidate: Optional[ComponentCandidate] = None
-    all_candidates: List[ComponentCandidate] = field(default_factory=list)
+    selected_candidate: ComponentCandidate | None = None
+    all_candidates: list[ComponentCandidate] = field(default_factory=list)
     error: str = ""
 
 
@@ -227,10 +221,10 @@ class ResolutionResult:
 
 class ConflictType(str, enum.Enum):
     VRAM_EXCEEDED = "vram_exceeded"
-    DEPENDENCY_CLASH = "dependency_clash"      # Incompatible pip packages
-    DEVICE_MISMATCH = "device_mismatch"        # GPU required but unavailable
+    DEPENDENCY_CLASH = "dependency_clash"  # Incompatible pip packages
+    DEVICE_MISMATCH = "device_mismatch"  # GPU required but unavailable
     CAPABILITY_OVERLAP = "capability_overlap"  # Two components for same slot
-    VERSION_CONFLICT = "version_conflict"      # Different versions of same lib
+    VERSION_CONFLICT = "version_conflict"  # Different versions of same lib
     LICENSE_INCOMPATIBLE = "license_incompatible"
 
 
@@ -239,7 +233,7 @@ class ComponentConflict:
     """A detected conflict between components or resources."""
 
     conflict_type: ConflictType
-    component_ids: List[str]
+    component_ids: list[str]
     description: str
     severity: TaskPriority = TaskPriority.HIGH
     suggested_resolution: str = ""
@@ -250,7 +244,7 @@ class ComponentConflict:
 class ConflictReport:
     """Full conflict analysis for a proposed component set."""
 
-    conflicts: List[ComponentConflict] = field(default_factory=list)
+    conflicts: list[ComponentConflict] = field(default_factory=list)
     total_vram_required_mb: int = 0
     vram_available_mb: int = 0
     is_feasible: bool = True
@@ -260,11 +254,8 @@ class ConflictReport:
         return len(self.conflicts) > 0
 
     @property
-    def blocking_conflicts(self) -> List[ComponentConflict]:
-        return [
-            c for c in self.conflicts
-            if c.severity in (TaskPriority.CRITICAL, TaskPriority.HIGH)
-        ]
+    def blocking_conflicts(self) -> list[ComponentConflict]:
+        return [c for c in self.conflicts if c.severity in (TaskPriority.CRITICAL, TaskPriority.HIGH)]
 
 
 # ── Manager Agent decision ────────────────────────────────────────
@@ -273,8 +264,8 @@ class ConflictReport:
 class ManagerDecision(str, enum.Enum):
     """What the Manager Agent decided to do after reasoning."""
 
-    USE_EXISTING = "use_existing"            # Current pipeline works
-    SWAP_COMPONENTS = "swap_components"      # Replace some components
+    USE_EXISTING = "use_existing"  # Current pipeline works
+    SWAP_COMPONENTS = "swap_components"  # Replace some components
     BUILD_NEW_PIPELINE = "build_new_pipeline"
     DOWNLOAD_AND_INTEGRATE = "download_and_integrate"
     OFFLOAD_FOR_VRAM = "offload_for_vram"
@@ -286,11 +277,11 @@ class ManagerAction:
     """A concrete action the Manager Agent wants to take."""
 
     decision: ManagerDecision
-    target_blueprint: Optional[PipelineBlueprint] = None
-    components_to_load: List[str] = field(default_factory=list)
-    components_to_unload: List[str] = field(default_factory=list)
-    components_to_download: List[ComponentCandidate] = field(default_factory=list)
-    conflict_resolutions: List[str] = field(default_factory=list)
+    target_blueprint: PipelineBlueprint | None = None
+    components_to_load: list[str] = field(default_factory=list)
+    components_to_unload: list[str] = field(default_factory=list)
+    components_to_download: list[ComponentCandidate] = field(default_factory=list)
+    conflict_resolutions: list[str] = field(default_factory=list)
     reasoning: str = ""
 
 
@@ -314,12 +305,12 @@ class PipelineExecutionResult:
     """Aggregated result of a full dynamic pipeline run."""
 
     blueprint_id: str
-    stage_results: List[StageResult] = field(default_factory=list)
+    stage_results: list[StageResult] = field(default_factory=list)
     final_output: Any = None
     total_elapsed_ms: float = 0.0
     success: bool = True
     error: str = ""
 
     @property
-    def failed_stages(self) -> List[StageResult]:
+    def failed_stages(self) -> list[StageResult]:
         return [s for s in self.stage_results if not s.success]

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from uni_vision.contracts.dtos import FramePacket
+if TYPE_CHECKING:
+    from uni_vision.contracts.dtos import FramePacket
 
 
 @runtime_checkable
@@ -25,7 +26,7 @@ class FrameSource(Protocol):
         """Whether the underlying stream is currently connected."""
         ...
 
-    def read_frame(self) -> Optional[FramePacket]:
+    def read_frame(self) -> FramePacket | None:
         """Read the next frame from the source.
 
         Returns ``None`` when the stream is exhausted or temporarily

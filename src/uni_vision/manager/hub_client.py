@@ -18,18 +18,14 @@ Security considerations:
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import importlib
-import json
-import structlog
-import os
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
+import structlog
 
 from uni_vision.components.base import ComponentCapability
 from uni_vision.manager.schemas import ComponentCandidate
@@ -53,7 +49,7 @@ _DOWNLOAD_TIMEOUT_SECONDS = 300  # 5 minutes per download attempt
 # Task → HuggingFace pipeline_tag mapping (SEED KNOWLEDGE — used as hints
 # for mapping known capabilities to HF pipeline tags.  The LLM can generate
 # free-form search queries that bypass this mapping entirely.)
-_CAPABILITY_TO_HF_TASK: Dict[str, str] = {
+_CAPABILITY_TO_HF_TASK: dict[str, str] = {
     "object_detection": "object-detection",
     "vehicle_detection": "object-detection",
     "plate_detection": "object-detection",
@@ -76,27 +72,29 @@ _CAPABILITY_TO_HF_TASK: Dict[str, str] = {
 
 # Well-known trusted HuggingFace repos (SEED KNOWLEDGE — these are boosted
 # in scoring but the system can discover and use ANY repo on the Hub.)
-TRUSTED_REPOS: frozenset[str] = frozenset({
-    "ultralytics/yolov8",
-    "google/owlv2-base-patch16-ensemble",
-    "microsoft/Florence-2-base",
-    "IDEA-Research/grounding-dino-base",
-    "PaddlePaddle/PaddleOCR",
-    "facebook/detr-resnet-50",
-    "facebook/sam-vit-base",
-    "hustvl/yolos-tiny",
-    "microsoft/beit-base-patch16-224",
-    "google/vit-base-patch16-224",
-    "nvidia/mit-b0",
-    "WinKawaks/yolov8s",
-    "intel/dpt-large",
-    "openai/clip-vit-base-patch32",
-    "facebook/dinov2-base",
-})
+TRUSTED_REPOS: frozenset[str] = frozenset(
+    {
+        "ultralytics/yolov8",
+        "google/owlv2-base-patch16-ensemble",
+        "microsoft/Florence-2-base",
+        "IDEA-Research/grounding-dino-base",
+        "PaddlePaddle/PaddleOCR",
+        "facebook/detr-resnet-50",
+        "facebook/sam-vit-base",
+        "hustvl/yolos-tiny",
+        "microsoft/beit-base-patch16-224",
+        "google/vit-base-patch16-224",
+        "nvidia/mit-b0",
+        "WinKawaks/yolov8s",
+        "intel/dpt-large",
+        "openai/clip-vit-base-patch32",
+        "facebook/dinov2-base",
+    }
+)
 
 # Extended library_name → (module_path, class_name, requirements, load_pattern)
 # load_pattern: "from_pretrained" | "constructor" | "hub_load" | "create_model"
-_LIBRARY_LOAD_PATTERNS: Dict[str, Dict[str, Any]] = {
+_LIBRARY_LOAD_PATTERNS: dict[str, dict[str, Any]] = {
     "transformers": {
         "module": "transformers",
         "class": "AutoModel",
@@ -174,7 +172,7 @@ class HFModelInfo:
     model_id: str
     pipeline_tag: str = ""
     library_name: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     downloads: int = 0
     likes: int = 0
     license: str = ""
@@ -202,7 +200,7 @@ class HubClient:
     def __init__(
         self,
         *,
-        cache_dir: Optional[Path] = None,
+        cache_dir: Path | None = None,
         http_timeout: float = 30.0,
         max_search_results: int = 10,
     ) -> None:
@@ -217,9 +215,9 @@ class HubClient:
         self,
         query: str,
         *,
-        capability: Optional[ComponentCapability] = None,
-        max_results: Optional[int] = None,
-    ) -> List[HFModelInfo]:
+        capability: ComponentCapability | None = None,
+        max_results: int | None = None,
+    ) -> list[HFModelInfo]:
         """Search HuggingFace Hub for models matching a query.
 
         Parameters
@@ -231,7 +229,7 @@ class HubClient:
         max_results:
             Override the default result limit.
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "search": query,
             "limit": max_results or self._max_results,
             "sort": "downloads",
@@ -253,21 +251,23 @@ class HubClient:
             log.error("hf_search_failed", query=query, error=str(exc))
             return []
 
-        results: List[HFModelInfo] = []
+        results: list[HFModelInfo] = []
         for entry in models_raw:
-            results.append(HFModelInfo(
-                model_id=entry.get("modelId", entry.get("id", "")),
-                pipeline_tag=entry.get("pipeline_tag", ""),
-                library_name=entry.get("library_name", ""),
-                tags=entry.get("tags", []),
-                downloads=entry.get("downloads", 0),
-                likes=entry.get("likes", 0),
-            ))
+            results.append(
+                HFModelInfo(
+                    model_id=entry.get("modelId", entry.get("id", "")),
+                    pipeline_tag=entry.get("pipeline_tag", ""),
+                    library_name=entry.get("library_name", ""),
+                    tags=entry.get("tags", []),
+                    downloads=entry.get("downloads", 0),
+                    likes=entry.get("likes", 0),
+                )
+            )
 
         log.info("hf_search_complete", query=query, results=len(results))
         return results
 
-    async def get_model_info(self, repo_id: str) -> Optional[HFModelInfo]:
+    async def get_model_info(self, repo_id: str) -> HFModelInfo | None:
         """Fetch detailed metadata for a specific model."""
         url = f"{HF_API_BASE}/models/{repo_id}"
         try:
@@ -297,7 +297,7 @@ class HubClient:
         repo_id: str,
         *,
         revision: str = "main",
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> Path:
         """Download a HuggingFace model to local cache with retry/timeout.
 
@@ -350,7 +350,7 @@ class HubClient:
                 log.error("hf_download_failed", repo_id=repo_id, attempt=attempt, error=str(exc))
                 if attempt == _DOWNLOAD_MAX_RETRIES:
                     raise
-                await asyncio.sleep(2 ** attempt)  # exponential backoff
+                await asyncio.sleep(2**attempt)  # exponential backoff
 
         raise RuntimeError(f"Download of {repo_id} failed after {_DOWNLOAD_MAX_RETRIES} attempts")
 
@@ -361,7 +361,7 @@ class HubClient:
         package_spec: str,
         *,
         no_deps: bool = False,
-        verify_import: Optional[str] = None,
+        verify_import: str | None = None,
         timeout_seconds: float = 120.0,
     ) -> bool:
         """Install a Python package using pip with verification.
@@ -392,7 +392,7 @@ class HubClient:
                 ),
                 timeout=5.0,  # timeout for process creation
             )
-            stdout, stderr = await asyncio.wait_for(
+            _stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
                 timeout=timeout_seconds,
             )
@@ -462,7 +462,8 @@ class HubClient:
         """Check if a Python package is importable (side-effect free)."""
         try:
             result = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: importlib.util.find_spec(package_name),
+                None,
+                lambda: importlib.util.find_spec(package_name),
             )
             return result is not None
         except (ImportError, ModuleNotFoundError, ValueError):
@@ -484,8 +485,8 @@ class HubClient:
         a wide range of library ecosystems.
         """
         model_class = ""
-        requirements: List[str] = []
-        load_metadata: Dict[str, Any] = {}
+        requirements: list[str] = []
+        load_metadata: dict[str, Any] = {}
 
         lib = info.library_name or ""
         pattern = _LIBRARY_LOAD_PATTERNS.get(lib)
@@ -519,8 +520,12 @@ class HubClient:
                 model_class = "transformers.ViTForImageClassification"
                 requirements = ["transformers", "torch"]
                 load_metadata["load_pattern"] = "from_pretrained"
-            elif info.pipeline_tag in ("object-detection", "image-classification",
-                                        "image-segmentation", "image-to-text"):
+            elif info.pipeline_tag in (
+                "object-detection",
+                "image-classification",
+                "image-segmentation",
+                "image-to-text",
+            ):
                 # Generic transformers fallback for recognized vision tasks
                 model_class = "transformers.AutoModel"
                 requirements = ["transformers", "torch"]
@@ -554,21 +559,21 @@ class HubClient:
         self,
         query: str,
         *,
-        capability: Optional[ComponentCapability] = None,
-    ) -> List[ComponentCandidate]:
+        capability: ComponentCapability | None = None,
+    ) -> list[ComponentCandidate]:
         """Search PyPI for CV model wrapper packages.
 
         Uses a curated registry of known CV packages cross-referenced
         with live PyPI metadata (version, summary) for validation.
         Packages that are not available on PyPI are excluded.
         """
-        candidates: List[ComponentCandidate] = []
+        candidates: list[ComponentCandidate] = []
         well_known = self._pypi_candidates_for(query, capability)
 
         # Also do a real PyPI search for the query term against our registry
         if capability and not well_known:
             # Fall back to matching all packages that have the capability
-            for pkg_name, keywords, caps, vram in _PYPI_CV_PACKAGES:
+            for pkg_name, _keywords, caps, vram in _PYPI_CV_PACKAGES:
                 if capability in caps:
                     well_known.append((pkg_name, caps, vram))
 
@@ -580,30 +585,40 @@ class HubClient:
             # Look up the entry class from our curated registry
             entry_info = _PYPI_PACKAGE_DETAILS.get(pkg_name, {})
 
-            candidates.append(ComponentCandidate(
-                component_id=f"pypi.{pkg_name}",
-                name=pkg_name,
-                source="pypi",
-                source_id=pkg_name,
-                capabilities=pkg_caps,
-                vram_mb=vram_est,
-                score=min(
-                    (info.get("downloads", 0) if isinstance(info.get("downloads"), (int, float))
-                     else (info.get("downloads", {}).get("last_month", 0) if isinstance(info.get("downloads"), dict) else 0))
-                    / 500_000, 1.0
-                ),
-                python_requirements=entry_info.get("requirements", [pkg_name]),
-                model_class=entry_info.get("model_class", ""),
-                metadata={
-                    "version": info.get("version", ""),
-                    "summary": info.get("summary", ""),
-                    "home_page": info.get("home_page", ""),
-                    "entry_module": entry_info.get("entry_module", pkg_name),
-                    "entry_class": entry_info.get("entry_class", ""),
-                    "load_pattern": entry_info.get("load_pattern", "constructor"),
-                },
-                trusted=pkg_name in _TRUSTED_PYPI_PACKAGES,
-            ))
+            candidates.append(
+                ComponentCandidate(
+                    component_id=f"pypi.{pkg_name}",
+                    name=pkg_name,
+                    source="pypi",
+                    source_id=pkg_name,
+                    capabilities=pkg_caps,
+                    vram_mb=vram_est,
+                    score=min(
+                        (
+                            info.get("downloads", 0)
+                            if isinstance(info.get("downloads"), (int, float))
+                            else (
+                                info.get("downloads", {}).get("last_month", 0)
+                                if isinstance(info.get("downloads"), dict)
+                                else 0
+                            )
+                        )
+                        / 500_000,
+                        1.0,
+                    ),
+                    python_requirements=entry_info.get("requirements", [pkg_name]),
+                    model_class=entry_info.get("model_class", ""),
+                    metadata={
+                        "version": info.get("version", ""),
+                        "summary": info.get("summary", ""),
+                        "home_page": info.get("home_page", ""),
+                        "entry_module": entry_info.get("entry_module", pkg_name),
+                        "entry_class": entry_info.get("entry_class", ""),
+                        "load_pattern": entry_info.get("load_pattern", "constructor"),
+                    },
+                    trusted=pkg_name in _TRUSTED_PYPI_PACKAGES,
+                )
+            )
 
         return candidates
 
@@ -611,25 +626,27 @@ class HubClient:
         self,
         query: str,
         *,
-        capability: Optional[ComponentCapability] = None,
-    ) -> List[ComponentCandidate]:
+        capability: ComponentCapability | None = None,
+    ) -> list[ComponentCandidate]:
         """Search known TorchHub repos for matching models.
 
         TorchHub lacks a search API, so we query a curated list of
         well-known repos that host CV models.  The query and capability
         are both checked for matches.
         """
-        candidates: List[ComponentCandidate] = []
+        candidates: list[ComponentCandidate] = []
 
         # Search all TorchHub entries matching query or capability
-        matched_repos: List[tuple] = []
+        matched_repos: list[tuple] = []
         q_lower = query.lower()
 
         for key, repos in _TORCHHUB_REPOS.items():
             # Match by query keyword or by capability value
-            if q_lower in key or any(q_lower in r[1].lower() for r in repos):
-                matched_repos.extend(repos)
-            elif capability and capability.value == key:
+            if (
+                q_lower in key
+                or any(q_lower in r[1].lower() for r in repos)
+                or (capability and capability.value == key)
+            ):
                 matched_repos.extend(repos)
 
         # De-duplicate
@@ -639,22 +656,24 @@ class HubClient:
             if cid in seen:
                 continue
             seen.add(cid)
-            candidates.append(ComponentCandidate(
-                component_id=cid,
-                name=model_name,
-                source="torchhub",
-                source_id=f"{repo_id}:{model_name}",
-                capabilities=caps,
-                vram_mb=vram_est,
-                score=0.7,
-                python_requirements=["torch", "torchvision"],
-                model_class=f"torch.hub.load('{repo_id}', '{model_name}')",
-                metadata={
-                    "repo": repo_id,
-                    "load_pattern": "hub_load",
-                },
-                trusted=True,
-            ))
+            candidates.append(
+                ComponentCandidate(
+                    component_id=cid,
+                    name=model_name,
+                    source="torchhub",
+                    source_id=f"{repo_id}:{model_name}",
+                    capabilities=caps,
+                    vram_mb=vram_est,
+                    score=0.7,
+                    python_requirements=["torch", "torchvision"],
+                    model_class=f"torch.hub.load('{repo_id}', '{model_name}')",
+                    metadata={
+                        "repo": repo_id,
+                        "load_pattern": "hub_load",
+                    },
+                    trusted=True,
+                )
+            )
 
         return candidates
 
@@ -662,39 +681,48 @@ class HubClient:
         self,
         query: str,
         *,
-        capability: Optional[ComponentCapability] = None,
-        max_results: Optional[int] = None,
-    ) -> List[ComponentCandidate]:
+        capability: ComponentCapability | None = None,
+        max_results: int | None = None,
+    ) -> list[ComponentCandidate]:
         """Search all sources and return a de-duplicated, ranked list.
 
         Searches HuggingFace Hub, PyPI, and TorchHub in parallel,
         then merges and ranks results by composite score.
         """
-        hf_task = asyncio.create_task(self.search_models(
-            query, capability=capability, max_results=max_results,
-        ))
-        pypi_task = asyncio.create_task(self.search_pypi(
-            query, capability=capability,
-        ))
-        torch_task = asyncio.create_task(self.search_torchhub(
-            query, capability=capability,
-        ))
+        hf_task = asyncio.create_task(
+            self.search_models(
+                query,
+                capability=capability,
+                max_results=max_results,
+            )
+        )
+        pypi_task = asyncio.create_task(
+            self.search_pypi(
+                query,
+                capability=capability,
+            )
+        )
+        torch_task = asyncio.create_task(
+            self.search_torchhub(
+                query,
+                capability=capability,
+            )
+        )
 
         hf_models, pypi_cands, torch_cands = await asyncio.gather(
-            hf_task, pypi_task, torch_task,
+            hf_task,
+            pypi_task,
+            torch_task,
         )
 
         # Convert HF results to candidates
         cap_set = {capability} if capability else set()
-        hf_cands = [
-            self.hf_model_to_candidate(m, capabilities=cap_set)
-            for m in hf_models
-        ]
+        hf_cands = [self.hf_model_to_candidate(m, capabilities=cap_set) for m in hf_models]
 
         # Merge and de-duplicate
         all_cands = hf_cands + pypi_cands + torch_cands
         seen: set[str] = set()
-        unique: List[ComponentCandidate] = []
+        unique: list[ComponentCandidate] = []
         for c in all_cands:
             if c.component_id not in seen:
                 seen.add(c.component_id)
@@ -714,8 +742,8 @@ class HubClient:
         *,
         source: str = "all",
         vram_budget_mb: int = 1024,
-        max_results: Optional[int] = None,
-    ) -> List[ComponentCandidate]:
+        max_results: int | None = None,
+    ) -> list[ComponentCandidate]:
         """Open-ended internet search driven by LLM-generated queries.
 
         Unlike ``unified_search`` which maps capabilities to fixed
@@ -736,13 +764,9 @@ class HubClient:
             Limit on returned candidates.
         """
         limit = max_results or self._max_results
-        all_cands: List[ComponentCandidate] = []
+        all_cands: list[ComponentCandidate] = []
 
-        sources = (
-            ["huggingface", "pypi", "github"]
-            if source == "all"
-            else [source]
-        )
+        sources = ["huggingface", "pypi", "github"] if source == "all" else [source]
 
         tasks = []
         if "huggingface" in sources:
@@ -761,7 +785,7 @@ class HubClient:
 
         # De-duplicate and rank
         seen: set[str] = set()
-        unique: List[ComponentCandidate] = []
+        unique: list[ComponentCandidate] = []
         for c in all_cands:
             if c.component_id not in seen:
                 seen.add(c.component_id)
@@ -782,10 +806,10 @@ class HubClient:
         self,
         query: str,
         limit: int,
-    ) -> List[ComponentCandidate]:
+    ) -> list[ComponentCandidate]:
         """Search HuggingFace Hub with a free-form query — NO pipeline_tag
         filter, allowing discovery of any model type."""
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "search": query,
             "limit": limit,
             "sort": "downloads",
@@ -801,7 +825,7 @@ class HubClient:
             log.error("open_hf_search_failed", query=query, error=str(exc))
             return []
 
-        results: List[ComponentCandidate] = []
+        results: list[ComponentCandidate] = []
         for entry in models_raw:
             info = HFModelInfo(
                 model_id=entry.get("modelId", entry.get("id", "")),
@@ -826,11 +850,11 @@ class HubClient:
         self,
         query: str,
         limit: int,
-    ) -> List[ComponentCandidate]:
+    ) -> list[ComponentCandidate]:
         """Search PyPI using the JSON API and classifiers — beyond the
         curated registry.  Searches real PyPI for any package matching
         the query."""
-        candidates: List[ComponentCandidate] = []
+        candidates: list[ComponentCandidate] = []
 
         # First check curated packages (fast path / seed knowledge)
         q_lower = query.lower()
@@ -838,17 +862,19 @@ class HubClient:
             if any(k in q_lower for k in keywords):
                 info = await self._get_pypi_info(pkg_name)
                 if info:
-                    candidates.append(ComponentCandidate(
-                        component_id=f"pypi.{pkg_name}",
-                        name=pkg_name,
-                        source="pypi",
-                        source_id=pkg_name,
-                        capabilities=caps,
-                        vram_mb=vram,
-                        score=min((info.get("downloads", 0)) / 500_000, 1.0) + 0.1,
-                        python_requirements=[pkg_name],
-                        trusted=pkg_name in _TRUSTED_PYPI_PACKAGES,
-                    ))
+                    candidates.append(
+                        ComponentCandidate(
+                            component_id=f"pypi.{pkg_name}",
+                            name=pkg_name,
+                            source="pypi",
+                            source_id=pkg_name,
+                            capabilities=caps,
+                            vram_mb=vram,
+                            score=min((info.get("downloads", 0)) / 500_000, 1.0) + 0.1,
+                            python_requirements=[pkg_name],
+                            trusted=pkg_name in _TRUSTED_PYPI_PACKAGES,
+                        )
+                    )
 
         # Then do a real PyPI search: use the XMLRPC search or direct
         # package name probing for likely package names derived from query
@@ -859,22 +885,24 @@ class HubClient:
             info = await self._get_pypi_info(pkg)
             if info and info.get("summary"):
                 entry = _PYPI_PACKAGE_DETAILS.get(pkg, {})
-                candidates.append(ComponentCandidate(
-                    component_id=f"pypi.{pkg}",
-                    name=pkg,
-                    source="pypi",
-                    source_id=pkg,
-                    capabilities=set(),  # Unknown — LLM will evaluate
-                    vram_mb=0,
-                    score=min((info.get("downloads", 0)) / 500_000, 0.8),
-                    python_requirements=entry.get("requirements", [pkg]),
-                    model_class=entry.get("model_class", ""),
-                    metadata={
-                        "version": info.get("version", ""),
-                        "summary": info.get("summary", ""),
-                    },
-                    trusted=pkg in _TRUSTED_PYPI_PACKAGES,
-                ))
+                candidates.append(
+                    ComponentCandidate(
+                        component_id=f"pypi.{pkg}",
+                        name=pkg,
+                        source="pypi",
+                        source_id=pkg,
+                        capabilities=set(),  # Unknown — LLM will evaluate
+                        vram_mb=0,
+                        score=min((info.get("downloads", 0)) / 500_000, 0.8),
+                        python_requirements=entry.get("requirements", [pkg]),
+                        model_class=entry.get("model_class", ""),
+                        metadata={
+                            "version": info.get("version", ""),
+                            "summary": info.get("summary", ""),
+                        },
+                        trusted=pkg in _TRUSTED_PYPI_PACKAGES,
+                    )
+                )
 
         return candidates[:limit]
 
@@ -882,7 +910,7 @@ class HubClient:
         self,
         query: str,
         limit: int,
-    ) -> List[ComponentCandidate]:
+    ) -> list[ComponentCandidate]:
         """Search GitHub public repositories for CV-related projects.
 
         Uses the GitHub Search API (no auth required for public repos,
@@ -912,7 +940,7 @@ class HubClient:
             log.error("github_search_failed", query=query, error=str(exc))
             return []
 
-        candidates: List[ComponentCandidate] = []
+        candidates: list[ComponentCandidate] = []
         for repo in data.get("items", []):
             full_name = repo.get("full_name", "")
             stars = repo.get("stargazers_count", 0)
@@ -922,30 +950,32 @@ class HubClient:
             score = min(stars / 10_000, 1.0)
             trusted = stars > 1000
 
-            candidates.append(ComponentCandidate(
-                component_id=f"github.{full_name.replace('/', '.')}",
-                name=repo.get("name", ""),
-                source="github",
-                source_id=full_name,
-                capabilities=set(),  # Unknown — LLM will evaluate
-                vram_mb=0,  # Unknown
-                score=score,
-                python_requirements=[],  # Will need to parse setup.py/pyproject
-                metadata={
-                    "github_url": repo.get("html_url", ""),
-                    "stars": stars,
-                    "description": description[:200],
-                    "language": repo.get("language", ""),
-                    "license": (repo.get("license") or {}).get("spdx_id", ""),
-                    "topics": repo.get("topics", []),
-                },
-                trusted=trusted,
-            ))
+            candidates.append(
+                ComponentCandidate(
+                    component_id=f"github.{full_name.replace('/', '.')}",
+                    name=repo.get("name", ""),
+                    source="github",
+                    source_id=full_name,
+                    capabilities=set(),  # Unknown — LLM will evaluate
+                    vram_mb=0,  # Unknown
+                    score=score,
+                    python_requirements=[],  # Will need to parse setup.py/pyproject
+                    metadata={
+                        "github_url": repo.get("html_url", ""),
+                        "stars": stars,
+                        "description": description[:200],
+                        "language": repo.get("language", ""),
+                        "license": (repo.get("license") or {}).get("spdx_id", ""),
+                        "topics": repo.get("topics", []),
+                    },
+                    trusted=trusted,
+                )
+            )
 
         return candidates
 
     @staticmethod
-    def _derive_package_names(query: str) -> List[str]:
+    def _derive_package_names(query: str) -> list[str]:
         """Derive likely PyPI package names from a free-form query.
 
         Generates plausible pip-installable names like "underwater-enhance",
@@ -953,17 +983,32 @@ class HubClient:
         """
         words = query.lower().replace("-", " ").replace("_", " ").split()
         # Filter stopwords
-        stopwords = {"a", "the", "for", "and", "or", "in", "on", "with", "model",
-                      "deep", "learning", "neural", "network", "python", "library"}
+        stopwords = {
+            "a",
+            "the",
+            "for",
+            "and",
+            "or",
+            "in",
+            "on",
+            "with",
+            "model",
+            "deep",
+            "learning",
+            "neural",
+            "network",
+            "python",
+            "library",
+        }
         keywords = [w for w in words if w not in stopwords and len(w) > 2]
 
-        names: List[str] = []
+        names: list[str] = []
         # Single words
         for kw in keywords[:5]:
             names.append(kw)
         # Hyphenated pairs
         for i in range(min(len(keywords) - 1, 3)):
-            names.append(f"{keywords[i]}-{keywords[i+1]}")
+            names.append(f"{keywords[i]}-{keywords[i + 1]}")
         # Common prefixes
         for prefix in ("torch-", "py", "cv-"):
             for kw in keywords[:3]:
@@ -987,7 +1032,7 @@ class HubClient:
 
     # ── PyPI helpers ──────────────────────────────────────────────
 
-    async def _get_pypi_info(self, package_name: str) -> Optional[Dict[str, Any]]:
+    async def _get_pypi_info(self, package_name: str) -> dict[str, Any] | None:
         """Fetch package metadata from PyPI JSON API."""
         url = f"{PYPI_SEARCH_URL}/{package_name}/json"
         try:
@@ -1010,15 +1055,13 @@ class HubClient:
     @staticmethod
     def _pypi_candidates_for(
         query: str,
-        capability: Optional[ComponentCapability],
-    ) -> List[tuple]:
+        capability: ComponentCapability | None,
+    ) -> list[tuple]:
         """Return well-known PyPI packages matching a query or capability."""
         results = []
         q = query.lower()
         for pkg_name, keywords, caps, vram in _PYPI_CV_PACKAGES:
-            if any(k in q for k in keywords):
-                results.append((pkg_name, caps, vram))
-            elif capability and capability in caps:
+            if any(k in q for k in keywords) or (capability and capability in caps):
                 results.append((pkg_name, caps, vram))
         return results
 
@@ -1029,54 +1072,77 @@ class HubClient:
 # lists via real-time internet search.
 # ──────────────────────────────────────────────────────────────────────────
 
-_TRUSTED_PYPI_PACKAGES: frozenset = frozenset({
-    "ultralytics", "paddleocr", "easyocr", "mmdet",
-    "detectron2", "torchvision", "timm", "supervision",
-    "opencv-python", "opencv-python-headless", "albumentations",
-    "deep-sort-realtime", "kornia", "open-clip-torch",
-})
+_TRUSTED_PYPI_PACKAGES: frozenset = frozenset(
+    {
+        "ultralytics",
+        "paddleocr",
+        "easyocr",
+        "mmdet",
+        "detectron2",
+        "torchvision",
+        "timm",
+        "supervision",
+        "opencv-python",
+        "opencv-python-headless",
+        "albumentations",
+        "deep-sort-realtime",
+        "kornia",
+        "open-clip-torch",
+    }
+)
 
-_PYPI_CV_PACKAGES: List[tuple] = [
+_PYPI_CV_PACKAGES: list[tuple] = [
     # (package_name, [search_keywords], {capabilities}, vram_estimate_mb)
-    ("ultralytics", ["yolo", "detection", "plate", "vehicle", "ultralytics"],
-     {ComponentCapability.OBJECT_DETECTION, ComponentCapability.VEHICLE_DETECTION,
-      ComponentCapability.PLATE_DETECTION, ComponentCapability.PERSON_DETECTION},
-     300),
-    ("paddleocr", ["ocr", "paddle", "text", "paddleocr"],
-     {ComponentCapability.PLATE_OCR, ComponentCapability.SCENE_TEXT_OCR,
-      ComponentCapability.DOCUMENT_OCR},
-     400),
-    ("easyocr", ["ocr", "easy", "text", "recognition", "easyocr"],
-     {ComponentCapability.PLATE_OCR, ComponentCapability.SCENE_TEXT_OCR},
-     200),
-    ("mmdet", ["mmdetection", "detection", "mask", "mmdet"],
-     {ComponentCapability.OBJECT_DETECTION, ComponentCapability.INSTANCE_SEGMENTATION},
-     500),
-    ("supervision", ["supervision", "annotate", "track", "count"],
-     {ComponentCapability.OBJECT_DETECTION},
-     50),
-    ("timm", ["timm", "classification", "scene", "imagenet"],
-     {ComponentCapability.SCENE_CLASSIFICATION},
-     300),
-    ("deep-sort-realtime", ["deepsort", "deep_sort", "tracking", "sort"],
-     {ComponentCapability.TRACKING},
-     250),
-    ("kornia", ["kornia", "augmentation", "geometry", "enhance"],
-     {ComponentCapability.IMAGE_ENHANCE},
-     50),
-    ("albumentations", ["albumentations", "augmentation", "transform"],
-     {ComponentCapability.IMAGE_ENHANCE},
-     0),
-    ("open-clip-torch", ["clip", "zero-shot", "open_clip"],
-     {ComponentCapability.ZERO_SHOT_DETECTION, ComponentCapability.SCENE_CLASSIFICATION},
-     400),
-    ("transformers", ["transformers", "huggingface", "bert", "vit", "detr"],
-     {ComponentCapability.OBJECT_DETECTION, ComponentCapability.SCENE_CLASSIFICATION},
-     500),
+    (
+        "ultralytics",
+        ["yolo", "detection", "plate", "vehicle", "ultralytics"],
+        {
+            ComponentCapability.OBJECT_DETECTION,
+            ComponentCapability.VEHICLE_DETECTION,
+            ComponentCapability.PLATE_DETECTION,
+            ComponentCapability.PERSON_DETECTION,
+        },
+        300,
+    ),
+    (
+        "paddleocr",
+        ["ocr", "paddle", "text", "paddleocr"],
+        {ComponentCapability.PLATE_OCR, ComponentCapability.SCENE_TEXT_OCR, ComponentCapability.DOCUMENT_OCR},
+        400,
+    ),
+    (
+        "easyocr",
+        ["ocr", "easy", "text", "recognition", "easyocr"],
+        {ComponentCapability.PLATE_OCR, ComponentCapability.SCENE_TEXT_OCR},
+        200,
+    ),
+    (
+        "mmdet",
+        ["mmdetection", "detection", "mask", "mmdet"],
+        {ComponentCapability.OBJECT_DETECTION, ComponentCapability.INSTANCE_SEGMENTATION},
+        500,
+    ),
+    ("supervision", ["supervision", "annotate", "track", "count"], {ComponentCapability.OBJECT_DETECTION}, 50),
+    ("timm", ["timm", "classification", "scene", "imagenet"], {ComponentCapability.SCENE_CLASSIFICATION}, 300),
+    ("deep-sort-realtime", ["deepsort", "deep_sort", "tracking", "sort"], {ComponentCapability.TRACKING}, 250),
+    ("kornia", ["kornia", "augmentation", "geometry", "enhance"], {ComponentCapability.IMAGE_ENHANCE}, 50),
+    ("albumentations", ["albumentations", "augmentation", "transform"], {ComponentCapability.IMAGE_ENHANCE}, 0),
+    (
+        "open-clip-torch",
+        ["clip", "zero-shot", "open_clip"],
+        {ComponentCapability.ZERO_SHOT_DETECTION, ComponentCapability.SCENE_CLASSIFICATION},
+        400,
+    ),
+    (
+        "transformers",
+        ["transformers", "huggingface", "bert", "vit", "detr"],
+        {ComponentCapability.OBJECT_DETECTION, ComponentCapability.SCENE_CLASSIFICATION},
+        500,
+    ),
 ]
 
 # Detailed load info for each PyPI package
-_PYPI_PACKAGE_DETAILS: Dict[str, Dict[str, Any]] = {
+_PYPI_PACKAGE_DETAILS: dict[str, dict[str, Any]] = {
     "ultralytics": {
         "entry_module": "ultralytics",
         "entry_class": "YOLO",
@@ -1142,7 +1208,7 @@ _PYPI_PACKAGE_DETAILS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-_TORCHHUB_REPOS: Dict[str, List[tuple]] = {
+_TORCHHUB_REPOS: dict[str, list[tuple]] = {
     "object_detection": [
         ("ultralytics/yolov5", "yolov5s", {ComponentCapability.OBJECT_DETECTION}, 200),
         ("ultralytics/yolov5", "yolov5n", {ComponentCapability.OBJECT_DETECTION}, 100),

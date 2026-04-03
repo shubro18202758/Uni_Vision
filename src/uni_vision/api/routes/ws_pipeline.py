@@ -47,9 +47,7 @@ async def websocket_pipeline(websocket: WebSocket) -> None:
                 # No client message received — send heartbeat to keep connection alive
                 # and detect dead clients (send will raise if connection is gone)
                 try:
-                    await websocket.send_text(
-                        json.dumps({"type": "heartbeat", "timestamp": time.time()})
-                    )
+                    await websocket.send_text(json.dumps({"type": "heartbeat", "timestamp": time.time()}))
                 except Exception:
                     break  # Connection is dead, exit loop
     except WebSocketDisconnect:

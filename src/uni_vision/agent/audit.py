@@ -20,9 +20,8 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,11 +50,11 @@ CREATE INDEX IF NOT EXISTS idx_audit_session
 class AuditEntry:
     """Single audit log entry."""
 
-    session_id: Optional[str] = None
-    intent: Optional[str] = None
-    agent_role: Optional[str] = None
+    session_id: str | None = None
+    intent: str | None = None
+    agent_role: str | None = None
     action: str = ""
-    arguments: Dict[str, Any] = field(default_factory=dict)
+    arguments: dict[str, Any] = field(default_factory=dict)
     result: str = ""
     success: bool = True
     elapsed_ms: float = 0.0
@@ -68,7 +67,7 @@ class AuditTrail:
     """
 
     def __init__(self, *, buffer_limit: int = 50) -> None:
-        self._buffer: List[AuditEntry] = []
+        self._buffer: list[AuditEntry] = []
         self._buffer_limit = buffer_limit
 
     def record(self, entry: AuditEntry) -> None:
@@ -130,7 +129,7 @@ class AuditTrail:
     def pending_count(self) -> int:
         return len(self._buffer)
 
-    def get_recent(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_recent(self, limit: int = 20) -> list[dict[str, Any]]:
         """Return recent buffered entries (not yet flushed)."""
         recent = self._buffer[-limit:]
         return [

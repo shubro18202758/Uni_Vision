@@ -25,7 +25,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,51 +43,54 @@ def _ensure_imports() -> None:
     try:
         import pyarrow as pa  # type: ignore[import-untyped]
         from deltalake import DeltaTable, write_deltalake  # type: ignore[import-untyped]
+
         _pa = pa
         _DeltaTable = DeltaTable
         _write_deltalake = write_deltalake
     except ImportError as exc:
-        raise ImportError(
-            "Delta Lake dependencies not installed. "
-            "Run: pip install 'uni-vision[databricks]'"
-        ) from exc
+        raise ImportError("Delta Lake dependencies not installed. Run: pip install 'uni-vision[databricks]'") from exc
 
 
 # ── Detection table schema ────────────────────────────────────────
+
 
 def _detection_schema():
     """PyArrow schema matching DetectionRecord fields."""
     _ensure_imports()
     pa = _pa
-    return pa.schema([
-        pa.field("id", pa.string(), nullable=False),
-        pa.field("camera_id", pa.string(), nullable=False),
-        pa.field("plate_number", pa.string(), nullable=False),
-        pa.field("raw_ocr_text", pa.string()),
-        pa.field("ocr_confidence", pa.float64()),
-        pa.field("ocr_engine", pa.string()),
-        pa.field("vehicle_class", pa.string()),
-        pa.field("vehicle_image_path", pa.string()),
-        pa.field("plate_image_path", pa.string()),
-        pa.field("detected_at_utc", pa.timestamp("us", tz="UTC")),
-        pa.field("validation_status", pa.string()),
-        pa.field("location_tag", pa.string()),
-        pa.field("ingested_at_utc", pa.timestamp("us", tz="UTC")),
-    ])
+    return pa.schema(
+        [
+            pa.field("id", pa.string(), nullable=False),
+            pa.field("camera_id", pa.string(), nullable=False),
+            pa.field("plate_number", pa.string(), nullable=False),
+            pa.field("raw_ocr_text", pa.string()),
+            pa.field("ocr_confidence", pa.float64()),
+            pa.field("ocr_engine", pa.string()),
+            pa.field("vehicle_class", pa.string()),
+            pa.field("vehicle_image_path", pa.string()),
+            pa.field("plate_image_path", pa.string()),
+            pa.field("detected_at_utc", pa.timestamp("us", tz="UTC")),
+            pa.field("validation_status", pa.string()),
+            pa.field("location_tag", pa.string()),
+            pa.field("ingested_at_utc", pa.timestamp("us", tz="UTC")),
+        ]
+    )
 
 
 def _audit_schema():
     """PyArrow schema for the audit log table."""
     _ensure_imports()
     pa = _pa
-    return pa.schema([
-        pa.field("record_id", pa.string(), nullable=False),
-        pa.field("camera_id", pa.string(), nullable=False),
-        pa.field("raw_ocr_text", pa.string()),
-        pa.field("ocr_confidence", pa.float64()),
-        pa.field("failure_reason", pa.string()),
-        pa.field("logged_at_utc", pa.timestamp("us", tz="UTC")),
-    ])
+    return pa.schema(
+        [
+            pa.field("record_id", pa.string(), nullable=False),
+            pa.field("camera_id", pa.string(), nullable=False),
+            pa.field("raw_ocr_text", pa.string()),
+            pa.field("ocr_confidence", pa.float64()),
+            pa.field("failure_reason", pa.string()),
+            pa.field("logged_at_utc", pa.timestamp("us", tz="UTC")),
+        ]
+    )
 
 
 class DeltaLakeStore:
@@ -111,7 +114,7 @@ class DeltaLakeStore:
         self,
         table_path: str = "./data/delta/detections",
         audit_table_path: str = "./data/delta/audit_log",
-        partition_columns: Optional[List[str]] = None,
+        partition_columns: list[str] | None = None,
         checkpoint_interval: int = 50,
         vacuum_retain_hours: int = 168,
     ) -> None:
@@ -242,7 +245,7 @@ class DeltaLakeStore:
 
     # ── Time-travel queries ───────────────────────────────────────
 
-    def read_at_version(self, version: int) -> List[Dict[str, Any]]:
+    def read_at_version(self, version: int) -> list[dict[str, Any]]:
         """Read the detection table at a specific Delta version.
 
         This enables full audit replay — every state the table has
@@ -252,7 +255,7 @@ class DeltaLakeStore:
         df = dt.to_pandas()
         return df.to_dict(orient="records")
 
-    def read_at_timestamp(self, timestamp_iso: str) -> List[Dict[str, Any]]:
+    def read_at_timestamp(self, timestamp_iso: str) -> list[dict[str, Any]]:
         """Read the detection table as it existed at a given timestamp."""
         dt = _DeltaTable(
             self._table_path,
@@ -272,7 +275,7 @@ class DeltaLakeStore:
 
     # ── Table metadata ────────────────────────────────────────────
 
-    def get_table_stats(self) -> Dict[str, Any]:
+    def get_table_stats(self) -> dict[str, Any]:
         """Return Delta table metadata: version, row count, partitions etc."""
         if not _DeltaTable.is_deltatable(self._table_path):
             return {"exists": False, "table_path": self._table_path}
@@ -302,7 +305,7 @@ class DeltaLakeStore:
             "size_on_disk_bytes": self._get_table_size_bytes(),
         }
 
-    def get_audit_stats(self) -> Dict[str, Any]:
+    def get_audit_stats(self) -> dict[str, Any]:
         """Return audit table metadata."""
         if not _DeltaTable.is_deltatable(self._audit_path):
             return {"exists": False, "audit_table_path": self._audit_path}
@@ -318,7 +321,7 @@ class DeltaLakeStore:
             "total_audit_writes": self._audit_write_count,
         }
 
-    def get_version_history(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_version_history(self, limit: int = 20) -> list[dict[str, Any]]:
         """Return recent transaction log entries for the detection table."""
         if not _DeltaTable.is_deltatable(self._table_path):
             return []
@@ -354,7 +357,7 @@ class DeltaLakeStore:
 
     # ── Convenience reads ─────────────────────────────────────────
 
-    def read_recent(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def read_recent(self, limit: int = 100) -> list[dict[str, Any]]:
         """Read the most recent detections from the Delta table."""
         if not _DeltaTable.is_deltatable(self._table_path):
             return []
@@ -369,7 +372,7 @@ class DeltaLakeStore:
                 df[col] = df[col].astype(str)
         return df.to_dict(orient="records")
 
-    def read_by_camera(self, camera_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def read_by_camera(self, camera_id: str, limit: int = 100) -> list[dict[str, Any]]:
         """Read detections filtered by camera using partition pruning."""
         if not _DeltaTable.is_deltatable(self._table_path):
             return []
@@ -387,7 +390,7 @@ class DeltaLakeStore:
 
     # ── Compaction & size helpers ─────────────────────────────────
 
-    def compact(self, target_size_mb: int = 128) -> Dict[str, Any]:
+    def compact(self, target_size_mb: int = 128) -> dict[str, Any]:
         """Compact small Parquet files into larger ones for better read perf.
 
         Uses Z-order optimisation on ``plate_number`` when available,
@@ -404,7 +407,8 @@ class DeltaLakeStore:
             after_files = len(list(Path(self._table_path).rglob("*.parquet")))
             logger.info(
                 "delta_compact_complete before=%d after=%d",
-                before_files, after_files,
+                before_files,
+                after_files,
             )
             return {
                 "status": "compacted",
@@ -425,7 +429,7 @@ class DeltaLakeStore:
                     total += f.stat().st_size
         return total
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Return a health summary for monitoring dashboards."""
         stats = self.get_table_stats()
         audit = self.get_audit_stats()

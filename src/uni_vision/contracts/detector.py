@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import List, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-import numpy as np
-from numpy.typing import NDArray
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
 
-from uni_vision.contracts.dtos import BoundingBox
+    from uni_vision.contracts.dtos import BoundingBox
 
 
 @runtime_checkable
@@ -39,7 +40,7 @@ class Detector(Protocol):
         """
         ...
 
-    def detect(self, image: NDArray[np.uint8]) -> List[BoundingBox]:
+    def detect(self, image: NDArray[np.uint8]) -> list[BoundingBox]:
         """Run detection on a BGR uint8 image.
 
         Args:

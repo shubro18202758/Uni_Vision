@@ -11,7 +11,7 @@ user-defined pipeline topology so it can:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from uni_vision.agent.tools import tool
 
@@ -51,7 +51,7 @@ def _get_block_registry(context: Any):
     ),
     param_descriptions={},
 )
-async def describe_pipeline_graph(*, context: Any = None) -> Dict[str, Any]:
+async def describe_pipeline_graph(*, context: Any = None) -> dict[str, Any]:
     """Describe the current pipeline graph."""
     engine = _get_graph_engine(context)
     if engine is None:
@@ -81,7 +81,7 @@ async def list_available_blocks(
     category: str = "",
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List available block definitions from the registry."""
     registry = _get_block_registry(context)
     if registry is None:
@@ -105,10 +105,7 @@ async def list_available_blocks(
 
 @tool(
     name="get_block_details",
-    description=(
-        "Get full details for a specific block type including its "
-        "configuration schema, ports, and defaults."
-    ),
+    description=("Get full details for a specific block type including its configuration schema, ports, and defaults."),
     param_descriptions={
         "block_type": "The block type identifier (e.g. 'yolo-detector', 'paddleocr').",
     },
@@ -117,7 +114,7 @@ async def get_block_details(
     block_type: str,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return details for one block type."""
     registry = _get_block_registry(context)
     if registry is None:
@@ -136,7 +133,7 @@ async def get_block_details(
     ),
     param_descriptions={},
 )
-async def get_deployed_graph(*, context: Any = None) -> Dict[str, Any]:
+async def get_deployed_graph(*, context: Any = None) -> dict[str, Any]:
     """Return the deployed graph data."""
     engine = _get_graph_engine(context)
     if engine is None:
@@ -170,7 +167,7 @@ async def validate_pipeline_graph(
     graph_json: str,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Validate a graph without deploying."""
     import json as _json
 
@@ -193,10 +190,7 @@ async def validate_pipeline_graph(
 
 @tool(
     name="deploy_pipeline_graph",
-    description=(
-        "Deploy a user-defined pipeline graph so that the backend "
-        "executes it. Accepts the full graph JSON."
-    ),
+    description=("Deploy a user-defined pipeline graph so that the backend executes it. Accepts the full graph JSON."),
     param_descriptions={
         "graph_json": (
             "JSON string of the graph to deploy. Must have keys "
@@ -209,7 +203,7 @@ async def deploy_pipeline_graph(
     graph_json: str,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Deploy a pipeline graph to the engine."""
     import json as _json
 
@@ -253,7 +247,7 @@ async def deploy_pipeline_graph(
     description="Remove the currently deployed pipeline graph.",
     param_descriptions={},
 )
-async def clear_pipeline_graph(*, context: Any = None) -> Dict[str, Any]:
+async def clear_pipeline_graph(*, context: Any = None) -> dict[str, Any]:
     """Clear the deployed graph."""
     engine = _get_graph_engine(context)
     if engine is None:
@@ -264,10 +258,7 @@ async def clear_pipeline_graph(*, context: Any = None) -> Dict[str, Any]:
 
 @tool(
     name="register_custom_block",
-    description=(
-        "Register a new custom block type in the backend registry so "
-        "it becomes available for pipelines."
-    ),
+    description=("Register a new custom block type in the backend registry so it becomes available for pipelines."),
     param_descriptions={
         "block_json": (
             "JSON string defining the block. Must include: type, label, "
@@ -280,7 +271,7 @@ async def register_custom_block(
     block_json: str,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Register a custom block definition."""
     import json as _json
 
@@ -320,8 +311,7 @@ async def register_custom_block(
             "kn, ml, mr, bn, gu, pa, or, ur, as, kok, ne, sd)."
         ),
         "language": (
-            "Two-letter language code (e.g. 'hi', 'te', 'en') or "
-            "'auto' for automatic detection. Default: 'auto'."
+            "Two-letter language code (e.g. 'hi', 'te', 'en') or 'auto' for automatic detection. Default: 'auto'."
         ),
     },
 )
@@ -330,7 +320,7 @@ async def design_workflow_from_nl(
     language: str = "auto",
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Design a pipeline workflow from natural language."""
     from uni_vision.agent.workflow_designer import WorkflowDesigner
 
@@ -356,19 +346,13 @@ async def design_workflow_from_nl(
         return {
             "success": False,
             "error": result.error or "Workflow design failed",
-            "phases": [
-                {"name": p.name, "message": p.message, "success": p.success}
-                for p in result.phases
-            ],
+            "phases": [{"name": p.name, "message": p.message, "success": p.success} for p in result.phases],
         }
 
     return {
         "success": True,
         "graph": result.graph,
-        "phases": [
-            {"name": p.name, "message": p.message, "elapsed_ms": p.elapsed_ms}
-            for p in result.phases
-        ],
+        "phases": [{"name": p.name, "message": p.message, "elapsed_ms": p.elapsed_ms} for p in result.phases],
         "detected_language": result.detected_language,
         "english_input": result.english_input,
         "total_elapsed_ms": result.total_elapsed_ms,

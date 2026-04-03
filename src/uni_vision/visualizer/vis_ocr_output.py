@@ -64,9 +64,7 @@ def render() -> None:
     import pandas as pd
 
     if engine_counts:
-        df_eng = pd.DataFrame(
-            list(engine_counts.items()), columns=["Engine", "Count"]
-        )
+        df_eng = pd.DataFrame(list(engine_counts.items()), columns=["Engine", "Count"])
         st.bar_chart(df_eng.set_index("Engine"))
 
     # ── Confidence histogram ──────────────────────────────────────
@@ -115,7 +113,7 @@ def render() -> None:
             if raw and raw != plate:
                 st.markdown("**Corrections Applied:**")
                 diffs = []
-                for i, (a, b) in enumerate(zip(raw.ljust(len(plate)), plate)):
+                for i, (a, b) in enumerate(zip(raw.ljust(len(plate)), plate, strict=False)):
                     if a != b:
                         diffs.append(f"pos {i}: `{a}` → `{b}`")
                 if len(raw) != len(plate):

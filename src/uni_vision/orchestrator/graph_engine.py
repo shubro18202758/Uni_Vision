@@ -26,16 +26,19 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict, deque
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 # ── Graph data structures ─────────────────────────────────────────
 
+
 class GraphNode:
     """A node in the execution graph."""
-    __slots__ = ("id", "type", "label", "category", "config", "handler_key")
+
+    __slots__ = ("category", "config", "handler_key", "id", "label", "type")
 
     def __init__(
         self,
@@ -43,7 +46,7 @@ class GraphNode:
         type: str,
         label: str,
         category: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         handler_key: str = "",
     ) -> None:
         self.id = id
@@ -56,6 +59,7 @@ class GraphNode:
 
 class GraphEdge:
     """A connection between two ports."""
+
     __slots__ = ("id", "source", "source_handle", "target", "target_handle")
 
     def __init__(
@@ -78,26 +82,27 @@ class ExecutionResult:
 
     def __init__(self) -> None:
         self.success: bool = True
-        self.error: Optional[str] = None
-        self.node_outputs: Dict[str, Dict[str, Any]] = {}
-        self.executed_nodes: List[str] = []
-        self.terminal_outputs: Dict[str, Any] = {}
+        self.error: str | None = None
+        self.node_outputs: dict[str, dict[str, Any]] = {}
+        self.executed_nodes: list[str] = []
+        self.terminal_outputs: dict[str, Any] = {}
         self.elapsed_ms: float = 0.0
-        self.stage_timings: Dict[str, float] = {}
+        self.stage_timings: dict[str, float] = {}
 
 
 # ── Topological sort ──────────────────────────────────────────────
 
+
 def topological_sort(
-    node_ids: List[str],
-    edges: List[GraphEdge],
-) -> Tuple[List[str], Optional[str]]:
+    node_ids: list[str],
+    edges: list[GraphEdge],
+) -> tuple[list[str], str | None]:
     """Kahn's algorithm — returns (sorted_ids, error_or_None).
 
     If the graph contains cycles, returns (partial_list, error_message).
     """
-    in_degree: Dict[str, int] = {nid: 0 for nid in node_ids}
-    adjacency: Dict[str, List[str]] = {nid: [] for nid in node_ids}
+    in_degree: dict[str, int] = {nid: 0 for nid in node_ids}
+    adjacency: dict[str, list[str]] = {nid: [] for nid in node_ids}
 
     for edge in edges:
         if edge.source in adjacency and edge.target in in_degree:
@@ -109,7 +114,7 @@ def topological_sort(
         if deg == 0:
             queue.append(nid)
 
-    sorted_ids: List[str] = []
+    sorted_ids: list[str] = []
     while queue:
         node = queue.popleft()
         sorted_ids.append(node)
@@ -126,53 +131,62 @@ def topological_sort(
 
 # ── Validation ────────────────────────────────────────────────────
 
+
 def validate_graph(
-    nodes: List[GraphNode],
-    edges: List[GraphEdge],
+    nodes: list[GraphNode],
+    edges: list[GraphEdge],
     block_registry: Any = None,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Validate graph structure. Returns a list of issues (may be empty)."""
-    issues: List[Dict[str, Any]] = []
+    issues: list[dict[str, Any]] = []
     node_map = {n.id: n for n in nodes}
 
     # Check for cycles
     _, cycle_err = topological_sort([n.id for n in nodes], edges)
     if cycle_err:
-        issues.append({
-            "id": "cycle",
-            "level": "error",
-            "message": cycle_err,
-        })
+        issues.append(
+            {
+                "id": "cycle",
+                "level": "error",
+                "message": cycle_err,
+            }
+        )
 
     # Check for dangling edge references
     node_ids = set(node_map.keys())
     for edge in edges:
         if edge.source not in node_ids:
-            issues.append({
-                "id": f"dangling-source-{edge.id}",
-                "level": "error",
-                "message": f"Edge '{edge.id}' references non-existent source '{edge.source}'",
-            })
+            issues.append(
+                {
+                    "id": f"dangling-source-{edge.id}",
+                    "level": "error",
+                    "message": f"Edge '{edge.id}' references non-existent source '{edge.source}'",
+                }
+            )
         if edge.target not in node_ids:
-            issues.append({
-                "id": f"dangling-target-{edge.id}",
-                "level": "error",
-                "message": f"Edge '{edge.id}' references non-existent target '{edge.target}'",
-            })
+            issues.append(
+                {
+                    "id": f"dangling-target-{edge.id}",
+                    "level": "error",
+                    "message": f"Edge '{edge.id}' references non-existent target '{edge.target}'",
+                }
+            )
 
     # Warn on disconnected nodes (no inputs and no outputs connected)
-    connected: Set[str] = set()
+    connected: set[str] = set()
     for edge in edges:
         connected.add(edge.source)
         connected.add(edge.target)
     for node in nodes:
         if node.id not in connected and node.category != "Input":
-            issues.append({
-                "id": f"disconnected-{node.id}",
-                "level": "warning",
-                "message": f"Block '{node.label}' ({node.id}) has no connections",
-                "blockId": node.id,
-            })
+            issues.append(
+                {
+                    "id": f"disconnected-{node.id}",
+                    "level": "warning",
+                    "message": f"Block '{node.label}' ({node.id}) has no connections",
+                    "blockId": node.id,
+                }
+            )
 
     return issues
 
@@ -180,10 +194,11 @@ def validate_graph(
 # ── Handler type ──────────────────────────────────────────────────
 
 # Handler signature: (inputs: Dict[port_id, data], config: Dict) -> Dict[port_id, data]
-HandlerFn = Callable[[Dict[str, Any], Dict[str, Any]], Any]
+HandlerFn = Callable[[dict[str, Any], dict[str, Any]], Any]
 
 
 # ── Graph Engine ──────────────────────────────────────────────────
+
 
 class GraphEngine:
     """Interprets and executes user-defined pipeline graphs.
@@ -197,10 +212,10 @@ class GraphEngine:
     """
 
     def __init__(self) -> None:
-        self._handlers: Dict[str, HandlerFn] = {}
-        self._current_graph_nodes: List[GraphNode] = []
-        self._current_graph_edges: List[GraphEdge] = []
-        self._current_graph_json: Optional[Dict[str, Any]] = None
+        self._handlers: dict[str, HandlerFn] = {}
+        self._current_graph_nodes: list[GraphNode] = []
+        self._current_graph_edges: list[GraphEdge] = []
+        self._current_graph_json: dict[str, Any] | None = None
 
     # ── Handler registration ──────────────────────────────────────
 
@@ -214,7 +229,7 @@ class GraphEngine:
 
     # ── Graph loading ─────────────────────────────────────────────
 
-    def load_graph(self, graph_json: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def load_graph(self, graph_json: dict[str, Any]) -> list[dict[str, Any]]:
         """Load a ProjectGraph dict, validate, and store for execution.
 
         Returns a list of validation issues (empty = valid).
@@ -222,26 +237,30 @@ class GraphEngine:
         blocks = graph_json.get("blocks", [])
         connections = graph_json.get("connections", [])
 
-        nodes: List[GraphNode] = []
+        nodes: list[GraphNode] = []
         for b in blocks:
-            nodes.append(GraphNode(
-                id=b["id"],
-                type=b["type"],
-                label=b.get("label", b["type"]),
-                category=b.get("category", "Utility"),
-                config=b.get("config", {}),
-                handler_key=b.get("backend_handler", ""),
-            ))
+            nodes.append(
+                GraphNode(
+                    id=b["id"],
+                    type=b["type"],
+                    label=b.get("label", b["type"]),
+                    category=b.get("category", "Utility"),
+                    config=b.get("config", {}),
+                    handler_key=b.get("backend_handler", ""),
+                )
+            )
 
-        edges: List[GraphEdge] = []
+        edges: list[GraphEdge] = []
         for c in connections:
-            edges.append(GraphEdge(
-                id=c["id"],
-                source=c["source"],
-                source_handle=c["sourceHandle"],
-                target=c["target"],
-                target_handle=c["targetHandle"],
-            ))
+            edges.append(
+                GraphEdge(
+                    id=c["id"],
+                    source=c["source"],
+                    source_handle=c["sourceHandle"],
+                    target=c["target"],
+                    target_handle=c["targetHandle"],
+                )
+            )
 
         issues = validate_graph(nodes, edges)
 
@@ -259,7 +278,7 @@ class GraphEngine:
 
         return issues
 
-    def get_current_graph(self) -> Optional[Dict[str, Any]]:
+    def get_current_graph(self) -> dict[str, Any] | None:
         """Return the currently loaded graph JSON, or None."""
         return self._current_graph_json
 
@@ -276,7 +295,7 @@ class GraphEngine:
 
     async def execute(
         self,
-        initial_data: Optional[Dict[str, Any]] = None,
+        initial_data: dict[str, Any] | None = None,
     ) -> ExecutionResult:
         """Execute the loaded graph with optional initial data.
 
@@ -308,11 +327,11 @@ class GraphEngine:
             return result
 
         # Data bus: keyed by "block_id:port_id"
-        data_bus: Dict[str, Any] = dict(initial_data or {})
+        data_bus: dict[str, Any] = dict(initial_data or {})
 
         # Build reverse edge map: target_handle → source_handle
         # For each target node's input port, which source port feeds it
-        incoming: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
+        incoming: dict[str, list[tuple[str, str]]] = defaultdict(list)
         for edge in edges:
             target_key = f"{edge.target}:{edge.target_handle}"
             source_key = f"{edge.source}:{edge.source_handle}"
@@ -327,7 +346,7 @@ class GraphEngine:
             st = time.perf_counter()
 
             # Collect inputs from data bus
-            node_inputs: Dict[str, Any] = {}
+            node_inputs: dict[str, Any] = {}
             # Check all possible input ports for this node
             for key, sources in incoming.items():
                 if key.startswith(f"{node_id}:"):
@@ -346,7 +365,9 @@ class GraphEngine:
             except Exception as exc:
                 logger.error(
                     "graph_node_error node=%s type=%s error=%s",
-                    node_id, node.type, str(exc),
+                    node_id,
+                    node.type,
+                    str(exc),
                     exc_info=True,
                 )
                 result.success = False
@@ -396,7 +417,7 @@ class GraphEngine:
         edges = self._current_graph_edges
 
         # Build adjacency description
-        adj: Dict[str, List[str]] = defaultdict(list)
+        adj: dict[str, list[str]] = defaultdict(list)
         for e in edges:
             src_label = next((n.label for n in nodes if n.id == e.source), e.source)
             tgt_label = next((n.label for n in nodes if n.id == e.target), e.target)
@@ -404,7 +425,8 @@ class GraphEngine:
 
         lines = [
             f"Current deployed pipeline: {self._current_graph_json.get('project', {}).get('name', 'Unnamed')}"
-            if self._current_graph_json else "Current deployed pipeline:",
+            if self._current_graph_json
+            else "Current deployed pipeline:",
             f"  Nodes ({len(nodes)}):",
         ]
         for n in nodes:
@@ -421,15 +443,16 @@ class GraphEngine:
 
 # ── Default handler ───────────────────────────────────────────────
 
-def _passthrough_handler(inputs: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+
+def _passthrough_handler(inputs: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     """Default handler: passes all inputs through as outputs."""
     return dict(inputs)
 
 
 async def _call_handler(
     handler: HandlerFn,
-    inputs: Dict[str, Any],
-    config: Dict[str, Any],
+    inputs: dict[str, Any],
+    config: dict[str, Any],
 ) -> Any:
     """Call a handler, supporting both sync and async handlers."""
     import asyncio
@@ -439,5 +462,8 @@ async def _call_handler(
         return await handler(inputs, config)
     else:
         return await asyncio.get_event_loop().run_in_executor(
-            None, handler, inputs, config,
+            None,
+            handler,
+            inputs,
+            config,
         )

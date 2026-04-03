@@ -17,8 +17,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from uni_vision.agent.audit import AuditEntry, AuditTrail
 from uni_vision.agent.intent import classify_intent
@@ -29,7 +29,7 @@ from uni_vision.agent.memory import WorkingMemory
 from uni_vision.agent.monitor import AutonomousMonitor
 from uni_vision.agent.navarasa_client import NavarasaClient
 from uni_vision.agent.sessions import SessionManager
-from uni_vision.agent.sub_agents import MultiAgentRouter, route_to_role, AgentRole
+from uni_vision.agent.sub_agents import AgentRole, MultiAgentRouter, route_to_role
 from uni_vision.agent.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -87,8 +87,8 @@ class AgentCoordinator:
         self._knowledge = KnowledgeBase()
         self._sessions = SessionManager()
         self._audit = AuditTrail()
-        self._monitor: Optional[AutonomousMonitor] = None
-        self._router: Optional[MultiAgentRouter] = None
+        self._monitor: AutonomousMonitor | None = None
+        self._router: MultiAgentRouter | None = None
 
         # Navarasa 2.0 7B — conversational & interactive UI LLM (no pipeline involvement)
         navarasa_cfg = getattr(config, "navarasa", None)
@@ -246,8 +246,8 @@ class AgentCoordinator:
 
         try:
             from uni_vision.monitoring.metrics import (
-                AGENT_REQUESTS,
                 AGENT_LATENCY,
+                AGENT_REQUESTS,
             )
 
             AGENT_REQUESTS.inc()
@@ -264,9 +264,7 @@ class AgentCoordinator:
         if classification.context_hints:
             hints.extend(classification.context_hints)
         if classification.suggested_tools:
-            hints.append(
-                "Consider using: " + ", ".join(classification.suggested_tools)
-            )
+            hints.append("Consider using: " + ", ".join(classification.suggested_tools))
 
         # Session context injection
         session = None
@@ -310,26 +308,30 @@ class AgentCoordinator:
         # Record audit entries for each tool call
         for step in response.steps:
             if step.action:
-                self._audit.record(AuditEntry(
-                    session_id=session_id,
-                    intent=classification.primary_intent.value,
-                    agent_role=role.value,
-                    action=step.action.get("tool", "unknown"),
-                    arguments=step.action.get("arguments", {}),
-                    result=step.observation[:500] if step.observation else "",
-                    success=step.tool_result.success if step.tool_result else True,
-                    elapsed_ms=step.elapsed_ms,
-                ))
+                self._audit.record(
+                    AuditEntry(
+                        session_id=session_id,
+                        intent=classification.primary_intent.value,
+                        agent_role=role.value,
+                        action=step.action.get("tool", "unknown"),
+                        arguments=step.action.get("arguments", {}),
+                        result=step.observation[:500] if step.observation else "",
+                        success=step.tool_result.success if step.tool_result else True,
+                        elapsed_ms=step.elapsed_ms,
+                    )
+                )
         # Record final answer
-        self._audit.record(AuditEntry(
-            session_id=session_id,
-            intent=classification.primary_intent.value,
-            agent_role=role.value,
-            action="answer",
-            result=response.answer[:500],
-            success=response.success,
-            elapsed_ms=response.total_elapsed_ms,
-        ))
+        self._audit.record(
+            AuditEntry(
+                session_id=session_id,
+                intent=classification.primary_intent.value,
+                agent_role=role.value,
+                action="answer",
+                result=response.answer[:500],
+                success=response.success,
+                elapsed_ms=response.total_elapsed_ms,
+            )
+        )
 
         # Periodic flush
         if self._audit.pending_count >= 20 and self._context.pg_client:
@@ -369,7 +371,7 @@ class AgentCoordinator:
         session_id: str | None = None,
         progress_fn: Any = None,
         model_router: Any = None,
-    ) -> Dict:
+    ) -> dict:
         """Design a pipeline workflow from natural language.
 
         This is the dedicated entry-point for the autonomous NL→workflow
@@ -395,16 +397,18 @@ class AgentCoordinator:
         )
 
         # Record in audit trail
-        self._audit.record(AuditEntry(
-            session_id=session_id,
-            intent="workflow_design",
-            agent_role="workflow_designer",
-            action="design_workflow",
-            arguments={"description": description[:200], "language": language},
-            result=f"success={result.success} blocks={len(result.graph.get('blocks', [])) if result.graph else 0}",
-            success=result.success,
-            elapsed_ms=result.total_elapsed_ms,
-        ))
+        self._audit.record(
+            AuditEntry(
+                session_id=session_id,
+                intent="workflow_design",
+                agent_role="workflow_designer",
+                action="design_workflow",
+                arguments={"description": description[:200], "language": language},
+                result=f"success={result.success} blocks={len(result.graph.get('blocks', [])) if result.graph else 0}",
+                success=result.success,
+                elapsed_ms=result.total_elapsed_ms,
+            )
+        )
 
         # Record in session
         if session_id:
@@ -437,23 +441,20 @@ class AgentCoordinator:
         }
 
     @property
-    def indian_contextualizer(self) -> Optional[IndianContextualizer]:
+    def indian_contextualizer(self) -> Any | None:
         """Access the Indian contextualiser (None if Navarasa is disabled)."""
-        return self._indian_ctx
+        return getattr(self, "_indian_ctx", None)
 
     # ── Tool registration ─────────────────────────────────────────
 
     def _register_tools(self) -> None:
         """Import and register all concrete tool functions."""
-        from uni_vision.agent import pipeline_tools
-        from uni_vision.agent import control_tools
-        from uni_vision.agent import knowledge_tools
-        from uni_vision.agent import graph_tools
-
         import inspect
 
+        from uni_vision.agent import control_tools, graph_tools, knowledge_tools, pipeline_tools
+
         for module in (pipeline_tools, control_tools, knowledge_tools, graph_tools):
-            for name, obj in inspect.getmembers(module, inspect.isfunction):
+            for _name, obj in inspect.getmembers(module, inspect.isfunction):
                 defn = getattr(obj, "_tool_definition", None)
                 if defn is not None:
                     self._registry.register(obj)

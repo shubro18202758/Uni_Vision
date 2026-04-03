@@ -7,16 +7,15 @@ endpoint to populate live gauges and charts.
 from __future__ import annotations
 
 import re
-from typing import Dict
 
 import streamlit as st
 
 from uni_vision.visualizer.helpers import fetch_json, get_api_base, get_api_key
 
 
-def _parse_prometheus_text(text: str) -> Dict[str, float]:
+def _parse_prometheus_text(text: str) -> dict[str, float]:
     """Extract metric name → latest value from Prometheus text format."""
-    metrics: Dict[str, float] = {}
+    metrics: dict[str, float] = {}
     for line in text.splitlines():
         if line.startswith("#") or not line.strip():
             continue
@@ -26,7 +25,7 @@ def _parse_prometheus_text(text: str) -> Dict[str, float]:
     return metrics
 
 
-def _fetch_metrics(base: str, api_key: str) -> Dict[str, float]:
+def _fetch_metrics(base: str, api_key: str) -> dict[str, float]:
     """Fetch raw Prometheus metrics and parse them."""
     import httpx
 

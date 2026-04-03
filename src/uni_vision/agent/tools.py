@@ -22,29 +22,26 @@ Usage::
 
 from __future__ import annotations
 
-import asyncio
 import inspect
-import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import (
+    TYPE_CHECKING,
     Any,
-    Callable,
-    Coroutine,
-    Dict,
-    List,
-    Optional,
     get_type_hints,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 logger = logging.getLogger(__name__)
 
 
 # ── Python type → JSON Schema mapping ─────────────────────────────
 
-_TYPE_MAP: Dict[type, str] = {
+_TYPE_MAP: dict[type, str] = {
     str: "string",
     int: "integer",
     float: "number",
@@ -54,19 +51,19 @@ _TYPE_MAP: Dict[type, str] = {
 }
 
 
-def _python_type_to_json_schema(annotation: Any) -> Dict[str, Any]:
+def _python_type_to_json_schema(annotation: Any) -> dict[str, Any]:
     """Convert a Python type annotation to a JSON Schema fragment."""
     if annotation is inspect.Parameter.empty or annotation is Any:
         return {"type": "string"}
 
     origin = getattr(annotation, "__origin__", None)
 
-    if origin is list or origin is List:
+    if origin is list or origin is list:
         args = getattr(annotation, "__args__", ())
         item_schema = _python_type_to_json_schema(args[0]) if args else {"type": "string"}
         return {"type": "array", "items": item_schema}
 
-    if origin is dict or origin is Dict:
+    if origin is dict or origin is dict:
         return {"type": "object"}
 
     if isinstance(annotation, type) and issubclass(annotation, Enum):
@@ -85,7 +82,7 @@ class ToolParam:
 
     name: str
     description: str
-    json_schema: Dict[str, Any]
+    json_schema: dict[str, Any]
     required: bool
 
 
@@ -95,13 +92,13 @@ class ToolDefinition:
 
     name: str
     description: str
-    parameters: List[ToolParam]
+    parameters: list[ToolParam]
     fn: Callable[..., Coroutine[Any, Any, Any]]
 
-    def to_schema(self) -> Dict[str, Any]:
+    def to_schema(self) -> dict[str, Any]:
         """Generate the LLM-facing JSON schema for this tool."""
-        properties: Dict[str, Any] = {}
-        required: List[str] = []
+        properties: dict[str, Any] = {}
+        required: list[str] = []
 
         for p in self.parameters:
             prop = dict(p.json_schema)
@@ -110,7 +107,7 @@ class ToolDefinition:
             if p.required:
                 required.append(p.name)
 
-        schema: Dict[str, Any] = {
+        schema: dict[str, Any] = {
             "name": self.name,
             "description": self.description,
             "parameters": {
@@ -131,7 +128,7 @@ def tool(
     *,
     name: str,
     description: str,
-    param_descriptions: Optional[Dict[str, str]] = None,
+    param_descriptions: dict[str, str] | None = None,
 ) -> Callable:
     """Decorate an async function as an agent tool.
 
@@ -150,7 +147,7 @@ def tool(
         sig = inspect.signature(fn)
         hints = get_type_hints(fn)
 
-        params: List[ToolParam] = []
+        params: list[ToolParam] = []
         for pname, param in sig.parameters.items():
             if pname == "self" or pname == "context":
                 continue
@@ -186,7 +183,7 @@ class ToolResult:
     tool_name: str
     success: bool
     data: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     elapsed_ms: float = 0.0
 
 
@@ -201,17 +198,15 @@ class ToolRegistry:
     """
 
     def __init__(self) -> None:
-        self._tools: Dict[str, ToolDefinition] = {}
-        self._invocation_counts: Dict[str, int] = {}
-        self._error_counts: Dict[str, int] = {}
+        self._tools: dict[str, ToolDefinition] = {}
+        self._invocation_counts: dict[str, int] = {}
+        self._error_counts: dict[str, int] = {}
 
     def register(self, fn_or_tool: Any) -> Any:
         """Register a decorated tool function."""
-        defn: Optional[ToolDefinition] = getattr(fn_or_tool, "_tool_definition", None)
+        defn: ToolDefinition | None = getattr(fn_or_tool, "_tool_definition", None)
         if defn is None:
-            raise ValueError(
-                f"Cannot register {fn_or_tool!r} — not decorated with @tool"
-            )
+            raise ValueError(f"Cannot register {fn_or_tool!r} — not decorated with @tool")
         if defn.name in self._tools:
             raise ValueError(f"Tool '{defn.name}' is already registered")
         self._tools[defn.name] = defn
@@ -243,24 +238,24 @@ class ToolRegistry:
                 logger.debug("tool_registered name=%s (instance)", bound_defn.name)
 
     @property
-    def tool_names(self) -> List[str]:
+    def tool_names(self) -> list[str]:
         return list(self._tools.keys())
 
     @property
     def tool_count(self) -> int:
         return len(self._tools)
 
-    def get_definition(self, name: str) -> Optional[ToolDefinition]:
+    def get_definition(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)
 
-    def get_all_schemas(self) -> List[Dict[str, Any]]:
+    def get_all_schemas(self) -> list[dict[str, Any]]:
         """Return JSON schemas for all registered tools (for the LLM prompt)."""
         return [defn.to_schema() for defn in self._tools.values()]
 
     async def invoke(
         self,
         tool_name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
         *,
         context: Any = None,
     ) -> ToolResult:
@@ -288,9 +283,7 @@ class ToolRegistry:
                 error=f"Unknown tool: {tool_name}",
             )
 
-        self._invocation_counts[tool_name] = (
-            self._invocation_counts.get(tool_name, 0) + 1
-        )
+        self._invocation_counts[tool_name] = self._invocation_counts.get(tool_name, 0) + 1
 
         t0 = time.perf_counter()
         try:
@@ -312,9 +305,7 @@ class ToolRegistry:
             )
         except Exception as exc:
             elapsed = (time.perf_counter() - t0) * 1000
-            self._error_counts[tool_name] = (
-                self._error_counts.get(tool_name, 0) + 1
-            )
+            self._error_counts[tool_name] = self._error_counts.get(tool_name, 0) + 1
             logger.warning(
                 "tool_invocation_failed tool=%s error=%s",
                 tool_name,
@@ -336,13 +327,11 @@ class ToolRegistry:
         try:
             from uni_vision.monitoring.metrics import AGENT_TOOL_CALLS
 
-            AGENT_TOOL_CALLS.labels(
-                tool_name=tool_name, success=str(success).lower()
-            ).inc()
+            AGENT_TOOL_CALLS.labels(tool_name=tool_name, success=str(success).lower()).inc()
         except (ImportError, AttributeError):
             pass
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return invocation and error counts for all tools."""
         return {
             name: {

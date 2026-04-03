@@ -13,8 +13,8 @@ Manages the conversation history within the LLM's context window
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class MemoryEntry:
 
     role: str  # system | user | assistant | tool
     content: str
-    tool_name: Optional[str] = None  # set for role=tool
+    tool_name: str | None = None  # set for role=tool
     pinned: bool = False  # pinned messages are never evicted
 
 
@@ -51,16 +51,14 @@ class WorkingMemory:
     ) -> None:
         self._max_tokens = max_tokens
         self._max_chars = max_tokens * _CHARS_PER_TOKEN
-        self._entries: List[MemoryEntry] = []
-        self._scratchpad: Dict[str, Any] = {}
+        self._entries: list[MemoryEntry] = []
+        self._scratchpad: dict[str, Any] = {}
 
         if system_prompt:
-            self._entries.append(
-                MemoryEntry(role="system", content=system_prompt, pinned=True)
-            )
+            self._entries.append(MemoryEntry(role="system", content=system_prompt, pinned=True))
 
     @property
-    def entries(self) -> List[MemoryEntry]:
+    def entries(self) -> list[MemoryEntry]:
         return list(self._entries)
 
     @property
@@ -84,31 +82,25 @@ class WorkingMemory:
 
     def add_tool_result(self, tool_name: str, content: str) -> None:
         """Add a tool observation."""
-        self._entries.append(
-            MemoryEntry(role="tool", content=content, tool_name=tool_name)
-        )
+        self._entries.append(MemoryEntry(role="tool", content=content, tool_name=tool_name))
         self._enforce_budget()
 
     def add_system_note(self, content: str) -> None:
         """Add a non-evictable system note (e.g., context injection)."""
-        self._entries.append(
-            MemoryEntry(role="system", content=content, pinned=True)
-        )
+        self._entries.append(MemoryEntry(role="system", content=content, pinned=True))
         self._enforce_budget()
 
-    def to_messages(self) -> List[Dict[str, Any]]:
+    def to_messages(self) -> list[dict[str, Any]]:
         """Export memory as an Ollama-compatible messages list."""
-        messages: List[Dict[str, Any]] = []
+        messages: list[dict[str, Any]] = []
         for entry in self._entries:
-            msg: Dict[str, Any] = {
+            msg: dict[str, Any] = {
                 "role": entry.role if entry.role != "tool" else "user",
                 "content": entry.content,
             }
             if entry.role == "tool":
                 # Wrap tool results as a user message with tool context
-                msg["content"] = (
-                    f"[Tool Result: {entry.tool_name}]\n{entry.content}"
-                )
+                msg["content"] = f"[Tool Result: {entry.tool_name}]\n{entry.content}"
             messages.append(msg)
         return messages
 
@@ -130,7 +122,7 @@ class WorkingMemory:
         total_chars = sum(len(e.content) for e in self._entries)
         while total_chars > self._max_chars and len(self._entries) > 1:
             # Find the oldest non-pinned entry
-            evict_idx: Optional[int] = None
+            evict_idx: int | None = None
             for i, entry in enumerate(self._entries):
                 if not entry.pinned:
                     evict_idx = i

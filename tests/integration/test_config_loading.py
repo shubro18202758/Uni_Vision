@@ -6,24 +6,13 @@ and sub-config wiring without external dependencies.
 
 from __future__ import annotations
 
-import os
-import tempfile
-from pathlib import Path
-
-import pytest
-
 from uni_vision.common.config import (
     APIConfig,
     AppConfig,
     DatabaseConfig,
-    DispatchConfig,
-    HardwareConfig,
     PipelineConfig,
-    RedisConfig,
-    StorageConfig,
     load_config,
 )
-
 
 # ── Tests ─────────────────────────────────────────────────────────
 
@@ -70,24 +59,18 @@ class TestSubConfigNesting:
     """Verify that nested sub-configs wire correctly from dict input."""
 
     def test_override_pipeline_via_dict(self):
-        config = AppConfig(
-            pipeline=PipelineConfig(inference_queue_maxsize=20)
-        )
+        config = AppConfig(pipeline=PipelineConfig(inference_queue_maxsize=20))
         assert config.pipeline.inference_queue_maxsize == 20
         # Other defaults untouched
         assert config.pipeline.inference_queue_high_water == 8
 
     def test_override_api_via_dict(self):
-        config = AppConfig(
-            api=APIConfig(port=9000, rate_limit_rpm=60)
-        )
+        config = AppConfig(api=APIConfig(port=9000, rate_limit_rpm=60))
         assert config.api.port == 9000
         assert config.api.rate_limit_rpm == 60
 
     def test_override_database(self):
-        config = AppConfig(
-            database=DatabaseConfig(pool_max=16)
-        )
+        config = AppConfig(database=DatabaseConfig(pool_max=16))
         assert config.database.pool_max == 16
         assert config.database.pool_min == 2
 
@@ -127,10 +110,7 @@ class TestLoadConfigFromYAML:
     def test_load_from_temp_dir(self, tmp_path):
         """Create minimal YAML files and verify they are loaded."""
         # default.yaml
-        (tmp_path / "default.yaml").write_text(
-            "hardware:\n  vram_ceiling_mb: 4096\n"
-            "api:\n  port: 7777\n"
-        )
+        (tmp_path / "default.yaml").write_text("hardware:\n  vram_ceiling_mb: 4096\napi:\n  port: 7777\n")
         # cameras.yaml
         (tmp_path / "cameras.yaml").write_text(
             "cameras:\n"

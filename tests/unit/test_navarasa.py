@@ -15,7 +15,6 @@ import pytest
 
 from uni_vision.common.config import NavarasaConfig
 
-
 # ═══════════════════════════════════════════════════════════════════
 # ──  NavarasaConfig tests  ────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════
@@ -68,6 +67,7 @@ class TestNavarasaClient:
 
     def _make_client(self, **overrides):
         from uni_vision.agent.navarasa_client import NavarasaClient
+
         cfg = NavarasaConfig(**overrides)
         with patch("uni_vision.agent.navarasa_client.httpx.AsyncClient"):
             client = NavarasaClient(cfg)
@@ -230,9 +230,7 @@ class TestNavarasaClient:
             "hi",
             system_context="2 cameras active, 5 plates detected",
         )
-        instruction_arg = client.chat.call_args.kwargs.get(
-            "instruction"
-        ) or client.chat.call_args[0][0]
+        instruction_arg = client.chat.call_args.kwargs.get("instruction") or client.chat.call_args[0][0]
         assert "2 cameras active" in instruction_arg
 
     @pytest.mark.asyncio
@@ -273,11 +271,13 @@ class TestLanguageRegistry:
 
     def test_language_names_count(self):
         from uni_vision.agent.navarasa_client import LANGUAGE_NAMES
+
         assert len(LANGUAGE_NAMES) == 16
         assert "hi" in LANGUAGE_NAMES
         assert "en" in LANGUAGE_NAMES
 
     def test_all_scheduled_languages_present(self):
         from uni_vision.agent.navarasa_client import LANGUAGE_NAMES
+
         expected = {"hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa", "or", "as", "ur", "ne", "sd", "kok", "en"}
         assert set(LANGUAGE_NAMES.keys()) == expected

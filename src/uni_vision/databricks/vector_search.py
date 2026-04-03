@@ -25,7 +25,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +43,13 @@ def _ensure_imports() -> None:
         import faiss  # type: ignore[import-untyped]
         import numpy as np
         from sentence_transformers import SentenceTransformer  # type: ignore[import-untyped]
+
         _faiss = faiss
         _SentenceTransformer = SentenceTransformer
         _np = np
     except ImportError as exc:
         raise ImportError(
-            "FAISS / sentence-transformers not installed. "
-            "Run: pip install 'uni-vision[databricks]'"
+            "FAISS / sentence-transformers not installed. Run: pip install 'uni-vision[databricks]'"
         ) from exc
 
 
@@ -95,7 +95,7 @@ class VectorSearchEngine:
 
         self._model = None
         self._index = None
-        self._metadata: List[Dict[str, Any]] = []
+        self._metadata: list[dict[str, Any]] = []
         self._id_counter = 0
 
     # ── Lifecycle ─────────────────────────────────────────────────
@@ -121,7 +121,7 @@ class VectorSearchEngine:
 
         # Load metadata
         if os.path.exists(self._metadata_path):
-            with open(self._metadata_path, "r", encoding="utf-8") as f:
+            with open(self._metadata_path, encoding="utf-8") as f:
                 self._metadata = json.load(f)
             self._id_counter = len(self._metadata)
         else:
@@ -149,7 +149,7 @@ class VectorSearchEngine:
 
     # ── Embedding ─────────────────────────────────────────────────
 
-    def _encode(self, texts: List[str]):
+    def _encode(self, texts: list[str]):
         """Encode text(s) into L2-normalised vectors."""
         embeddings = self._model.encode(texts, normalize_embeddings=True)
         return _np.array(embeddings, dtype=_np.float32)
@@ -163,7 +163,7 @@ class VectorSearchEngine:
         confidence: float,
         engine: str,
         validation_status: str,
-        timestamp: Optional[float] = None,
+        timestamp: float | None = None,
     ) -> int:
         """Add a plate observation to the vector index.
 
@@ -179,15 +179,17 @@ class VectorSearchEngine:
 
         vec_id = self._id_counter
         self._index.add(vec)
-        self._metadata.append({
-            "id": vec_id,
-            "plate_text": plate_text,
-            "camera_id": camera_id,
-            "confidence": confidence,
-            "engine": engine,
-            "validation_status": validation_status,
-            "timestamp": timestamp or time.time(),
-        })
+        self._metadata.append(
+            {
+                "id": vec_id,
+                "plate_text": plate_text,
+                "camera_id": camera_id,
+                "confidence": confidence,
+                "engine": engine,
+                "validation_status": validation_status,
+                "timestamp": timestamp or time.time(),
+            }
+        )
         self._id_counter += 1
 
         # Periodic auto-save every 500 additions
@@ -196,7 +198,7 @@ class VectorSearchEngine:
 
         return vec_id
 
-    def add_batch(self, observations: List[Dict[str, Any]]) -> int:
+    def add_batch(self, observations: list[dict[str, Any]]) -> int:
         """Batch-add multiple observations for efficiency."""
         if not observations:
             return 0
@@ -215,15 +217,17 @@ class VectorSearchEngine:
         self._index.add(vecs)
 
         for obs in observations:
-            self._metadata.append({
-                "id": self._id_counter,
-                "plate_text": obs["plate_text"],
-                "camera_id": obs.get("camera_id", ""),
-                "confidence": obs.get("confidence", 0.0),
-                "engine": obs.get("engine", ""),
-                "validation_status": obs.get("validation_status", ""),
-                "timestamp": obs.get("timestamp", time.time()),
-            })
+            self._metadata.append(
+                {
+                    "id": self._id_counter,
+                    "plate_text": obs["plate_text"],
+                    "camera_id": obs.get("camera_id", ""),
+                    "confidence": obs.get("confidence", 0.0),
+                    "engine": obs.get("engine", ""),
+                    "validation_status": obs.get("validation_status", ""),
+                    "timestamp": obs.get("timestamp", time.time()),
+                }
+            )
             self._id_counter += 1
 
         self._save()
@@ -234,9 +238,9 @@ class VectorSearchEngine:
     def search_similar_plates(
         self,
         query: str,
-        top_k: Optional[int] = None,
-        threshold: Optional[float] = None,
-    ) -> List[Dict[str, Any]]:
+        top_k: int | None = None,
+        threshold: float | None = None,
+    ) -> list[dict[str, Any]]:
         """Find plates similar to the query text.
 
         Parameters
@@ -266,7 +270,7 @@ class VectorSearchEngine:
         scores, indices = self._index.search(query_vec, k)
 
         results = []
-        for score, idx in zip(scores[0], indices[0]):
+        for score, idx in zip(scores[0], indices[0], strict=False):
             if idx < 0 or idx >= len(self._metadata):
                 continue
             sim = float(score)
@@ -274,32 +278,28 @@ class VectorSearchEngine:
                 continue
 
             meta = self._metadata[idx]
-            results.append({
-                "plate_text": meta["plate_text"],
-                "similarity": round(sim, 4),
-                "camera_id": meta["camera_id"],
-                "confidence": meta["confidence"],
-                "engine": meta["engine"],
-                "validation_status": meta["validation_status"],
-                "timestamp": meta["timestamp"],
-            })
+            results.append(
+                {
+                    "plate_text": meta["plate_text"],
+                    "similarity": round(sim, 4),
+                    "camera_id": meta["camera_id"],
+                    "confidence": meta["confidence"],
+                    "engine": meta["engine"],
+                    "validation_status": meta["validation_status"],
+                    "timestamp": meta["timestamp"],
+                }
+            )
 
         return results
 
-    def search_by_camera(
-        self, query: str, camera_id: str, top_k: int = 10
-    ) -> List[Dict[str, Any]]:
+    def search_by_camera(self, query: str, camera_id: str, top_k: int = 10) -> list[dict[str, Any]]:
         """Search similar plates filtered to a specific camera."""
         # Get more results than needed, then filter
-        all_results = self.search_similar_plates(
-            query, top_k=top_k * 3, threshold=0.3
-        )
+        all_results = self.search_similar_plates(query, top_k=top_k * 3, threshold=0.3)
         filtered = [r for r in all_results if r["camera_id"] == camera_id]
         return filtered[:top_k]
 
-    def find_potential_duplicates(
-        self, similarity_threshold: float = 0.85
-    ) -> List[Dict[str, Any]]:
+    def find_potential_duplicates(self, similarity_threshold: float = 0.85) -> list[dict[str, Any]]:
         """Find plate pairs that may be OCR variations of each other.
 
         Uses an optimised approach: encode unique plates in batch,
@@ -310,7 +310,7 @@ class VectorSearchEngine:
             return []
 
         # Collect unique plate texts
-        unique_plates: Dict[str, List[Dict[str, Any]]] = {}
+        unique_plates: dict[str, list[dict[str, Any]]] = {}
         for meta in self._metadata:
             pt = meta["plate_text"]
             if pt not in unique_plates:
@@ -347,19 +347,21 @@ class VectorSearchEngine:
                 if pair_key in seen_pairs:
                     continue
                 seen_pairs.add(pair_key)
-                duplicates.append({
-                    "plate_a": plate_text,
-                    "plate_b": match_text,
-                    "similarity": round(sim, 4),
-                    "observations_a": len(unique_plates.get(plate_text, [])),
-                    "observations_b": len(unique_plates.get(match_text, [])),
-                })
+                duplicates.append(
+                    {
+                        "plate_a": plate_text,
+                        "plate_b": match_text,
+                        "similarity": round(sim, 4),
+                        "observations_a": len(unique_plates.get(plate_text, [])),
+                        "observations_b": len(unique_plates.get(match_text, [])),
+                    }
+                )
 
         return sorted(duplicates, key=lambda x: -x["similarity"])
 
     # ── Stats ─────────────────────────────────────────────────────
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return vector index statistics."""
         return {
             "total_vectors": self._index.ntotal if self._index else 0,
@@ -371,7 +373,7 @@ class VectorSearchEngine:
             "similarity_threshold": self._threshold,
         }
 
-    def rebuild_index(self) -> Dict[str, Any]:
+    def rebuild_index(self) -> dict[str, Any]:
         """Rebuild the FAISS index from stored metadata.
 
         Useful after parameter changes or to compact the index.
@@ -407,9 +409,9 @@ class VectorSearchEngine:
         query: str,
         start_ts: float,
         end_ts: float,
-        top_k: Optional[int] = None,
-        threshold: Optional[float] = None,
-    ) -> List[Dict[str, Any]]:
+        top_k: int | None = None,
+        threshold: float | None = None,
+    ) -> list[dict[str, Any]]:
         """Search similar plates within a specific time window.
 
         Parameters
@@ -427,17 +429,12 @@ class VectorSearchEngine:
             top_k=(top_k or self._top_k) * 5,
             threshold=threshold,
         )
-        filtered = [
-            r for r in results
-            if start_ts <= r.get("timestamp", 0) <= end_ts
-        ]
+        filtered = [r for r in results if start_ts <= r.get("timestamp", 0) <= end_ts]
         return filtered[: (top_k or self._top_k)]
 
     # ── Cluster Analysis ──────────────────────────────────────────
 
-    def get_cluster_analysis(
-        self, n_clusters: int = 8, max_samples: int = 2000
-    ) -> Dict[str, Any]:
+    def get_cluster_analysis(self, n_clusters: int = 8, max_samples: int = 2000) -> dict[str, Any]:
         """Group indexed plates into embedding clusters for pattern recognition.
 
         Uses K-Means on the FAISS vectors to identify clusters of
@@ -480,24 +477,26 @@ class VectorSearchEngine:
                 continue
 
             # Representative plates for this cluster
-            plates_in_cluster: Dict[str, int] = {}
+            plates_in_cluster: dict[str, int] = {}
             for mid in member_ids:
                 if mid < len(self._metadata):
                     pt = self._metadata[int(mid)]["plate_text"]
                     plates_in_cluster[pt] = plates_in_cluster.get(pt, 0) + 1
 
             # Coherence = how tight the cluster is (avg intra-cluster similarity)
-            centroid = kmeans.centroids[cid: cid + 1]
+            centroid = kmeans.centroids[cid : cid + 1]
             sims = _np.dot(vecs[member_ids], centroid.T).flatten()
             coherence = float(_np.mean(sims)) if len(sims) > 0 else 0.0
 
             top_plates = sorted(plates_in_cluster.items(), key=lambda x: -x[1])[:5]
-            clusters.append({
-                "cluster_id": cid,
-                "size": int(len(member_ids)),
-                "coherence": round(coherence, 4),
-                "top_plates": [{"plate": p, "count": c} for p, c in top_plates],
-            })
+            clusters.append(
+                {
+                    "cluster_id": cid,
+                    "size": len(member_ids),
+                    "coherence": round(coherence, 4),
+                    "top_plates": [{"plate": p, "count": c} for p, c in top_plates],
+                }
+            )
 
         clusters.sort(key=lambda c: -c["size"])
         return {
@@ -508,7 +507,7 @@ class VectorSearchEngine:
 
     # ── Health ────────────────────────────────────────────────────
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Return health summary for monitoring dashboards."""
         unique_plates = len({m["plate_text"] for m in self._metadata})
         unique_cameras = len({m["camera_id"] for m in self._metadata})
@@ -520,7 +519,5 @@ class VectorSearchEngine:
             "embedding_model": self._model_name,
             "embedding_dim": self._dim,
             "index_type": "IndexFlatIP",
-            "index_size_bytes": (
-                os.path.getsize(self._index_path) if os.path.exists(self._index_path) else 0
-            ),
+            "index_size_bytes": (os.path.getsize(self._index_path) if os.path.exists(self._index_path) else 0),
         }

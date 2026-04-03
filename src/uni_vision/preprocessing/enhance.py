@@ -18,11 +18,15 @@ Spec reference: §4 stage S6.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import cv2
 import numpy as np
-from numpy.typing import NDArray
 
-from uni_vision.common.config import EnhanceConfig
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+    from uni_vision.common.config import EnhanceConfig
 
 
 class PhotometricEnhancer:
@@ -86,7 +90,7 @@ class PhotometricEnhancer:
             return image
 
         scale = min_h / h
-        new_w = int(round(w * scale))
+        new_w = round(w * scale)
         resized = cv2.resize(
             image,
             (new_w, min_h),

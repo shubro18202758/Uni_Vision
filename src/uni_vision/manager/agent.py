@@ -19,28 +19,18 @@ JSON actions, powered by the prompts in ``manager/prompts.py``.
 
 from __future__ import annotations
 
-import asyncio
 import json
-import structlog
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+import structlog
 
 from uni_vision.components.base import ComponentCapability, ComponentState
-from uni_vision.manager.adaptation_engine import AdaptationEngine, AdaptationAction
+from uni_vision.manager.adaptation_engine import AdaptationAction, AdaptationEngine
 from uni_vision.manager.compatibility import CompatibilityMatrix
-from uni_vision.manager.component_registry import ComponentRegistry
-from uni_vision.manager.component_resolver import ComponentResolver
-from uni_vision.manager.conflict_resolver import ConflictResolver
-from uni_vision.manager.context_analyzer import ContextAnalyzer
 from uni_vision.manager.fallback_chain import FallbackChainManager
 from uni_vision.manager.feedback_loop import FeedbackLoop
 from uni_vision.manager.gpu_profiler import GPUProfiler
-from uni_vision.manager.hub_client import HubClient
-from uni_vision.manager.lifecycle import LifecycleManager
-from uni_vision.manager.pipeline_composer import PipelineComposer
-from uni_vision.manager.pipeline_validator import PipelineValidator
 from uni_vision.manager.prompts import build_manager_system_prompt
 from uni_vision.manager.quality_scorer import QualityScorer
 from uni_vision.manager.scene_detector import SceneTransitionDetector
@@ -54,9 +44,18 @@ from uni_vision.manager.schemas import (
 )
 from uni_vision.manager.temporal_tracker import TemporalTracker
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
+    import numpy as np
+
+    from uni_vision.manager.component_registry import ComponentRegistry
+    from uni_vision.manager.component_resolver import ComponentResolver
+    from uni_vision.manager.conflict_resolver import ConflictResolver
+    from uni_vision.manager.context_analyzer import ContextAnalyzer
+    from uni_vision.manager.hub_client import HubClient
     from uni_vision.manager.job_lifecycle import JobLifecycleManager
+    from uni_vision.manager.lifecycle import LifecycleManager
+    from uni_vision.manager.pipeline_composer import PipelineComposer
+    from uni_vision.manager.pipeline_validator import PipelineValidator
 
 log = structlog.get_logger(__name__)
 
@@ -123,15 +122,15 @@ class ManagerAgent:
         lifecycle: LifecycleManager,
         validator: PipelineValidator,
         # ── Adaptive subsystems (all optional for backward compat) ──
-        adaptation_engine: Optional[AdaptationEngine] = None,
-        feedback_loop: Optional[FeedbackLoop] = None,
-        fallback_manager: Optional[FallbackChainManager] = None,
-        quality_scorer: Optional[QualityScorer] = None,
-        scene_detector: Optional[SceneTransitionDetector] = None,
-        gpu_profiler: Optional[GPUProfiler] = None,
-        compat_matrix: Optional[CompatibilityMatrix] = None,
-        temporal_tracker: Optional[TemporalTracker] = None,
-        job_lifecycle: Optional["JobLifecycleManager"] = None,
+        adaptation_engine: AdaptationEngine | None = None,
+        feedback_loop: FeedbackLoop | None = None,
+        fallback_manager: FallbackChainManager | None = None,
+        quality_scorer: QualityScorer | None = None,
+        scene_detector: SceneTransitionDetector | None = None,
+        gpu_profiler: GPUProfiler | None = None,
+        compat_matrix: CompatibilityMatrix | None = None,
+        temporal_tracker: TemporalTracker | None = None,
+        job_lifecycle: JobLifecycleManager | None = None,
     ) -> None:
         self._llm = llm_client
         self._registry = registry
@@ -154,17 +153,17 @@ class ManagerAgent:
         self._temporal = temporal_tracker or TemporalTracker()
 
         # Job lifecycle (tracks per-job dynamic components + anomaly state)
-        self._job_lifecycle: Optional["JobLifecycleManager"] = job_lifecycle
+        self._job_lifecycle: JobLifecycleManager | None = job_lifecycle
 
         # Cache last blueprint per camera to avoid re-composing
-        self._blueprint_cache: Dict[str, PipelineBlueprint] = {}
+        self._blueprint_cache: dict[str, PipelineBlueprint] = {}
 
         # Cache component IDs that already failed provisioning (skip retries)
         self._provision_failed: set[str] = set()
 
         # Cameras where ALL components failed — skip expensive pipeline build
         # Maps camera_id → monotonic timestamp.  Retries after _DEGRADED_RETRY_S.
-        self._degraded_cameras: Dict[str, float] = {}
+        self._degraded_cameras: dict[str, float] = {}
         self._DEGRADED_RETRY_S: float = 300.0  # 5 minutes
 
         # Track consecutive adaptation actions to avoid thrash
@@ -177,8 +176,8 @@ class ManagerAgent:
         self,
         frame: np.ndarray,
         *,
-        camera_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        camera_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PipelineExecutionResult:
         """Process a single frame through the adaptive dynamic pipeline.
 
@@ -240,7 +239,7 @@ class ManagerAgent:
 
         # 2. Enrich context with temporal hints
         temporal_hints = self._temporal.get_capability_hints(cam)
-        temporal_summary = self._temporal.get_context_summary(cam)
+        self._temporal.get_context_summary(cam)
 
         # 3. Check cache
         blueprint = self._get_cached_blueprint(context)
@@ -260,17 +259,13 @@ class ManagerAgent:
             blueprint = await self._resolve_compat_issues(blueprint, compat_issues)
 
         # 6. Ensure all components are loaded (with GPU profiling)
-        load_results = await self._lifecycle.ensure_loaded(
-            list(blueprint.required_component_ids)
-        )
+        load_results = await self._lifecycle.ensure_loaded(list(blueprint.required_component_ids))
         failed_loads = [cid for cid, ok in load_results.items() if not ok]
 
         if failed_loads:
             log.warning("components_failed_to_load", failed=failed_loads)
             # Try fallback components
-            blueprint = await self._apply_fallbacks_for_failed(
-                blueprint, set(failed_loads)
-            )
+            blueprint = await self._apply_fallbacks_for_failed(blueprint, set(failed_loads))
 
         # 7. Execute with per-stage telemetry
         result = await self._execute_blueprint(blueprint, frame)
@@ -314,8 +309,8 @@ class ManagerAgent:
     async def _build_pipeline(
         self,
         context: FrameContext,
-        temporal_hints: Optional[Set[str]] = None,
-        camera_id: Optional[str] = None,
+        temporal_hints: set[str] | None = None,
+        camera_id: str | None = None,
     ) -> PipelineBlueprint:
         """Build a new pipeline for the given context.
 
@@ -331,7 +326,7 @@ class ManagerAgent:
           * Validating the final blueprint
         """
         # Expand required capabilities with temporal hints
-        required: Set[ComponentCapability] = set(context.required_capabilities)
+        required: set[ComponentCapability] = set(context.required_capabilities)
         if temporal_hints:
             for hint in temporal_hints:
                 try:
@@ -343,7 +338,7 @@ class ManagerAgent:
         # Check what capabilities are missing
         missing = self._registry.get_missing_capabilities(required)
 
-        resolved_map: Dict[ComponentCapability, str] = {}
+        resolved_map: dict[ComponentCapability, str] = {}
 
         # For capabilities already available locally, pick the best by quality
         for cap in required - missing:
@@ -392,9 +387,7 @@ class ManagerAgent:
                                 job = self._job_lifecycle.get_job_for_camera(camera_id)
                                 if job:
                                     pip_pkg = (
-                                        candidate.python_requirements[0]
-                                        if candidate.python_requirements
-                                        else None
+                                        candidate.python_requirements[0] if candidate.python_requirements else None
                                     )
                                     await self._job_lifecycle.register_dynamic_component(
                                         job.job_id,
@@ -440,7 +433,7 @@ class ManagerAgent:
         dyn_required = getattr(context, "dynamic_required", frozenset())
         dyn_optional = getattr(context, "dynamic_optional", frozenset())
         discovery_queries = getattr(context, "discovery_queries", [])
-        resolved_dynamic: Dict[str, str] = {}
+        resolved_dynamic: dict[str, str] = {}
 
         all_dynamic = set(dyn_required) | set(dyn_optional)
         if all_dynamic:
@@ -468,11 +461,7 @@ class ManagerAgent:
                             if self._job_lifecycle and camera_id:
                                 job = self._job_lifecycle.get_job_for_camera(camera_id)
                                 if job:
-                                    pip_pkg = (
-                                        cand.python_requirements[0]
-                                        if cand.python_requirements
-                                        else None
-                                    )
+                                    pip_pkg = cand.python_requirements[0] if cand.python_requirements else None
                                     await self._job_lifecycle.register_dynamic_component(
                                         job.job_id,
                                         cand.component_id,
@@ -518,9 +507,7 @@ class ManagerAgent:
 
             # If still blocking conflicts, ask LLM for help
             if report.blocking_conflicts:
-                blueprint = await self._llm_resolve_conflicts(
-                    blueprint, report
-                )
+                blueprint = await self._llm_resolve_conflicts(blueprint, report)
 
         # Validate
         validation = self._validator.validate(blueprint)
@@ -542,10 +529,7 @@ class ManagerAgent:
         """Ask LLM for help resolving blocking conflicts."""
         from uni_vision.manager.prompts import CONFLICT_RESOLUTION_PROMPT
 
-        conflicts_desc = "\n".join(
-            f"- [{c.conflict_type.value}] {c.description}"
-            for c in report.blocking_conflicts
-        )
+        conflicts_desc = "\n".join(f"- [{c.conflict_type.value}] {c.description}" for c in report.blocking_conflicts)
 
         vram_status = self._lifecycle.status()
         loaded_summary = json.dumps(self._registry.loaded_summary(), indent=2)
@@ -591,7 +575,7 @@ class ManagerAgent:
         self,
         query: str,
         *,
-        context: Optional[FrameContext] = None,
+        context: FrameContext | None = None,
     ) -> ManagerAction:
         """Use the LLM to make a strategic decision.
 
@@ -635,8 +619,8 @@ class ManagerAgent:
         frame: np.ndarray,
     ) -> PipelineExecutionResult:
         """Execute all stages of a pipeline blueprint."""
-        data: Dict[str, Any] = {"frame": frame}
-        stage_results: List[StageResult] = []
+        data: dict[str, Any] = {"frame": frame}
+        stage_results: list[StageResult] = []
         success = True
 
         for stage in blueprint.stages:
@@ -644,12 +628,14 @@ class ManagerAgent:
             if comp is None or comp.state != ComponentState.READY:
                 if stage.is_optional:
                     continue
-                stage_results.append(StageResult(
-                    stage_name=stage.stage_name,
-                    component_id=stage.component_id,
-                    success=False,
-                    error=f"Component {stage.component_id} not ready",
-                ))
+                stage_results.append(
+                    StageResult(
+                        stage_name=stage.stage_name,
+                        component_id=stage.component_id,
+                        success=False,
+                        error=f"Component {stage.component_id} not ready",
+                    )
+                )
                 success = False
                 break
 
@@ -664,13 +650,15 @@ class ManagerAgent:
                 if output is not None:
                     data[stage.output_key] = output
 
-                stage_results.append(StageResult(
-                    stage_name=stage.stage_name,
-                    component_id=stage.component_id,
-                    output=output,
-                    elapsed_ms=elapsed,
-                    success=True,
-                ))
+                stage_results.append(
+                    StageResult(
+                        stage_name=stage.stage_name,
+                        component_id=stage.component_id,
+                        output=output,
+                        elapsed_ms=elapsed,
+                        success=True,
+                    )
+                )
 
             except Exception as exc:
                 elapsed = (time.monotonic() - t_stage) * 1000
@@ -681,13 +669,15 @@ class ManagerAgent:
                     error=str(exc),
                 )
 
-                stage_results.append(StageResult(
-                    stage_name=stage.stage_name,
-                    component_id=stage.component_id,
-                    elapsed_ms=elapsed,
-                    success=False,
-                    error=str(exc),
-                ))
+                stage_results.append(
+                    StageResult(
+                        stage_name=stage.stage_name,
+                        component_id=stage.component_id,
+                        elapsed_ms=elapsed,
+                        success=False,
+                        error=str(exc),
+                    )
+                )
 
                 if not stage.is_optional:
                     success = False
@@ -730,7 +720,7 @@ class ManagerAgent:
     def _get_cached_blueprint(
         self,
         context: FrameContext,
-    ) -> Optional[PipelineBlueprint]:
+    ) -> PipelineBlueprint | None:
         """Check if a cached blueprint is still valid for this context."""
         cached = self._blueprint_cache.get(context.camera_id)
         if cached is None:
@@ -762,10 +752,7 @@ class ManagerAgent:
         failed_ids: set,
     ) -> PipelineBlueprint:
         """Remove stages with failed component loads."""
-        remaining = tuple(
-            s for s in blueprint.stages
-            if s.component_id not in failed_ids or s.is_optional
-        )
+        remaining = tuple(s for s in blueprint.stages if s.component_id not in failed_ids or s.is_optional)
         return PipelineBlueprint(
             blueprint_id=blueprint.blueprint_id,
             name=blueprint.name,
@@ -774,14 +761,14 @@ class ManagerAgent:
             estimated_vram_mb=blueprint.estimated_vram_mb,
         )
 
-    def invalidate_cache(self, camera_id: Optional[str] = None) -> None:
+    def invalidate_cache(self, camera_id: str | None = None) -> None:
         """Clear blueprint cache (all or specific camera)."""
         if camera_id:
             self._blueprint_cache.pop(camera_id, None)
         else:
             self._blueprint_cache.clear()
 
-    def status(self) -> Dict:
+    def status(self) -> dict:
         """Return full manager status including adaptive subsystems."""
         return {
             "registry_size": len(self._registry),
@@ -810,7 +797,7 @@ class ManagerAgent:
 
             # Find matching stage to get capability info
             cap_str = ""
-            cap_enum: Optional[ComponentCapability] = None
+            cap_enum: ComponentCapability | None = None
             for stage in blueprint.stages:
                 if stage.component_id == sr.component_id:
                     cap_enum = stage.required_capability
@@ -842,7 +829,7 @@ class ManagerAgent:
 
     async def _apply_adaptations(
         self,
-        actions: List[AdaptationAction],
+        actions: list[AdaptationAction],
         camera_id: str,
     ) -> None:
         """Apply adaptation actions (swap, downgrade, recompose)."""
@@ -860,7 +847,8 @@ class ManagerAgent:
                     log.warning("unknown_capability_in_swap", cap=cap_str)
                     continue
                 fallback = self._fallbacks.get_next_fallback(
-                    cap_enum, exclude={old_id},
+                    cap_enum,
+                    exclude={old_id},
                 )
                 if fallback:
                     fid = fallback.component_id
@@ -908,7 +896,7 @@ class ManagerAgent:
     async def _apply_fallbacks_for_failed(
         self,
         blueprint: PipelineBlueprint,
-        failed_ids: Set[str],
+        failed_ids: set[str],
     ) -> PipelineBlueprint:
         """Replace failed stages with fallback components."""
         new_stages = []
@@ -916,7 +904,8 @@ class ManagerAgent:
             if stage.component_id in failed_ids:
                 cap_enum = stage.required_capability
                 fallback_cand = self._fallbacks.get_next_fallback(
-                    cap_enum, exclude=failed_ids,
+                    cap_enum,
+                    exclude=failed_ids,
                 )
                 if fallback_cand:
                     fid = fallback_cand.component_id
@@ -945,15 +934,18 @@ class ManagerAgent:
                     load_result = await self._lifecycle.ensure_loaded([fid])
                     if load_result.get(fid, False):
                         from uni_vision.manager.schemas import StageSpec
-                        new_stages.append(StageSpec(
-                            stage_name=stage.stage_name,
-                            required_capability=stage.required_capability,
-                            component_id=fid,
-                            is_optional=stage.is_optional,
-                            input_key=stage.input_key,
-                            output_key=stage.output_key,
-                            config_overrides=stage.config_overrides,
-                        ))
+
+                        new_stages.append(
+                            StageSpec(
+                                stage_name=stage.stage_name,
+                                required_capability=stage.required_capability,
+                                component_id=fid,
+                                is_optional=stage.is_optional,
+                                input_key=stage.input_key,
+                                output_key=stage.output_key,
+                                config_overrides=stage.config_overrides,
+                            )
+                        )
                         continue
                 # No fallback available — keep original (will fail) or skip if optional
                 if not stage.is_optional:
@@ -976,7 +968,7 @@ class ManagerAgent:
     ) -> PipelineBlueprint:
         """Try to rebuild the blueprint to avoid compatibility issues."""
         # Collect problematic component IDs
-        bad_ids: Set[str] = set()
+        bad_ids: set[str] = set()
         for issue in issues:
             if hasattr(issue, "component_a"):
                 bad_ids.add(issue.component_a)

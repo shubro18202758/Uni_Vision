@@ -32,15 +32,20 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
-from typing import Callable, Dict, List, Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
 import structlog
 
-from uni_vision.contracts.dtos import FramePacket
 from uni_vision.ingestion.phash import compute_phash, hamming_distance
-from uni_vision.ingestion.rtsp_source import RTSPFrameSource
 from uni_vision.monitoring.metrics import FRAMES_DEDUPLICATED
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import numpy as np
+
+    from uni_vision.contracts.dtos import FramePacket
+    from uni_vision.ingestion.rtsp_source import RTSPFrameSource
 
 log = structlog.get_logger()
 
@@ -72,7 +77,7 @@ class TemporalSampler:
 
     def __init__(
         self,
-        sources: List[RTSPFrameSource],
+        sources: list[RTSPFrameSource],
         *,
         enqueue_callback: Callable[[FramePacket], object],
         event_loop: asyncio.AbstractEventLoop,
@@ -86,14 +91,14 @@ class TemporalSampler:
         self._phash_size = phash_size
         self._poll_interval_s = poll_interval_s
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
         # Configurable at runtime
         self._hamming_threshold = hamming_threshold
 
         # Per-camera state: last accepted pHash & timestamp
-        self._last_hash: Dict[str, np.uint64] = {}
-        self._last_accept_ts: Dict[str, float] = {}
+        self._last_hash: dict[str, np.uint64] = {}
+        self._last_accept_ts: dict[str, float] = {}
 
     # ── Public configuration knobs ────────────────────────────────
 

@@ -9,6 +9,6 @@ from uni_vision.storage.object_store import ObjectStoreArchiver
 from uni_vision.storage.postgres import PostgresClient
 
 __all__ = [
-    "PostgresClient",
     "ObjectStoreArchiver",
+    "PostgresClient",
 ]

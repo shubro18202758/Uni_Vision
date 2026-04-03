@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from uni_vision.common.config import AppConfig
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -27,7 +30,7 @@ class CameraSourceOut(BaseModel):
     location_tag: str
     fps_target: int
     enabled: bool
-    added_at: Optional[str] = None
+    added_at: str | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -41,7 +44,6 @@ async def _get_pool(request: Request):  # type: ignore[no-untyped-def]
 
     # Import lazily to avoid hard dependency at module scope.
     from uni_vision.storage.postgres import PostgresClient
-    from uni_vision.common.config import AppConfig
 
     config: AppConfig = request.app.state.config
     pg = PostgresClient(config.database, config.dispatch)
@@ -54,10 +56,10 @@ async def _get_pool(request: Request):  # type: ignore[no-untyped-def]
 
 
 @router.post("", status_code=201)
-async def register_source(body: CameraSourceIn, request: Request) -> Dict[str, Any]:
+async def register_source(body: CameraSourceIn, request: Request) -> dict[str, Any]:
     """Register or update a camera source (upsert)."""
     pg = await _get_pool(request)
-    pool = pg._pool  # noqa: SLF001 — direct pool access for lightweight queries
+    pool = pg._pool
     assert pool is not None
 
     from uni_vision.storage.models import INSERT_CAMERA_SOURCE_SQL
@@ -74,8 +76,8 @@ async def register_source(body: CameraSourceIn, request: Request) -> Dict[str, A
     return {"camera_id": body.camera_id, "status": "registered"}
 
 
-@router.get("", response_model=List[CameraSourceOut])
-async def list_sources(request: Request) -> List[Dict[str, Any]]:
+@router.get("", response_model=list[CameraSourceOut])
+async def list_sources(request: Request) -> list[dict[str, Any]]:
     """Return all enabled camera sources ordered by registration date."""
     try:
         pg = await _get_pool(request)
@@ -111,7 +113,7 @@ async def list_sources(request: Request) -> List[Dict[str, Any]]:
 async def delete_source(camera_id: str, request: Request) -> None:
     """Remove a camera source by ID."""
     pg = await _get_pool(request)
-    pool = pg._pool  # noqa: SLF001
+    pool = pg._pool
     assert pool is not None
 
     from uni_vision.storage.models import DELETE_CAMERA_SOURCE_SQL

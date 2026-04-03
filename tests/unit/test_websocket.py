@@ -5,10 +5,9 @@ from __future__ import annotations
 import sys
 from unittest.mock import MagicMock
 
-import pytest
-
 # Ensure real httpx is available
 import httpx as _real_httpx
+import pytest
 
 if isinstance(sys.modules.get("httpx"), MagicMock):
     sys.modules["httpx"] = _real_httpx
@@ -29,10 +28,9 @@ def client() -> TestClient:
 
 
 class TestWebSocketEvents:
-
     def test_ws_connect_and_disconnect(self, client: TestClient) -> None:
         """Client can connect to /ws/events and cleanly disconnect."""
-        with client.websocket_connect("/ws/events") as ws:
+        with client.websocket_connect("/ws/events"):
             # Connection established — just disconnect
             pass
 
@@ -46,6 +44,7 @@ class TestWebSocketEvents:
     def test_broadcast_helper(self) -> None:
         """The _broadcast function sends to all registered clients."""
         import asyncio
+
         from uni_vision.api.routes.ws_events import _broadcast
 
         # _broadcast with no clients should not raise
@@ -54,9 +53,11 @@ class TestWebSocketEvents:
     def test_publish_event_import(self) -> None:
         """publish_event function is importable and callable."""
         from uni_vision.api.routes.ws_events import publish_event
+
         assert callable(publish_event)
 
     def test_redis_channel_constant(self) -> None:
         """Redis channel name is set correctly."""
         from uni_vision.api.routes.ws_events import REDIS_CHANNEL
+
         assert REDIS_CHANNEL == "uv:events"

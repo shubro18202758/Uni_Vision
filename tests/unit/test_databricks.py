@@ -7,13 +7,8 @@ run fast without installing PySpark / FAISS / MLflow / deltalake.
 
 from __future__ import annotations
 
-import json
 import threading
-import time
-from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, Dict, List
-from unittest.mock import MagicMock, Mock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,8 +16,10 @@ import pytest
 # Helper: lightweight numpy-like array stub for FAISS tests
 # ────────────────────────────────────────────────────────────────
 
+
 class _FakeNP:
     """Minimal numpy stub."""
+
     float32 = "float32"
 
     @staticmethod
@@ -87,16 +84,20 @@ class TestDeltaLakeStore:
         fake_pa.Table.from_pydict.return_value = MagicMock(nbytes=1024)
 
         with (
-            patch.dict("sys.modules", {
-                "deltalake": MagicMock(DeltaTable=self.fake_dt_cls, write_deltalake=self.fake_write),
-                "pyarrow": fake_pa,
-            }),
+            patch.dict(
+                "sys.modules",
+                {
+                    "deltalake": MagicMock(DeltaTable=self.fake_dt_cls, write_deltalake=self.fake_write),
+                    "pyarrow": fake_pa,
+                },
+            ),
             patch("uni_vision.databricks.delta_store._DeltaTable", self.fake_dt_cls),
             patch("uni_vision.databricks.delta_store._write_deltalake", self.fake_write),
             patch("uni_vision.databricks.delta_store._pa", fake_pa),
             patch("uni_vision.databricks.delta_store._ensure_imports", lambda: None),
         ):
             from uni_vision.databricks.delta_store import DeltaLakeStore
+
             self.store = DeltaLakeStore(
                 table_path=self.det_path,
                 audit_table_path=self.aud_path,
@@ -155,6 +156,7 @@ class TestInferenceTracker:
             patch("uni_vision.databricks.mlflow_tracker._ensure_imports", lambda: None),
         ):
             from uni_vision.databricks.mlflow_tracker import InferenceTracker
+
             self.tracker = InferenceTracker(
                 tracking_uri=str(tmp_path / "mlruns"),
                 experiment_name="test-exp",
@@ -222,27 +224,38 @@ class TestSparkAnalyticsEngine:
         fake_spark.catalog.clearCache = MagicMock()
 
         with (
-            patch.dict("sys.modules", {
-                "pyspark": MagicMock(),
-                "pyspark.sql": MagicMock(),
-                "pyspark.sql.functions": MagicMock(),
-                "pyspark.sql.window": MagicMock(),
-            }),
-            patch("uni_vision.databricks.spark_analytics._SparkSession", MagicMock(
-                builder=MagicMock(
-                    appName=MagicMock(return_value=MagicMock(
-                        master=MagicMock(return_value=MagicMock(
-                            config=MagicMock(return_value=MagicMock(
-                                config=MagicMock(return_value=fake_spark_builder)
-                            ))
-                        ))
-                    ))
-                )
-            )),
+            patch.dict(
+                "sys.modules",
+                {
+                    "pyspark": MagicMock(),
+                    "pyspark.sql": MagicMock(),
+                    "pyspark.sql.functions": MagicMock(),
+                    "pyspark.sql.window": MagicMock(),
+                },
+            ),
+            patch(
+                "uni_vision.databricks.spark_analytics._SparkSession",
+                MagicMock(
+                    builder=MagicMock(
+                        appName=MagicMock(
+                            return_value=MagicMock(
+                                master=MagicMock(
+                                    return_value=MagicMock(
+                                        config=MagicMock(
+                                            return_value=MagicMock(config=MagicMock(return_value=fake_spark_builder))
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+            ),
             patch("uni_vision.databricks.spark_analytics._F", MagicMock()),
             patch("uni_vision.databricks.spark_analytics._ensure_imports", lambda: None),
         ):
             from uni_vision.databricks.spark_analytics import SparkAnalyticsEngine
+
             self.engine = SparkAnalyticsEngine(
                 delta_table_path=str(tmp_path / "delta"),
                 app_name="test-spark",
@@ -260,9 +273,7 @@ class TestSparkAnalyticsEngine:
         fake_df.count.return_value = 100
         fake_df.select.return_value.distinct.return_value.count.return_value = 5
         fake_agg = MagicMock()
-        fake_agg.collect.return_value = [MagicMock(asDict=MagicMock(
-            return_value={"avg_conf": 0.85}
-        ))]
+        fake_agg.collect.return_value = [MagicMock(asDict=MagicMock(return_value={"avg_conf": 0.85}))]
         fake_df.agg.return_value = fake_agg
         self.engine._read_delta = MagicMock(return_value=fake_df)
 
@@ -283,13 +294,17 @@ class TestVectorSearchEngine:
         # Create fake FAISS index
         fake_index = MagicMock()
         fake_index.ntotal = 0
-        fake_index.add = MagicMock(side_effect=lambda v: setattr(
-            fake_index, "ntotal", fake_index.ntotal + (len(v) if hasattr(v, "__len__") else 1)
-        ))
-        fake_index.search = MagicMock(return_value=(
-            [[0.95, 0.88, 0.42]],  # scores
-            [[0, 1, 2]],            # indices
-        ))
+        fake_index.add = MagicMock(
+            side_effect=lambda v: setattr(
+                fake_index, "ntotal", fake_index.ntotal + (len(v) if hasattr(v, "__len__") else 1)
+            )
+        )
+        fake_index.search = MagicMock(
+            return_value=(
+                [[0.95, 0.88, 0.42]],  # scores
+                [[0, 1, 2]],  # indices
+            )
+        )
         fake_index.reconstruct = MagicMock(return_value=[0.1] * 384)
 
         fake_faiss = MagicMock()
@@ -298,9 +313,7 @@ class TestVectorSearchEngine:
         fake_faiss.write_index = MagicMock()
         fake_kmeans = MagicMock()
         fake_kmeans.train = MagicMock()
-        fake_kmeans.index.search = MagicMock(return_value=(
-            [[0.9]], [[0]]
-        ))
+        fake_kmeans.index.search = MagicMock(return_value=([[0.9]], [[0]]))
         fake_kmeans.centroids = [[0.1] * 384]
         fake_faiss.Kmeans = MagicMock(return_value=fake_kmeans)
 
@@ -316,6 +329,7 @@ class TestVectorSearchEngine:
             patch("uni_vision.databricks.vector_search._ensure_imports", lambda: None),
         ):
             from uni_vision.databricks.vector_search import VectorSearchEngine
+
             self.engine = VectorSearchEngine(
                 index_path=str(tmp_path / "index.bin"),
                 metadata_path=str(tmp_path / "meta.json"),
@@ -340,10 +354,20 @@ class TestVectorSearchEngine:
 
     def test_add_batch(self):
         obs = [
-            {"plate_text": "XYZ789", "camera_id": "cam1", "confidence": 0.8,
-             "engine": "paddleocr", "validation_status": "valid"},
-            {"plate_text": "DEF456", "camera_id": "cam2", "confidence": 0.75,
-             "engine": "easyocr", "validation_status": "partial"},
+            {
+                "plate_text": "XYZ789",
+                "camera_id": "cam1",
+                "confidence": 0.8,
+                "engine": "paddleocr",
+                "validation_status": "valid",
+            },
+            {
+                "plate_text": "DEF456",
+                "camera_id": "cam2",
+                "confidence": 0.75,
+                "engine": "easyocr",
+                "validation_status": "partial",
+            },
         ]
         count = self.engine.add_batch(obs)
         assert count == 2
@@ -352,12 +376,30 @@ class TestVectorSearchEngine:
     def test_search_similar_plates(self):
         # Pre-populate metadata so search has something to match
         self.engine._metadata = [
-            {"plate_text": "ABC123", "camera_id": "cam1", "confidence": 0.9,
-             "engine": "easyocr", "validation_status": "valid", "timestamp": 1000.0},
-            {"plate_text": "ABC124", "camera_id": "cam2", "confidence": 0.85,
-             "engine": "paddleocr", "validation_status": "valid", "timestamp": 1001.0},
-            {"plate_text": "XYZ999", "camera_id": "cam1", "confidence": 0.7,
-             "engine": "easyocr", "validation_status": "partial", "timestamp": 1002.0},
+            {
+                "plate_text": "ABC123",
+                "camera_id": "cam1",
+                "confidence": 0.9,
+                "engine": "easyocr",
+                "validation_status": "valid",
+                "timestamp": 1000.0,
+            },
+            {
+                "plate_text": "ABC124",
+                "camera_id": "cam2",
+                "confidence": 0.85,
+                "engine": "paddleocr",
+                "validation_status": "valid",
+                "timestamp": 1001.0,
+            },
+            {
+                "plate_text": "XYZ999",
+                "camera_id": "cam1",
+                "confidence": 0.7,
+                "engine": "easyocr",
+                "validation_status": "partial",
+                "timestamp": 1002.0,
+            },
         ]
         self.fake_index.ntotal = 3
         results = self.engine.search_similar_plates("ABC123", top_k=3, threshold=0.4)
@@ -368,12 +410,30 @@ class TestVectorSearchEngine:
 
     def test_search_by_time_range(self):
         self.engine._metadata = [
-            {"plate_text": "T1", "camera_id": "c1", "confidence": 0.9,
-             "engine": "e", "validation_status": "v", "timestamp": 1000.0},
-            {"plate_text": "T2", "camera_id": "c1", "confidence": 0.8,
-             "engine": "e", "validation_status": "v", "timestamp": 2000.0},
-            {"plate_text": "T3", "camera_id": "c1", "confidence": 0.7,
-             "engine": "e", "validation_status": "v", "timestamp": 3000.0},
+            {
+                "plate_text": "T1",
+                "camera_id": "c1",
+                "confidence": 0.9,
+                "engine": "e",
+                "validation_status": "v",
+                "timestamp": 1000.0,
+            },
+            {
+                "plate_text": "T2",
+                "camera_id": "c1",
+                "confidence": 0.8,
+                "engine": "e",
+                "validation_status": "v",
+                "timestamp": 2000.0,
+            },
+            {
+                "plate_text": "T3",
+                "camera_id": "c1",
+                "confidence": 0.7,
+                "engine": "e",
+                "validation_status": "v",
+                "timestamp": 3000.0,
+            },
         ]
         self.fake_index.ntotal = 3
         results = self.engine.search_by_time_range("T1", start_ts=900, end_ts=1100, top_k=10)
@@ -454,6 +514,7 @@ class TestDatabricksRoutes:
         """Create a test FastAPI app with mocked Databricks services."""
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+
         from uni_vision.api.routes.databricks_routes import router
 
         app = FastAPI()
@@ -563,6 +624,7 @@ class TestDatabricksRoutes:
         """Endpoints return 503 when Databricks is not enabled."""
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+
         from uni_vision.api.routes.databricks_routes import router
 
         app = FastAPI()

@@ -15,7 +15,6 @@ from uni_vision.manager.dependency_resolver import (
     ResolutionAttempt,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────────────
 
 
@@ -23,12 +22,16 @@ from uni_vision.manager.dependency_resolver import (
 def mock_llm():
     """LLM client stub with .generate(prompt) -> str."""
     llm = AsyncMock()
-    llm.generate = AsyncMock(return_value=json.dumps({
-        "analysis": "numpy needs upgrade for compatibility with scipy",
-        "fix_commands": ["numpy==1.24.4"],
-        "confidence": 0.9,
-        "reasoning": "scipy 1.11 requires numpy>=1.24",
-    }))
+    llm.generate = AsyncMock(
+        return_value=json.dumps(
+            {
+                "analysis": "numpy needs upgrade for compatibility with scipy",
+                "fix_commands": ["numpy==1.24.4"],
+                "confidence": 0.9,
+                "reasoning": "scipy 1.11 requires numpy>=1.24",
+            }
+        )
+    )
     return llm
 
 
@@ -50,9 +53,7 @@ def resolver_no_llm():
 def _mock_pip_check(output: str, returncode: int = 1):
     """Create a mock for asyncio.create_subprocess_exec that simulates pip check."""
     mock_proc = AsyncMock()
-    mock_proc.communicate = AsyncMock(
-        return_value=(output.encode(), b"")
-    )
+    mock_proc.communicate = AsyncMock(return_value=(output.encode(), b""))
     mock_proc.returncode = returncode
     return mock_proc
 
@@ -329,7 +330,6 @@ class TestComponentResolverIntegration:
     def test_component_resolver_accepts_dep_resolver(self):
         """ComponentResolver constructor accepts dependency_resolver kwarg."""
         from uni_vision.manager.component_resolver import ComponentResolver
-        from unittest.mock import MagicMock
 
         registry = MagicMock()
         hub = MagicMock()
@@ -345,7 +345,6 @@ class TestComponentResolverIntegration:
     def test_component_resolver_without_dep_resolver(self):
         """ComponentResolver works fine without a dependency_resolver."""
         from uni_vision.manager.component_resolver import ComponentResolver
-        from unittest.mock import MagicMock
 
         resolver = ComponentResolver(
             registry=MagicMock(),

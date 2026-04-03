@@ -13,18 +13,21 @@ The composer can also disassemble a blueprint for teardown.
 
 from __future__ import annotations
 
-import structlog
 import uuid
-from typing import Dict, List, Optional, Set, Union
+from typing import TYPE_CHECKING
 
-from uni_vision.components.base import ComponentCapability, ComponentState
-from uni_vision.manager.component_registry import ComponentRegistry
+import structlog
+
+from uni_vision.components.base import ComponentCapability
 from uni_vision.manager.schemas import (
     FrameContext,
     PipelineBlueprint,
     StageSpec,
     TaskPriority,
 )
+
+if TYPE_CHECKING:
+    from uni_vision.manager.component_registry import ComponentRegistry
 
 log = structlog.get_logger(__name__)
 
@@ -34,7 +37,7 @@ log = structlog.get_logger(__name__)
 # Dynamic capabilities not in this dict get a default order of 99
 # (post-processing), or the LLM can specify custom ordering.
 
-_STAGE_ORDER: Dict[ComponentCapability, int] = {
+_STAGE_ORDER: dict[ComponentCapability, int] = {
     ComponentCapability.IMAGE_DENOISING: 10,
     ComponentCapability.IMAGE_ENHANCE: 15,
     ComponentCapability.SUPER_RESOLUTION: 20,
@@ -60,7 +63,7 @@ _STAGE_ORDER: Dict[ComponentCapability, int] = {
 
 # IO key naming convention (SEED KNOWLEDGE — dynamic capabilities use
 # sensible defaults: input_key="frame", output_key="output")
-_INPUT_KEYS: Dict[ComponentCapability, str] = {
+_INPUT_KEYS: dict[ComponentCapability, str] = {
     ComponentCapability.IMAGE_DENOISING: "frame",
     ComponentCapability.IMAGE_ENHANCE: "frame",
     ComponentCapability.SUPER_RESOLUTION: "frame",
@@ -82,7 +85,7 @@ _INPUT_KEYS: Dict[ComponentCapability, str] = {
     ComponentCapability.DEPTH_ESTIMATION: "frame",
 }
 
-_OUTPUT_KEYS: Dict[ComponentCapability, str] = {
+_OUTPUT_KEYS: dict[ComponentCapability, str] = {
     ComponentCapability.IMAGE_DENOISING: "frame",
     ComponentCapability.IMAGE_ENHANCE: "frame",
     ComponentCapability.SUPER_RESOLUTION: "frame",
@@ -123,8 +126,8 @@ class PipelineComposer:
         self,
         context: FrameContext,
         *,
-        resolved_components: Optional[Dict[ComponentCapability, str]] = None,
-        resolved_dynamic: Optional[Dict[str, str]] = None,
+        resolved_components: dict[ComponentCapability, str] | None = None,
+        resolved_dynamic: dict[str, str] | None = None,
     ) -> PipelineBlueprint:
         """Create a pipeline blueprint for the given context.
 
@@ -145,7 +148,7 @@ class PipelineComposer:
         """
         resolved = resolved_components or {}
         dyn_resolved = resolved_dynamic or {}
-        stages: List[StageSpec] = []
+        stages: list[StageSpec] = []
         total_vram = 0
 
         # ── Standard (enum) capabilities ──
@@ -183,8 +186,7 @@ class PipelineComposer:
         # ── Dynamic (LLM-discovered) capabilities ──
         dyn_required = getattr(context, "dynamic_required", frozenset())
         dyn_optional = getattr(context, "dynamic_optional", frozenset())
-        dyn_all = [(label, False) for label in dyn_required] + \
-                  [(label, True) for label in dyn_optional]
+        dyn_all = [(label, False) for label in dyn_required] + [(label, True) for label in dyn_optional]
 
         for dyn_label, is_optional in dyn_all:
             component_id = dyn_resolved.get(dyn_label)
@@ -237,17 +239,21 @@ class PipelineComposer:
         """
         context = FrameContext(
             scene_type=_scene_type_import("TRAFFIC"),
-            required_capabilities=frozenset({
-                ComponentCapability.IMAGE_ENHANCE,
-                ComponentCapability.GEOMETRIC_CORRECTION,
-                ComponentCapability.VEHICLE_DETECTION,
-                ComponentCapability.PLATE_DETECTION,
-                ComponentCapability.PLATE_OCR,
-            }),
-            optional_capabilities=frozenset({
-                ComponentCapability.TRACKING,
-                ComponentCapability.SUPER_RESOLUTION,
-            }),
+            required_capabilities=frozenset(
+                {
+                    ComponentCapability.IMAGE_ENHANCE,
+                    ComponentCapability.GEOMETRIC_CORRECTION,
+                    ComponentCapability.VEHICLE_DETECTION,
+                    ComponentCapability.PLATE_DETECTION,
+                    ComponentCapability.PLATE_OCR,
+                }
+            ),
+            optional_capabilities=frozenset(
+                {
+                    ComponentCapability.TRACKING,
+                    ComponentCapability.SUPER_RESOLUTION,
+                }
+            ),
             priority=TaskPriority.HIGH,
             camera_id="default_anpr",
         )
@@ -258,7 +264,7 @@ class PipelineComposer:
     def _find_component_for_capability(
         self,
         capability: ComponentCapability,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Search registry for a component providing this capability."""
         # Prefer READY components, then any registered
         components = self._registry.get_by_capability(capability, only_ready=True)
@@ -275,4 +281,5 @@ class PipelineComposer:
 def _scene_type_import(value: str):
     """Lazy import helper to avoid circular imports."""
     from uni_vision.manager.schemas import SceneType
+
     return SceneType(value.lower())

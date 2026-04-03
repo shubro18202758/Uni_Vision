@@ -9,16 +9,18 @@ Before executing a dynamically-composed pipeline, the validator:
 
 from __future__ import annotations
 
-import structlog
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import structlog
 
 from uni_vision.components.base import ComponentState
-from uni_vision.manager.component_registry import ComponentRegistry
-from uni_vision.manager.schemas import PipelineBlueprint, StageResult
+
+if TYPE_CHECKING:
+    from uni_vision.manager.component_registry import ComponentRegistry
+    from uni_vision.manager.schemas import PipelineBlueprint
 
 log = structlog.get_logger(__name__)
 
@@ -26,6 +28,7 @@ log = structlog.get_logger(__name__)
 @dataclass
 class ValidationIssue:
     """A single validation finding."""
+
     stage_name: str
     severity: str  # "error" | "warning"
     message: str
@@ -34,16 +37,17 @@ class ValidationIssue:
 @dataclass
 class ValidationReport:
     """Result of pipeline validation."""
+
     is_valid: bool
-    issues: List[ValidationIssue] = field(default_factory=list)
-    dry_run_ms: Optional[float] = None
+    issues: list[ValidationIssue] = field(default_factory=list)
+    dry_run_ms: float | None = None
 
     @property
-    def errors(self) -> List[ValidationIssue]:
+    def errors(self) -> list[ValidationIssue]:
         return [i for i in self.issues if i.severity == "error"]
 
     @property
-    def warnings(self) -> List[ValidationIssue]:
+    def warnings(self) -> list[ValidationIssue]:
         return [i for i in self.issues if i.severity == "warning"]
 
 
@@ -74,7 +78,7 @@ class PipelineValidator:
         blueprint: PipelineBlueprint,
     ) -> ValidationReport:
         """Run all static validation checks."""
-        issues: List[ValidationIssue] = []
+        issues: list[ValidationIssue] = []
 
         issues.extend(self._check_components_exist(blueprint))
         issues.extend(self._check_io_chaining(blueprint))
@@ -109,17 +113,19 @@ class PipelineValidator:
             return report
 
         dummy = np.zeros(frame_shape, dtype=np.uint8)
-        data: Dict[str, Any] = {"frame": dummy}
+        data: dict[str, Any] = {"frame": dummy}
         t0 = time.monotonic()
 
         for stage in blueprint.stages:
             comp = self._registry.get(stage.component_id)
             if comp is None or comp.state != ComponentState.READY:
-                report.issues.append(ValidationIssue(
-                    stage_name=stage.stage_name,
-                    severity="warning",
-                    message=f"Component {stage.component_id} not READY — skipped dry run",
-                ))
+                report.issues.append(
+                    ValidationIssue(
+                        stage_name=stage.stage_name,
+                        severity="warning",
+                        message=f"Component {stage.component_id} not READY — skipped dry run",
+                    )
+                )
                 continue
 
             try:
@@ -128,11 +134,13 @@ class PipelineValidator:
                 if result is not None:
                     data[stage.output_key] = result
             except Exception as exc:
-                report.issues.append(ValidationIssue(
-                    stage_name=stage.stage_name,
-                    severity="error",
-                    message=f"Dry run failed: {exc}",
-                ))
+                report.issues.append(
+                    ValidationIssue(
+                        stage_name=stage.stage_name,
+                        severity="error",
+                        message=f"Dry run failed: {exc}",
+                    )
+                )
                 report.is_valid = False
 
         report.dry_run_ms = (time.monotonic() - t0) * 1000
@@ -143,45 +151,51 @@ class PipelineValidator:
     def _check_components_exist(
         self,
         blueprint: PipelineBlueprint,
-    ) -> List[ValidationIssue]:
+    ) -> list[ValidationIssue]:
         """Every stage must reference a registered component."""
         issues = []
         for stage in blueprint.stages:
             if stage.component_id.startswith("__unresolved__"):
-                issues.append(ValidationIssue(
-                    stage_name=stage.stage_name,
-                    severity="error" if not stage.is_optional else "warning",
-                    message=f"Unresolved component for capability {stage.required_capability.value}",
-                ))
+                issues.append(
+                    ValidationIssue(
+                        stage_name=stage.stage_name,
+                        severity="error" if not stage.is_optional else "warning",
+                        message=f"Unresolved component for capability {stage.required_capability.value}",
+                    )
+                )
                 continue
 
             comp = self._registry.get(stage.component_id)
             if comp is None:
-                issues.append(ValidationIssue(
-                    stage_name=stage.stage_name,
-                    severity="error" if not stage.is_optional else "warning",
-                    message=f"Component {stage.component_id} not in registry",
-                ))
+                issues.append(
+                    ValidationIssue(
+                        stage_name=stage.stage_name,
+                        severity="error" if not stage.is_optional else "warning",
+                        message=f"Component {stage.component_id} not in registry",
+                    )
+                )
         return issues
 
     def _check_io_chaining(
         self,
         blueprint: PipelineBlueprint,
-    ) -> List[ValidationIssue]:
+    ) -> list[ValidationIssue]:
         """Verify that each stage's input can be produced by a prior stage."""
         issues = []
         available_keys = {"frame"}  # Frame is always available as base input
 
         for stage in blueprint.stages:
             if stage.input_key not in available_keys:
-                issues.append(ValidationIssue(
-                    stage_name=stage.stage_name,
-                    severity="warning",
-                    message=(
-                        f"Input key '{stage.input_key}' not produced by any "
-                        f"prior stage. Available: {available_keys}"
-                    ),
-                ))
+                issues.append(
+                    ValidationIssue(
+                        stage_name=stage.stage_name,
+                        severity="warning",
+                        message=(
+                            f"Input key '{stage.input_key}' not produced by any "
+                            f"prior stage. Available: {available_keys}"
+                        ),
+                    )
+                )
             available_keys.add(stage.output_key)
 
         return issues
@@ -189,29 +203,33 @@ class PipelineValidator:
     def _check_vram(
         self,
         blueprint: PipelineBlueprint,
-    ) -> List[ValidationIssue]:
+    ) -> list[ValidationIssue]:
         """Check VRAM estimate against budget."""
         if blueprint.estimated_vram_mb > self._vram_budget:
-            return [ValidationIssue(
-                stage_name="__pipeline__",
-                severity="warning",
-                message=(
-                    f"Estimated VRAM {blueprint.estimated_vram_mb} MB exceeds "
-                    f"budget {self._vram_budget} MB. LRU eviction may occur."
-                ),
-            )]
+            return [
+                ValidationIssue(
+                    stage_name="__pipeline__",
+                    severity="warning",
+                    message=(
+                        f"Estimated VRAM {blueprint.estimated_vram_mb} MB exceeds "
+                        f"budget {self._vram_budget} MB. LRU eviction may occur."
+                    ),
+                )
+            ]
         return []
 
     def _check_no_empty_pipeline(
         self,
         blueprint: PipelineBlueprint,
-    ) -> List[ValidationIssue]:
+    ) -> list[ValidationIssue]:
         """Pipeline must have at least one non-optional stage."""
         required_stages = [s for s in blueprint.stages if not s.is_optional]
         if not required_stages:
-            return [ValidationIssue(
-                stage_name="__pipeline__",
-                severity="error",
-                message="Pipeline has no required stages",
-            )]
+            return [
+                ValidationIssue(
+                    stage_name="__pipeline__",
+                    severity="error",
+                    message="Pipeline has no required stages",
+                )
+            ]
         return []

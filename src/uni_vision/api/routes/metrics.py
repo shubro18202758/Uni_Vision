@@ -11,7 +11,7 @@ router = APIRouter(tags=["metrics"])
 @router.get("/metrics")
 async def prometheus_metrics() -> PlainTextResponse:
     """Export all Prometheus counters, gauges and histograms in text format."""
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
     return PlainTextResponse(
         content=generate_latest(),

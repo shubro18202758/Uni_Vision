@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 from uni_vision.common.exceptions import LLMParseError
 
@@ -22,7 +21,7 @@ class ParsedOCRResponse:
 
     plate_text: str
     confidence: float
-    char_bboxes: Optional[List[Tuple[int, int, int, int]]]
+    char_bboxes: list[tuple[int, int, int, int]] | None
     reasoning: str
 
 
@@ -47,9 +46,7 @@ def parse_llm_response(raw: str) -> ParsedOCRResponse:
     """
     match = _RESULT_RE.search(raw)
     if match is None:
-        raise LLMParseError(
-            f"No <result> block found in LLM response: {raw[:200]}"
-        )
+        raise LLMParseError(f"No <result> block found in LLM response: {raw[:200]}")
 
     plate_text = match.group("plate_text").strip()
     if not plate_text:
@@ -58,9 +55,7 @@ def parse_llm_response(raw: str) -> ParsedOCRResponse:
     try:
         confidence = float(match.group("confidence").strip())
     except (ValueError, TypeError) as exc:
-        raise LLMParseError(
-            f"Invalid confidence value: {match.group('confidence')}"
-        ) from exc
+        raise LLMParseError(f"Invalid confidence value: {match.group('confidence')}") from exc
 
     confidence = max(0.0, min(1.0, confidence))
 
@@ -76,8 +71,8 @@ def parse_llm_response(raw: str) -> ParsedOCRResponse:
 
 
 def _parse_char_bboxes(
-    raw: Optional[str],
-) -> Optional[List[Tuple[int, int, int, int]]]:
+    raw: str | None,
+) -> list[tuple[int, int, int, int]] | None:
     """Parse semicolon-separated ``x1,y1,x2,y2`` bounding boxes.
 
     Returns ``None`` if the raw string is empty, ``NONE``, or absent.
@@ -89,7 +84,7 @@ def _parse_char_bboxes(
     if not raw or raw.upper() == "NONE":
         return None
 
-    bboxes: List[Tuple[int, int, int, int]] = []
+    bboxes: list[tuple[int, int, int, int]] = []
     for segment in raw.split(";"):
         segment = segment.strip()
         if not segment:

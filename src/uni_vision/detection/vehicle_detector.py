@@ -24,16 +24,18 @@ before LLM inference.
 from __future__ import annotations
 
 import time
-from typing import List
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
-
 import structlog
 
-from uni_vision.contracts.dtos import BoundingBox
-from uni_vision.monitoring.metrics import STAGE_LATENCY, DETECTIONS_TOTAL
 from uni_vision.detection.engine import EngineConfig, InferenceEngine
+from uni_vision.monitoring.metrics import DETECTIONS_TOTAL, STAGE_LATENCY
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+    from uni_vision.contracts.dtos import BoundingBox
 
 log = structlog.get_logger()
 
@@ -113,7 +115,7 @@ class VehicleDetector:
         self._engine.predict(dummy)
         log.info("vehicle_detector_warmed_up", device=self._device)
 
-    def detect(self, image: NDArray[np.uint8]) -> List[BoundingBox]:
+    def detect(self, image: NDArray[np.uint8]) -> list[BoundingBox]:
         """Detect vehicles in *image* (BGR, uint8).
 
         Returns bounding boxes for car / truck / bus / motorcycle

@@ -6,12 +6,9 @@ client connect/disconnect lifecycle using FastAPI TestClient.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import sys
 from unittest.mock import MagicMock
-
-import pytest
 
 # Restore real httpx if conftest stubbed it
 import httpx as _real_httpx
@@ -21,8 +18,7 @@ if isinstance(sys.modules.get("httpx"), MagicMock):
 
 from starlette.testclient import TestClient
 
-from uni_vision.api.routes.ws_events import _broadcast, _clients, REDIS_CHANNEL
-
+from uni_vision.api.routes.ws_events import REDIS_CHANNEL, _clients
 
 # ── Helpers ────────────────────────────────────────────────────────
 
@@ -30,6 +26,7 @@ from uni_vision.api.routes.ws_events import _broadcast, _clients, REDIS_CHANNEL
 def _make_app():
     """Minimal FastAPI app containing only the WS router."""
     from fastapi import FastAPI
+
     from uni_vision.api.routes.ws_events import router
 
     app = FastAPI()
@@ -48,7 +45,7 @@ class TestWebSocketConnect:
         app = _make_app()
         client = TestClient(app)
         initial_count = len(_clients)
-        with client.websocket_connect("/ws/events") as ws:
+        with client.websocket_connect("/ws/events"):
             # Client should now be registered
             assert len(_clients) == initial_count + 1
         # After disconnect, client removed
@@ -74,9 +71,9 @@ class TestBroadcast:
         """A broadcast message should be received by the connected client."""
         app = _make_app()
         client = TestClient(app)
-        with client.websocket_connect("/ws/events") as ws:
+        with client.websocket_connect("/ws/events"):
             # Inject a broadcast from a background thread
-            msg = json.dumps({"plate": "MH12AB1234", "camera_id": "cam-01"})
+            json.dumps({"plate": "MH12AB1234", "camera_id": "cam-01"})
             # We can't easily call async _broadcast from sync test,
             # but we can test the WebSocket endpoint receives data by
             # verifying the client management works correctly.

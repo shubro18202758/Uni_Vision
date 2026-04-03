@@ -9,18 +9,18 @@ from __future__ import annotations
 
 import logging
 import time
-from collections import defaultdict
-from typing import Deque, FrozenSet
-
-from collections import deque
+from collections import defaultdict, deque
+from typing import TYPE_CHECKING
 
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
 
 logger = logging.getLogger(__name__)
 
-_PUBLIC_PATHS: FrozenSet[str] = frozenset({"/health", "/metrics"})
+_PUBLIC_PATHS: frozenset[str] = frozenset({"/health", "/metrics"})
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -39,7 +39,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)  # type: ignore[arg-type]
         self._rpm = requests_per_minute
         self._window = 60.0
-        self._hits: defaultdict[str, Deque[float]] = defaultdict(deque)
+        self._hits: defaultdict[str, deque[float]] = defaultdict(deque)
 
     def _client_ip(self, request: Request) -> str:
         """Extract the client IP, respecting X-Forwarded-For from trusted proxies."""

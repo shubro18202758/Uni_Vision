@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Set
+from typing import Any
 
 
 class QueryIntent(str, Enum):
@@ -40,10 +40,10 @@ class ClassificationResult:
 
     primary_intent: QueryIntent
     confidence: float  # 0.0 – 1.0
-    suggested_tools: List[str] = field(default_factory=list)
-    context_hints: List[str] = field(default_factory=list)
+    suggested_tools: list[str] = field(default_factory=list)
+    context_hints: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "intent": self.primary_intent.value,
             "confidence": round(self.confidence, 2),
@@ -54,7 +54,7 @@ class ClassificationResult:
 
 # ── Pattern definitions ──────────────────────────────────────────
 
-_PATTERNS: Dict[QueryIntent, List[re.Pattern[str]]] = {
+_PATTERNS: dict[QueryIntent, list[re.Pattern[str]]] = {
     QueryIntent.STATUS: [
         re.compile(r"\b(status|health|alive|running|up|uptime)\b", re.I),
         re.compile(r"\b(pipeline|system).*(state|ok|good|bad)\b", re.I),
@@ -117,7 +117,7 @@ _PATTERNS: Dict[QueryIntent, List[re.Pattern[str]]] = {
     ],
 }
 
-_TOOL_SUGGESTIONS: Dict[QueryIntent, List[str]] = {
+_TOOL_SUGGESTIONS: dict[QueryIntent, list[str]] = {
     QueryIntent.STATUS: [
         "get_system_health",
         "get_pipeline_stats",
@@ -166,7 +166,7 @@ _TOOL_SUGGESTIONS: Dict[QueryIntent, List[str]] = {
     QueryIntent.GENERAL: [],
 }
 
-_CONTEXT_HINTS: Dict[QueryIntent, List[str]] = {
+_CONTEXT_HINTS: dict[QueryIntent, list[str]] = {
     QueryIntent.STATUS: [
         "Focus on overall system health and pipeline state.",
     ],
@@ -208,7 +208,7 @@ def classify_intent(message: str) -> ClassificationResult:
     context hints.  When no strong match is found, defaults to
     ``QueryIntent.GENERAL`` with low confidence.
     """
-    scores: Dict[QueryIntent, float] = {}
+    scores: dict[QueryIntent, float] = {}
 
     for intent, patterns in _PATTERNS.items():
         hits = sum(1 for p in patterns if p.search(message))

@@ -18,15 +18,16 @@ measurement instead of relying solely on estimates.
 from __future__ import annotations
 
 import asyncio
-import structlog
 import time
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
+import structlog
 
 from uni_vision.components.base import ComponentState, CVComponent
-from uni_vision.manager.component_registry import ComponentRegistry
 
 if TYPE_CHECKING:
+    from uni_vision.manager.component_registry import ComponentRegistry
     from uni_vision.manager.gpu_profiler import GPUProfiler
 
 log = structlog.get_logger(__name__)
@@ -61,7 +62,7 @@ class LifecycleManager:
         vram_total_mb: int = 8192,
         vram_reserved_mb: int = 5800,
         device: str = "cuda:0",
-        gpu_profiler: Optional["GPUProfiler"] = None,
+        gpu_profiler: GPUProfiler | None = None,
         load_timeout: int = _LOAD_TIMEOUT_SECONDS,
     ) -> None:
         self._registry = registry
@@ -107,7 +108,7 @@ class LifecycleManager:
         self,
         component_id: str,
         *,
-        device: Optional[str] = None,
+        device: str | None = None,
     ) -> bool:
         """Load a component into VRAM with timeout and health check.
 
@@ -133,7 +134,9 @@ class LifecycleManager:
                 if freed < needed and needed > self.vram_free_mb:
                     log.warning(
                         "insufficient_vram needed=%d free=%d component=%s",
-                        needed, self.vram_free_mb, component_id,
+                        needed,
+                        self.vram_free_mb,
+                        component_id,
                     )
                     if comp.metadata.resource_estimate.supports_cpu:
                         target_device = "cpu"
@@ -147,13 +150,15 @@ class LifecycleManager:
                 self._touch(component_id)
                 log.info(
                     "component_loaded id=%s device=%s vram_used=%d vram_free=%d",
-                    component_id, target_device, self.vram_used_mb, self.vram_free_mb,
+                    component_id,
+                    target_device,
+                    self.vram_used_mb,
+                    self.vram_free_mb,
                 )
                 return True
 
             except asyncio.TimeoutError:
-                log.error("component_load_timeout id=%s timeout=%ds",
-                          component_id, self._load_timeout)
+                log.error("component_load_timeout id=%s timeout=%ds", component_id, self._load_timeout)
                 comp._set_state(ComponentState.FAILED)
                 comp._load_error = f"Load timed out after {self._load_timeout}s"
                 return False
@@ -178,6 +183,7 @@ class LifecycleManager:
                 with self._gpu_profiler.measure_load(cid, estimated):
                     # We need to run the async load in this sync context
                     import asyncio as _aio
+
                     _loop = _aio.new_event_loop()
                     try:
                         _loop.run_until_complete(comp.load(device=device))
@@ -289,13 +295,13 @@ class LifecycleManager:
 
     async def ensure_loaded(
         self,
-        component_ids: List[str],
-    ) -> Dict[str, bool]:
+        component_ids: list[str],
+    ) -> dict[str, bool]:
         """Ensure a list of components are loaded.
 
         Returns a mapping of component_id → success.
         """
-        results: Dict[str, bool] = {}
+        results: dict[str, bool] = {}
         for cid in component_ids:
             results[cid] = await self.load_component(cid)
         return results
@@ -346,7 +352,7 @@ class LifecycleManager:
 
     # ── Status ────────────────────────────────────────────────────
 
-    def status(self) -> Dict:
+    def status(self) -> dict:
         """Return VRAM status for LLM prompts."""
         s = {
             "vram_total_mb": self._vram_total,

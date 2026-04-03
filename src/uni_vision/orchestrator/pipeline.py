@@ -14,23 +14,23 @@ This module is the application entry-point (``main``).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import signal
-import sys
 import time
-from typing import List, Optional
+
+# Type-only import to avoid circular dependency at runtime
+from typing import TYPE_CHECKING
 
 import structlog
 
 from uni_vision.common.config import AppConfig, load_config
 from uni_vision.common.exceptions import (
-    PipelineShutdownError,
     UniVisionError,
 )
 from uni_vision.common.logging import configure_logging
 from uni_vision.contracts.dtos import (
     DetectionRecord,
     FramePacket,
-    OffloadMode,
 )
 from uni_vision.monitoring.metrics import (
     DETECTIONS_TOTAL,
@@ -41,19 +41,14 @@ from uni_vision.monitoring.metrics import (
 )
 from uni_vision.monitoring.profiler import (
     PipelineTelemetryHook,
-    profile_stage,
     set_profiling_enabled,
-    vram_sampler,
 )
 from uni_vision.monitoring.vram_budget import validate_budget
-from uni_vision.monitoring.vram_monitor import VRAMMonitor
 from uni_vision.orchestrator.pipeline_events import pipeline_broadcaster
-
-# Type-only import to avoid circular dependency at runtime
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from uni_vision.manager.agent import ManagerAgent
+    from uni_vision.monitoring.vram_monitor import VRAMMonitor
 
 log = structlog.get_logger()
 
@@ -143,7 +138,7 @@ class Pipeline:
         validator: object,
         dispatcher: object,
         # Manager Agent for dynamic pipeline composition (optional)
-        manager_agent: Optional["ManagerAgent"] = None,
+        manager_agent: ManagerAgent | None = None,
     ) -> None:
         self._config = config
         self._vram_monitor = vram_monitor
@@ -259,9 +254,7 @@ class Pipeline:
         log.info("inference_consumer_started")
         while not self._shutting_down:
             try:
-                frame = await asyncio.wait_for(
-                    self._inference_queue.get(), timeout=1.0
-                )
+                frame = await asyncio.wait_for(self._inference_queue.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 continue
 
@@ -343,7 +336,10 @@ class Pipeline:
         s1_ms = (time.perf_counter() - t) * 1000
         STAGE_LATENCY.labels(stage="S1_preprocess").observe(s1_ms / 1000)
         await pipeline_broadcaster.emit_stage_completed(
-            frame_id, camera_id, "S1_preprocess", s1_ms,
+            frame_id,
+            camera_id,
+            "S1_preprocess",
+            s1_ms,
             details={"enhanced": processed_image is not frame.image},
             image=processed_image,
         )
@@ -354,6 +350,7 @@ class Pipeline:
 
         if self._vision_analyzer is None:
             from uni_vision.detection.vision_analyzer import VisionAnalyzer
+
             self._vision_analyzer = VisionAnalyzer(
                 ollama_base_url=self._config.ollama.base_url,
                 model=self._config.ollama.model,
@@ -372,6 +369,7 @@ class Pipeline:
         except Exception as exc:
             log.error("vision_analysis_failed camera=%s frame=%s error=%s", camera_id, frame_id, exc)
             from uni_vision.contracts.dtos import AnalysisResult
+
             analysis = AnalysisResult(
                 frame_id=frame_id,
                 camera_id=camera_id,
@@ -384,7 +382,10 @@ class Pipeline:
         s2_ms = (time.perf_counter() - t) * 1000
         STAGE_LATENCY.labels(stage="S2_scene_analysis").observe(s2_ms / 1000)
         await pipeline_broadcaster.emit_stage_completed(
-            frame_id, camera_id, "S2_scene_analysis", s2_ms,
+            frame_id,
+            camera_id,
+            "S2_scene_analysis",
+            s2_ms,
             details={
                 "objects_count": len(analysis.objects_detected),
                 "scene": analysis.scene_description[:80] if analysis.scene_description else "",
@@ -399,7 +400,10 @@ class Pipeline:
         s3_ms = (time.perf_counter() - t) * 1000
         STAGE_LATENCY.labels(stage="S3_anomaly_detection").observe(s3_ms / 1000)
         await pipeline_broadcaster.emit_stage_completed(
-            frame_id, camera_id, "S3_anomaly_detection", s3_ms,
+            frame_id,
+            camera_id,
+            "S3_anomaly_detection",
+            s3_ms,
             details={
                 "anomaly_detected": analysis.anomaly_detected,
                 "anomalies_count": anomaly_count,
@@ -414,7 +418,10 @@ class Pipeline:
         s4_ms = (time.perf_counter() - t) * 1000
         STAGE_LATENCY.labels(stage="S4_deep_analysis").observe(s4_ms / 1000)
         await pipeline_broadcaster.emit_stage_completed(
-            frame_id, camera_id, "S4_deep_analysis", s4_ms,
+            frame_id,
+            camera_id,
+            "S4_deep_analysis",
+            s4_ms,
             details={
                 "confidence": round(analysis.confidence, 3),
                 "chain_of_thought": analysis.chain_of_thought[:120] if analysis.chain_of_thought else "",
@@ -430,20 +437,29 @@ class Pipeline:
         # Broadcast full analysis result to subscribers
         analysis_dict = asdict(analysis)
         await pipeline_broadcaster.emit_analysis_result(
-            frame_id, camera_id, analysis_dict, image=frame.image,
+            frame_id,
+            camera_id,
+            analysis_dict,
+            image=frame.image,
         )
 
         # Raise flag per anomaly for real-time streaming
         flag_count = 0
         if analysis.anomaly_detected:
             flag_count = await _emit_per_anomaly_flags(
-                frame_id, camera_id, analysis_dict, analysis.risk_level,
+                frame_id,
+                camera_id,
+                analysis_dict,
+                analysis.risk_level,
             )
 
         s5_ms = (time.perf_counter() - t) * 1000
         STAGE_LATENCY.labels(stage="S5_results").observe(s5_ms / 1000)
         await pipeline_broadcaster.emit_stage_completed(
-            frame_id, camera_id, "S5_results", s5_ms,
+            frame_id,
+            camera_id,
+            "S5_results",
+            s5_ms,
             details={
                 "anomaly_detected": analysis.anomaly_detected,
                 "dispatched": True,
@@ -454,7 +470,9 @@ class Pipeline:
 
         total_ms = (time.perf_counter() - pipeline_start) * 1000
         await pipeline_broadcaster.emit_pipeline_complete(
-            frame_id, camera_id, total_ms,
+            frame_id,
+            camera_id,
+            total_ms,
             flag_count,
         )
 
@@ -496,7 +514,10 @@ class Pipeline:
             # Emit synthetic stage events so the frontend can track progress
             await pipeline_broadcaster.emit_stage_started(frame_id, camera_id, "S1_preprocess")
             await pipeline_broadcaster.emit_stage_completed(
-                frame_id, camera_id, "S1_preprocess", 0.0,
+                frame_id,
+                camera_id,
+                "S1_preprocess",
+                0.0,
                 details={"enhanced": False, "dynamic": True},
             )
 
@@ -515,13 +536,18 @@ class Pipeline:
             # An empty/trivial final_output (0 stages or only None values)
             # is treated like a failure so we fall through to VisionAnalyzer.
             _fout = result.final_output if isinstance(result.final_output, dict) else {}
-            _has_real_output = result.success and len(result.stage_results or []) > 0 and any(
-                v is not None and v != [] and v != {} for v in _fout.values()
+            _has_real_output = (
+                result.success
+                and len(result.stage_results or []) > 0
+                and any(v is not None and v != [] and v != {} for v in _fout.values())
             )
 
             if _has_real_output:
                 await pipeline_broadcaster.emit_stage_completed(
-                    frame_id, camera_id, "S2_scene_analysis", agent_ms,
+                    frame_id,
+                    camera_id,
+                    "S2_scene_analysis",
+                    agent_ms,
                     details={"dynamic": True, "stages_run": len(result.stage_results)},
                 )
 
@@ -529,18 +555,21 @@ class Pipeline:
                 sr = result.stage_results or []
                 # Distribute stage timings across S3-S5 buckets
                 # S3 = detection stages, S4 = analysis/OCR stages, S5 = tracking/post
-                s3_ms = sum(s.elapsed_ms for s in sr if any(
-                    k in (s.stage_name or "").lower()
-                    for k in ("detect", "segment", "classif")
-                )) or (sr[0].elapsed_ms if len(sr) >= 1 else 0.0)
-                s4_ms = sum(s.elapsed_ms for s in sr if any(
-                    k in (s.stage_name or "").lower()
-                    for k in ("anomal", "ocr", "analys", "depth")
-                )) or (sr[1].elapsed_ms if len(sr) >= 2 else 0.0)
-                s5_ms = sum(s.elapsed_ms for s in sr if any(
-                    k in (s.stage_name or "").lower()
-                    for k in ("track", "post", "result")
-                )) or (sr[-1].elapsed_ms if len(sr) >= 3 else 0.0)
+                s3_ms = sum(
+                    s.elapsed_ms
+                    for s in sr
+                    if any(k in (s.stage_name or "").lower() for k in ("detect", "segment", "classif"))
+                ) or (sr[0].elapsed_ms if len(sr) >= 1 else 0.0)
+                s4_ms = sum(
+                    s.elapsed_ms
+                    for s in sr
+                    if any(k in (s.stage_name or "").lower() for k in ("anomal", "ocr", "analys", "depth"))
+                ) or (sr[1].elapsed_ms if len(sr) >= 2 else 0.0)
+                s5_ms = sum(
+                    s.elapsed_ms
+                    for s in sr
+                    if any(k in (s.stage_name or "").lower() for k in ("track", "post", "result"))
+                ) or (sr[-1].elapsed_ms if len(sr) >= 3 else 0.0)
 
                 for stage_name, stage_ms in [
                     ("S3_anomaly_detection", s3_ms),
@@ -550,12 +579,14 @@ class Pipeline:
                     await pipeline_broadcaster.emit_stage_started(frame_id, camera_id, stage_name)
                     STAGE_LATENCY.labels(stage=stage_name).observe(stage_ms / 1000)
                     await pipeline_broadcaster.emit_stage_completed(
-                        frame_id, camera_id, stage_name, stage_ms,
+                        frame_id,
+                        camera_id,
+                        stage_name,
+                        stage_ms,
                         details={
                             "dynamic": True,
                             "sub_stages": [
-                                {"name": s.stage_name, "ms": round(s.elapsed_ms, 1)}
-                                for s in sr if s.success
+                                {"name": s.stage_name, "ms": round(s.elapsed_ms, 1)} for s in sr if s.success
                             ],
                         },
                     )
@@ -573,7 +604,9 @@ class Pipeline:
                     or _out.get("anomaly_detected", False)
                 )
                 await pipeline_broadcaster.emit_pipeline_complete(
-                    frame_id, camera_id, total_ms,
+                    frame_id,
+                    camera_id,
+                    total_ms,
                     1 if _has_anomaly else 0,
                 )
 
@@ -604,9 +637,7 @@ class Pipeline:
                                 camera_id=camera_id,
                             )
                             # Flush dynamic packages in background
-                            asyncio.create_task(
-                                self._flush_job_and_broadcast(job.job_id, camera_id)
-                            )
+                            asyncio.create_task(self._flush_job_and_broadcast(job.job_id, camera_id))
             else:
                 # Dynamic pipeline failed (missing components, etc.)
                 # Fall through to VisionAnalyzer (Gemma 4 E2B) as last resort.
@@ -617,7 +648,10 @@ class Pipeline:
                     error=str(result.error) if result.error else None,
                 )
                 await pipeline_broadcaster.emit_stage_completed(
-                    frame_id, camera_id, "S2_scene_analysis", agent_ms,
+                    frame_id,
+                    camera_id,
+                    "S2_scene_analysis",
+                    agent_ms,
                     details={"dynamic": True, "degraded": True, "fallback": "vision_analyzer"},
                 )
 
@@ -629,6 +663,7 @@ class Pipeline:
 
                 if self._vision_analyzer is None:
                     from uni_vision.detection.vision_analyzer import VisionAnalyzer
+
                     self._vision_analyzer = VisionAnalyzer(
                         ollama_base_url=self._config.ollama.base_url,
                         model=self._config.ollama.model,
@@ -647,6 +682,7 @@ class Pipeline:
                 except Exception as exc:
                     log.error("vision_fallback_failed camera=%s error=%s", camera_id, exc)
                     from uni_vision.contracts.dtos import AnalysisResult
+
                     analysis = AnalysisResult(
                         frame_id=frame_id,
                         camera_id=camera_id,
@@ -660,7 +696,10 @@ class Pipeline:
                 s3_ms = (time.perf_counter() - t_fb) * 1000
                 STAGE_LATENCY.labels(stage="S3_anomaly_detection").observe(s3_ms / 1000)
                 await pipeline_broadcaster.emit_stage_completed(
-                    frame_id, camera_id, "S3_anomaly_detection", s3_ms,
+                    frame_id,
+                    camera_id,
+                    "S3_anomaly_detection",
+                    s3_ms,
                     details={
                         "anomaly_detected": analysis.anomaly_detected,
                         "anomalies_count": len(analysis.anomalies),
@@ -676,7 +715,10 @@ class Pipeline:
                 s4_ms = (time.perf_counter() - t_s4) * 1000
                 STAGE_LATENCY.labels(stage="S4_deep_analysis").observe(s4_ms / 1000)
                 await pipeline_broadcaster.emit_stage_completed(
-                    frame_id, camera_id, "S4_deep_analysis", s4_ms,
+                    frame_id,
+                    camera_id,
+                    "S4_deep_analysis",
+                    s4_ms,
                     details={
                         "confidence": round(analysis.confidence, 3),
                         "chain_of_thought": analysis.chain_of_thought[:120] if analysis.chain_of_thought else "",
@@ -689,19 +731,28 @@ class Pipeline:
 
                 analysis_dict = _asdict(analysis)
                 await pipeline_broadcaster.emit_analysis_result(
-                    frame_id, camera_id, analysis_dict, image=frame.image,
+                    frame_id,
+                    camera_id,
+                    analysis_dict,
+                    image=frame.image,
                 )
 
                 fb_flag_count = 0
                 if analysis.anomaly_detected:
                     fb_flag_count = await _emit_per_anomaly_flags(
-                        frame_id, camera_id, analysis_dict, analysis.risk_level,
+                        frame_id,
+                        camera_id,
+                        analysis_dict,
+                        analysis.risk_level,
                     )
 
                 s5_ms = (time.perf_counter() - t_s5) * 1000
                 STAGE_LATENCY.labels(stage="S5_results").observe(s5_ms / 1000)
                 await pipeline_broadcaster.emit_stage_completed(
-                    frame_id, camera_id, "S5_results", s5_ms,
+                    frame_id,
+                    camera_id,
+                    "S5_results",
+                    s5_ms,
                     details={
                         "anomaly_detected": analysis.anomaly_detected,
                         "dispatched": True,
@@ -712,7 +763,9 @@ class Pipeline:
 
                 total_ms = (time.perf_counter() - t0) * 1000
                 await pipeline_broadcaster.emit_pipeline_complete(
-                    frame_id, camera_id, total_ms,
+                    frame_id,
+                    camera_id,
+                    total_ms,
                     fb_flag_count,
                 )
 
@@ -733,11 +786,15 @@ class Pipeline:
                 exc_info=True,
             )
             # Fall through to VisionAnalyzer rather than emitting dead stages.
-            import numpy as np
             from dataclasses import asdict as _asdict
 
+            import numpy as np
+
             await pipeline_broadcaster.emit_stage_completed(
-                frame_id, camera_id, "S2_scene_analysis", 0.0,
+                frame_id,
+                camera_id,
+                "S2_scene_analysis",
+                0.0,
                 details={"dynamic": True, "error": str(exc), "fallback": "vision_analyzer"},
             )
 
@@ -746,6 +803,7 @@ class Pipeline:
 
             if self._vision_analyzer is None:
                 from uni_vision.detection.vision_analyzer import VisionAnalyzer
+
                 self._vision_analyzer = VisionAnalyzer(
                     ollama_base_url=self._config.ollama.base_url,
                     model=self._config.ollama.model,
@@ -764,6 +822,7 @@ class Pipeline:
             except Exception as va_exc:
                 log.error("vision_fallback_failed_in_except camera=%s error=%s", camera_id, va_exc)
                 from uni_vision.contracts.dtos import AnalysisResult
+
                 analysis = AnalysisResult(
                     frame_id=frame_id,
                     camera_id=camera_id,
@@ -777,12 +836,16 @@ class Pipeline:
             s3_ms = (time.perf_counter() - t_fb) * 1000
             STAGE_LATENCY.labels(stage="S3_anomaly_detection").observe(s3_ms / 1000)
             await pipeline_broadcaster.emit_stage_completed(
-                frame_id, camera_id, "S3_anomaly_detection", s3_ms,
+                frame_id,
+                camera_id,
+                "S3_anomaly_detection",
+                s3_ms,
                 details={
                     "anomaly_detected": analysis.anomaly_detected,
                     "anomalies_count": len(analysis.anomalies),
                     "risk_level": analysis.risk_level,
-                    "fallback": True, "from_error": True,
+                    "fallback": True,
+                    "from_error": True,
                 },
                 image=frame.image,
             )
@@ -792,7 +855,10 @@ class Pipeline:
             s4_ms = (time.perf_counter() - t_s4) * 1000
             STAGE_LATENCY.labels(stage="S4_deep_analysis").observe(s4_ms / 1000)
             await pipeline_broadcaster.emit_stage_completed(
-                frame_id, camera_id, "S4_deep_analysis", s4_ms,
+                frame_id,
+                camera_id,
+                "S4_deep_analysis",
+                s4_ms,
                 details={"confidence": round(analysis.confidence, 3), "fallback": True},
             )
 
@@ -800,24 +866,35 @@ class Pipeline:
             t_s5 = time.perf_counter()
             analysis_dict = _asdict(analysis)
             await pipeline_broadcaster.emit_analysis_result(
-                frame_id, camera_id, analysis_dict, image=frame.image,
+                frame_id,
+                camera_id,
+                analysis_dict,
+                image=frame.image,
             )
             err_flag_count = 0
             if analysis.anomaly_detected:
                 err_flag_count = await _emit_per_anomaly_flags(
-                    frame_id, camera_id, analysis_dict, analysis.risk_level,
+                    frame_id,
+                    camera_id,
+                    analysis_dict,
+                    analysis.risk_level,
                 )
             s5_ms = (time.perf_counter() - t_s5) * 1000
             STAGE_LATENCY.labels(stage="S5_results").observe(s5_ms / 1000)
             await pipeline_broadcaster.emit_stage_completed(
-                frame_id, camera_id, "S5_results", s5_ms,
+                frame_id,
+                camera_id,
+                "S5_results",
+                s5_ms,
                 details={"dispatched": True, "fallback": True, "from_error": True},
                 image=frame.image,
             )
 
             total_ms = (time.perf_counter() - t0) * 1000
             await pipeline_broadcaster.emit_pipeline_complete(
-                frame_id, camera_id, total_ms,
+                frame_id,
+                camera_id,
+                total_ms,
                 err_flag_count,
             )
 
@@ -850,7 +927,7 @@ class Pipeline:
         plate_texts: list = final_output.get("plate_texts", [])
         plate_crops: list = final_output.get("plate_crops", [])
         face_detections: list = final_output.get("face_detections", [])
-        masks: list = final_output.get("masks", [])
+        final_output.get("masks", [])
         text_results: list = final_output.get("text_results", [])
 
         # Determine if something noteworthy was found
@@ -878,10 +955,12 @@ class Pipeline:
         objects_detected: list = []
         for d in detections:
             if isinstance(d, dict):
-                objects_detected.append({
-                    "label": d.get("label", d.get("class", "object")),
-                    "confidence": str(round(float(d.get("confidence", 0)), 3)),
-                })
+                objects_detected.append(
+                    {
+                        "label": d.get("label", d.get("class", "object")),
+                        "confidence": str(round(float(d.get("confidence", 0)), 3)),
+                    }
+                )
         for f in face_detections:
             if isinstance(f, dict):
                 objects_detected.append({"label": "face", "confidence": str(round(float(f.get("confidence", 0)), 3))})
@@ -918,7 +997,10 @@ class Pipeline:
 
         if anomaly_detected:
             await _emit_per_anomaly_flags(
-                frame_id, camera_id, analysis_dict, risk_level,
+                frame_id,
+                camera_id,
+                analysis_dict,
+                risk_level,
             )
 
         # ── Plate dispatch (legacy DetectionRecord path) ─────────
@@ -1055,10 +1137,8 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Synchronous wrapper for the async entry-point."""
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(_async_main())
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ anomaly detection.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from uni_vision.agent.tools import tool
 
@@ -34,7 +34,7 @@ def _get_pg_client(context: Any) -> Any:
         "feedback entries, unique detections, and cameras profiled."
     ),
 )
-async def get_knowledge_stats(context: Any = None) -> Dict[str, Any]:
+async def get_knowledge_stats(context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
     return kb.get_stats()
 
@@ -49,9 +49,7 @@ async def get_knowledge_stats(context: Any = None) -> Dict[str, Any]:
         "top_n": "Number of top detections to return (default: 20)",
     },
 )
-async def get_frequent_detections(
-    top_n: int = 20, context: Any = None
-) -> Dict[str, Any]:
+async def get_frequent_detections(top_n: int = 20, context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
     plates = kb.get_plate_frequency(top_n=top_n)
     return {
@@ -71,9 +69,7 @@ async def get_frequent_detections(
         "camera_id": "Camera identifier to profile",
     },
 )
-async def get_camera_error_profile(
-    camera_id: str, context: Any = None
-) -> Dict[str, Any]:
+async def get_camera_error_profile(camera_id: str, context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
     profile = kb.get_camera_profile(camera_id)
     if profile is None:
@@ -85,9 +81,7 @@ async def get_camera_error_profile(
         "error_count": profile.error_count,
         "error_rate": round(profile.error_rate, 4),
         "avg_confidence": round(profile.avg_confidence, 4),
-        "top_confusions": [
-            {"pattern": k, "count": v} for k, v in profile.top_confusions(5)
-        ],
+        "top_confusions": [{"pattern": k, "count": v} for k, v in profile.top_confusions(5)],
         "last_updated": profile.last_updated,
     }
 
@@ -95,11 +89,10 @@ async def get_camera_error_profile(
 @tool(
     name="get_all_camera_profiles",
     description=(
-        "Get error profiles for all cameras. Provides a quick overview "
-        "of which cameras have the most OCR issues."
+        "Get error profiles for all cameras. Provides a quick overview of which cameras have the most OCR issues."
     ),
 )
-async def get_all_camera_profiles(context: Any = None) -> Dict[str, Any]:
+async def get_all_camera_profiles(context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
     profiles = kb.get_all_camera_profiles()
 
@@ -108,12 +101,14 @@ async def get_all_camera_profiles(context: Any = None) -> Dict[str, Any]:
 
     cameras = []
     for cam_id, profile in profiles.items():
-        cameras.append({
-            "camera_id": cam_id,
-            "total_detections": profile.total_detections,
-            "error_rate": round(profile.error_rate, 4),
-            "avg_confidence": round(profile.avg_confidence, 4),
-        })
+        cameras.append(
+            {
+                "camera_id": cam_id,
+                "total_detections": profile.total_detections,
+                "error_rate": round(profile.error_rate, 4),
+                "avg_confidence": round(profile.avg_confidence, 4),
+            }
+        )
 
     # Sort by error rate descending
     cameras.sort(key=lambda x: -x["error_rate"])
@@ -130,9 +125,7 @@ async def get_all_camera_profiles(context: Any = None) -> Dict[str, Any]:
         "min_cameras": "Minimum number of cameras a detection must appear on (default: 2)",
     },
 )
-async def get_cross_camera_detections(
-    min_cameras: int = 2, context: Any = None
-) -> Dict[str, Any]:
+async def get_cross_camera_detections(min_cameras: int = 2, context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
     cross = kb.get_cross_camera_plates(min_cameras=min_cameras)
 
@@ -157,19 +150,13 @@ async def get_cross_camera_detections(
         "camera_id": "Optional camera ID to filter patterns (empty for all cameras)",
     },
 )
-async def get_ocr_error_patterns(
-    camera_id: str = "", context: Any = None
-) -> Dict[str, Any]:
+async def get_ocr_error_patterns(camera_id: str = "", context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
-    patterns = kb.get_error_patterns(
-        camera_id=camera_id if camera_id else None
-    )
+    patterns = kb.get_error_patterns(camera_id=camera_id if camera_id else None)
 
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for cam_id, pattern_list in patterns.items():
-        result[cam_id] = [
-            {"confusion": k, "count": v} for k, v in pattern_list
-        ]
+        result[cam_id] = [{"confusion": k, "count": v} for k, v in pattern_list]
 
     return {"patterns": result, "cameras_analyzed": len(result)}
 
@@ -189,11 +176,9 @@ async def detect_detection_anomalies(
     hours_back: float = 1.0,
     spike_threshold: float = 3.0,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     kb = _get_kb(context)
-    anomalies = kb.get_anomalies(
-        hours_back=hours_back, spike_threshold=spike_threshold
-    )
+    anomalies = kb.get_anomalies(hours_back=hours_back, spike_threshold=spike_threshold)
 
     return {
         "anomalies": anomalies,
@@ -227,7 +212,7 @@ async def record_detection_feedback(
     corrected_text: str = "",
     notes: str = "",
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     from uni_vision.agent.knowledge import FeedbackEntry
 
     kb = _get_kb(context)
@@ -258,10 +243,7 @@ async def record_detection_feedback(
 
 @tool(
     name="get_recent_feedback",
-    description=(
-        "Retrieve recent operator feedback entries. Use to review "
-        "corrections and confirmations."
-    ),
+    description=("Retrieve recent operator feedback entries. Use to review corrections and confirmations."),
     param_descriptions={
         "hours_back": "Hours to look back (default: 24)",
         "limit": "Maximum entries to return (default: 20)",
@@ -271,7 +253,7 @@ async def get_recent_feedback(
     hours_back: float = 24,
     limit: int = 20,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     kb = _get_kb(context)
     entries = kb.get_recent_feedback(hours_back=hours_back, limit=limit)
 
@@ -303,9 +285,7 @@ async def get_recent_feedback(
         "camera_id": "Camera identifier",
     },
 )
-async def get_camera_hints(
-    camera_id: str, context: Any = None
-) -> Dict[str, Any]:
+async def get_camera_hints(camera_id: str, context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
     hints = kb.get_camera_hints(camera_id)
 
@@ -319,11 +299,10 @@ async def get_camera_hints(
 @tool(
     name="save_knowledge",
     description=(
-        "Persist the current knowledge base to PostgreSQL. "
-        "Call periodically to ensure learning is not lost on restart."
+        "Persist the current knowledge base to PostgreSQL. Call periodically to ensure learning is not lost on restart."
     ),
 )
-async def save_knowledge(context: Any = None) -> Dict[str, Any]:
+async def save_knowledge(context: Any = None) -> dict[str, Any]:
     kb = _get_kb(context)
     pg = _get_pg_client(context)
 

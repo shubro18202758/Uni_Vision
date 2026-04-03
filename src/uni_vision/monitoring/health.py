@@ -8,13 +8,15 @@ the ``GET /health`` API endpoint.
 from __future__ import annotations
 
 import asyncio
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING
 
 import httpx
 import structlog
 
-from uni_vision.contracts.dtos import HealthStatus, OffloadMode
-from uni_vision.monitoring.vram_monitor import VRAMMonitor
+from uni_vision.contracts.dtos import HealthStatus
+
+if TYPE_CHECKING:
+    from uni_vision.monitoring.vram_monitor import VRAMMonitor
 
 log = structlog.get_logger()
 
@@ -58,7 +60,7 @@ class HealthService:
             self._check_database(),
         )
 
-        details: Dict[str, str] = {}
+        details: dict[str, str] = {}
         if not gpu_ok:
             details["gpu"] = "unavailable or pynvml not installed"
         if not ollama_ok:

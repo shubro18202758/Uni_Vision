@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +39,9 @@ logger = logging.getLogger(__name__)
 VRAM_CEILING_MB: int = 8192
 
 # Per-model measured sizes (from Ollama `show` and TensorRT build logs)
-GEMMA4_E2B_WEIGHTS_MB: int = 5000       # on-GPU after mmap (fits entirely, no CPU offload)
-YOLOV8N_INT8_SINGLE_MB: int = 45        # single TensorRT engine
-YOLOV8N_INT8_WORKSPACE_MB: int = 256    # TensorRT execution workspace
+GEMMA4_E2B_WEIGHTS_MB: int = 5000  # on-GPU after mmap (fits entirely, no CPU offload)
+YOLOV8N_INT8_SINGLE_MB: int = 45  # single TensorRT engine
+YOLOV8N_INT8_WORKSPACE_MB: int = 256  # TensorRT execution workspace
 
 # KV-cache arithmetic for Gemma 4 E2B:
 #   MoE architecture — 5.1B total params, 2.3B effective;
@@ -91,13 +90,9 @@ def compute_budget(
     warnings: list = []
 
     if headroom < 256:
-        warnings.append(
-            f"Headroom critically low: {headroom} MB (recommend ≥ 256 MB)"
-        )
+        warnings.append(f"Headroom critically low: {headroom} MB (recommend ≥ 256 MB)")
     if context_tokens > 4096:
-        warnings.append(
-            f"Context window {context_tokens} exceeds 4096 — KV cache may overflow"
-        )
+        warnings.append(f"Context window {context_tokens} exceeds 4096 — KV cache may overflow")
 
     return VRAMBudgetReport(
         ceiling_mb=ceiling_mb,
@@ -134,8 +129,7 @@ def validate_budget(
     )
 
     logger.info(
-        "vram_budget_report "
-        "ceiling=%d total=%d headroom=%d fits=%s quantization=%s ctx=%d",
+        "vram_budget_report ceiling=%d total=%d headroom=%d fits=%s quantization=%s ctx=%d",
         report.ceiling_mb,
         report.total_allocated_mb,
         report.headroom_mb,

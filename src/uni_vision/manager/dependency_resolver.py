@@ -23,7 +23,7 @@ import asyncio
 import json
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import structlog
 
@@ -77,7 +77,7 @@ class ConflictCheckResult:
 
     has_conflicts: bool = False
     raw_output: str = ""
-    conflicts: List[str] = field(default_factory=list)
+    conflicts: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -85,11 +85,11 @@ class ResolutionAttempt:
     """Record of a single fix attempt."""
 
     attempt_number: int
-    conflicts_before: List[str]
+    conflicts_before: list[str]
     llm_analysis: str = ""
-    fix_commands: List[str] = field(default_factory=list)
+    fix_commands: list[str] = field(default_factory=list)
     success: bool = False
-    conflicts_after: List[str] = field(default_factory=list)
+    conflicts_after: list[str] = field(default_factory=list)
     error: str = ""
 
 
@@ -97,11 +97,11 @@ class ResolutionAttempt:
 class DependencyResolutionReport:
     """Full report of the conflict resolution process."""
 
-    triggered_by_packages: List[str]
-    initial_conflicts: List[str]
-    attempts: List[ResolutionAttempt] = field(default_factory=list)
+    triggered_by_packages: list[str]
+    initial_conflicts: list[str]
+    attempts: list[ResolutionAttempt] = field(default_factory=list)
     resolved: bool = False
-    final_conflicts: List[str] = field(default_factory=list)
+    final_conflicts: list[str] = field(default_factory=list)
 
 
 # ── Resolver ─────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ class DependencyConflictResolver:
     def __init__(
         self,
         *,
-        llm_client: Optional[Any] = None,
+        llm_client: Any | None = None,
         max_attempts: int = 3,
         pip_timeout_s: float = 120.0,
     ) -> None:
@@ -136,7 +136,7 @@ class DependencyConflictResolver:
 
     async def check_and_resolve(
         self,
-        recently_installed: List[str],
+        recently_installed: list[str],
     ) -> DependencyResolutionReport:
         """Run ``pip check``, and if conflicts exist, resolve them via LLM.
 
@@ -179,7 +179,8 @@ class DependencyConflictResolver:
 
             # Ask the LLM for a fix
             fix_commands, analysis = await self._ask_llm_for_fix(
-                current_conflicts, recently_installed,
+                current_conflicts,
+                recently_installed,
             )
             attempt.llm_analysis = analysis
             attempt.fix_commands = fix_commands
@@ -254,11 +255,14 @@ class DependencyConflictResolver:
         """Execute ``pip check`` and parse the output."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "pip", "check",
+                sys.executable,
+                "-m",
+                "pip",
+                "check",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(
+            stdout, _stderr = await asyncio.wait_for(
                 proc.communicate(),
                 timeout=30.0,
             )
@@ -269,9 +273,7 @@ class DependencyConflictResolver:
 
             # Parse conflict lines (one per line)
             conflict_lines = [
-                line.strip()
-                for line in output.splitlines()
-                if line.strip() and not line.startswith("WARNING")
+                line.strip() for line in output.splitlines() if line.strip() and not line.startswith("WARNING")
             ]
 
             return ConflictCheckResult(
@@ -294,7 +296,7 @@ class DependencyConflictResolver:
 
     async def _get_installed_versions(
         self,
-        conflict_lines: List[str],
+        conflict_lines: list[str],
     ) -> str:
         """Get installed versions of packages mentioned in conflicts."""
         # Extract package names from conflict lines
@@ -305,7 +307,11 @@ class DependencyConflictResolver:
             for w in words:
                 # Heuristic: package names are lowercase, may have hyphens
                 clean = w.strip(".,()\"'")
-                if clean and clean[0].isalpha() and not clean.startswith(("has", "but", "you", "have", "which", "requires", "not", "installed")):
+                if (
+                    clean
+                    and clean[0].isalpha()
+                    and not clean.startswith(("has", "but", "you", "have", "which", "requires", "not", "installed"))
+                ):
                     packages.add(clean)
 
         if not packages:
@@ -313,7 +319,11 @@ class DependencyConflictResolver:
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "pip", "show", *list(packages)[:20],
+                sys.executable,
+                "-m",
+                "pip",
+                "show",
+                *list(packages)[:20],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -330,8 +340,8 @@ class DependencyConflictResolver:
     async def _ask_llm_for_fix(
         self,
         check_result: ConflictCheckResult,
-        recently_installed: List[str],
-    ) -> tuple[List[str], str]:
+        recently_installed: list[str],
+    ) -> tuple[list[str], str]:
         """Ask the LLM for fix commands.
 
         Returns (fix_commands, analysis_text).
@@ -358,10 +368,7 @@ class DependencyConflictResolver:
             analysis = parsed.get("analysis", "")
 
             # Validate: each command must be a plausible pip spec
-            valid_commands = [
-                cmd for cmd in fix_commands
-                if isinstance(cmd, str) and cmd.strip() and len(cmd) < 200
-            ]
+            valid_commands = [cmd for cmd in fix_commands if isinstance(cmd, str) and cmd.strip() and len(cmd) < 200]
 
             if not valid_commands:
                 log.warning(
@@ -379,20 +386,20 @@ class DependencyConflictResolver:
             return valid_commands, analysis
 
         except json.JSONDecodeError:
-            log.warning("llm_dependency_fix_json_error", raw=response[:300] if 'response' in dir() else "")
+            log.warning("llm_dependency_fix_json_error", raw=response[:300] if "response" in dir() else "")
             return self._heuristic_fix(check_result), "heuristic fallback (LLM JSON parse error)"
         except Exception as exc:
             log.warning("llm_dependency_fix_error", error=str(exc))
             return self._heuristic_fix(check_result), f"heuristic fallback (LLM error: {exc})"
 
     @staticmethod
-    def _heuristic_fix(check_result: ConflictCheckResult) -> List[str]:
+    def _heuristic_fix(check_result: ConflictCheckResult) -> list[str]:
         """Best-effort heuristic when LLM is unavailable.
 
         Parses ``pip check`` output to find required version specs and
         generates ``pip install`` commands for the required versions.
         """
-        fix_commands: List[str] = []
+        fix_commands: list[str] = []
         for line in check_result.conflicts:
             # Format: "pkg X.Y has requirement dep>=Z, but you have dep A.B"
             # or:    "pkg X.Y requires dep>=Z, which is not installed"
@@ -410,7 +417,7 @@ class DependencyConflictResolver:
                         fix_commands.append(req_part)
         return fix_commands
 
-    async def _apply_fixes(self, fix_commands: List[str]) -> bool:
+    async def _apply_fixes(self, fix_commands: list[str]) -> bool:
         """Run ``pip install`` for each fix command.
 
         Returns True if ALL commands succeeded.
@@ -420,11 +427,16 @@ class DependencyConflictResolver:
             log.info("dependency_fix_install", package=spec)
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    sys.executable, "-m", "pip", "install", spec, "--quiet",
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    spec,
+                    "--quiet",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await asyncio.wait_for(
+                _stdout, stderr = await asyncio.wait_for(
                     proc.communicate(),
                     timeout=self._pip_timeout,
                 )

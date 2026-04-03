@@ -8,7 +8,7 @@ structured JSON output for reliable parsing.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 MANAGER_SYSTEM_PROMPT = """\
 You are the Manager Agent for Uni_Vision — an adaptive real-time computer
@@ -398,10 +398,10 @@ def build_manager_system_prompt(
     *,
     vram_ceiling_mb: int,
     vram_used_mb: int,
-    loaded_components: List[Dict[str, Any]],
-    registry_summary: List[Dict[str, Any]],
+    loaded_components: list[dict[str, Any]],
+    registry_summary: list[dict[str, Any]],
     tool_descriptions: str,
-    adaptive_context: Optional[str] = None,
+    adaptive_context: str | None = None,
 ) -> str:
     """Build the complete system prompt for the Manager Agent.
 
@@ -411,16 +411,22 @@ def build_manager_system_prompt(
         Optional string summarising current adaptive state (degraded
         components, scene status, temporal context, quality scores).
     """
-    loaded_str = "\n".join(
-        f"  - {c['component_id']} ({c['type']}) — {', '.join(c.get('capabilities', []))}"
-        f"  [{c.get('vram_mb', 0)} MB VRAM, state={c.get('state', '?')}]"
-        for c in loaded_components
-    ) or "  (none loaded)"
+    loaded_str = (
+        "\n".join(
+            f"  - {c['component_id']} ({c['type']}) — {', '.join(c.get('capabilities', []))}"
+            f"  [{c.get('vram_mb', 0)} MB VRAM, state={c.get('state', '?')}]"
+            for c in loaded_components
+        )
+        or "  (none loaded)"
+    )
 
-    registry_str = "\n".join(
-        f"  - {c['component_id']} ({c['source']}) — {', '.join(c.get('capabilities', []))}"
-        for c in registry_summary
-    ) or "  (registry empty)"
+    registry_str = (
+        "\n".join(
+            f"  - {c['component_id']} ({c['source']}) — {', '.join(c.get('capabilities', []))}"
+            for c in registry_summary
+        )
+        or "  (registry empty)"
+    )
 
     adaptive_str = adaptive_context or "  No adaptive data yet — first frame."
 

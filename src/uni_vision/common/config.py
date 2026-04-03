@@ -8,14 +8,12 @@ used throughout the application.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # ── Locate config directory relative to project root ──────────────
 
@@ -23,9 +21,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]  # src/uni_vision/common →
 _CONFIG_DIR = _PROJECT_ROOT / "config"
 
 
-def _load_yaml(path: Path) -> Dict[str, Any]:
+def _load_yaml(path: Path) -> dict[str, Any]:
     """Read a single YAML file and return its content as a dict."""
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
     return data if isinstance(data, dict) else {}
 
@@ -192,10 +190,10 @@ class FrameSamplingConfig(BaseSettings):
 class ModelEntry(BaseSettings):
     model_path: str = ""
     model_format: str = "onnx"
-    input_size: List[int] = Field(default_factory=lambda: [640, 640])
+    input_size: list[int] = Field(default_factory=lambda: [640, 640])
     confidence_threshold: float = 0.60
     nms_iou_threshold: float = 0.45
-    classes: Dict[int, str] = Field(default_factory=dict)
+    classes: dict[int, str] = Field(default_factory=dict)
     multi_plate_policy: str = "highest_confidence"
 
 
@@ -220,10 +218,10 @@ class EnhanceConfig(BaseSettings):
 
     clahe_enabled: bool = True
     clahe_clip_limit: float = 2.0
-    clahe_tile_grid_size: List[int] = Field(default_factory=lambda: [8, 8])
+    clahe_tile_grid_size: list[int] = Field(default_factory=lambda: [8, 8])
 
     gaussian_blur_enabled: bool = True
-    gaussian_kernel_size: List[int] = Field(default_factory=lambda: [3, 3])
+    gaussian_kernel_size: list[int] = Field(default_factory=lambda: [3, 3])
 
     bilateral_enabled: bool = True
     bilateral_d: int = 9
@@ -245,7 +243,7 @@ class FallbackOCRConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="UV_FALLBACK_OCR_")
 
     engine: str = "easyocr"  # easyocr | paddleocr
-    languages: List[str] = Field(default_factory=lambda: ["en"])
+    languages: list[str] = Field(default_factory=lambda: ["en"])
     gpu: bool = False  # fallback runs on CPU to respect VRAM budget
     confidence_threshold: float = 0.4
     allowlist: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -262,22 +260,32 @@ class ValidationConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="UV_VALIDATION_")
 
     # Locale-aware regex patterns (evaluated top-to-bottom, first match wins)
-    locale_patterns: Dict[str, str] = Field(default_factory=lambda: {
-        "IN": r"^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$",
-        "GENERIC": r"^[A-Z0-9]{4,10}$",
-    })
+    locale_patterns: dict[str, str] = Field(
+        default_factory=lambda: {
+            "IN": r"^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$",
+            "GENERIC": r"^[A-Z0-9]{4,10}$",
+        }
+    )
     default_locale: str = "IN"
 
     # Character confusion substitution pairs (bidirectional)
-    char_corrections: Dict[str, str] = Field(default_factory=lambda: {
-        "O": "0", "0": "O",
-        "I": "1", "1": "I",
-        "S": "5", "5": "S",
-        "B": "8", "8": "B",
-        "D": "0",
-        "Z": "2", "2": "Z",
-        "G": "6", "6": "G",
-    })
+    char_corrections: dict[str, str] = Field(
+        default_factory=lambda: {
+            "O": "0",
+            "0": "O",
+            "I": "1",
+            "1": "I",
+            "S": "5",
+            "5": "S",
+            "B": "8",
+            "8": "B",
+            "D": "0",
+            "Z": "2",
+            "2": "Z",
+            "G": "6",
+            "6": "G",
+        }
+    )
 
     # Confidence below this triggers LLM adjudication even if regex passes
     adjudication_confidence_threshold: float = 0.75
@@ -398,9 +406,7 @@ class NavarasaConfig(BaseSettings):
     seed: int = 42
     max_retries: int = 2
     default_language: str = "hi"  # ISO 639-1 code for Hindi
-    supported_languages: str = (
-        "hi,te,ta,kn,ml,mr,bn,gu,pa,or,ur,as,kok,ne,sd,en"
-    )
+    supported_languages: str = "hi,te,ta,kn,ml,mr,bn,gu,pa,or,ur,as,kok,ne,sd,en"
     translate_alerts: bool = True  # translate WebSocket alerts
 
 
@@ -432,7 +438,7 @@ class DeltaLakeConfig(BaseSettings):
 
     table_path: str = "./data/delta/detections"
     audit_table_path: str = "./data/delta/audit_log"
-    partition_columns: List[str] = Field(default_factory=lambda: ["camera_id"])
+    partition_columns: list[str] = Field(default_factory=lambda: ["camera_id"])
     checkpoint_interval: int = 50
     vacuum_retain_hours: int = 168  # 7 days
     enable_time_travel: bool = True
@@ -517,8 +523,8 @@ class AppConfig(BaseSettings):
     redis: RedisConfig = Field(default_factory=RedisConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    cameras: List[CameraSourceConfig] = Field(default_factory=list)
-    models: Dict[str, ModelEntry] = Field(default_factory=dict)
+    cameras: list[CameraSourceConfig] = Field(default_factory=list)
+    models: dict[str, ModelEntry] = Field(default_factory=dict)
     frame_sampling: FrameSamplingConfig = Field(default_factory=FrameSamplingConfig)
     preprocessing: PreprocessingConfig = Field(default_factory=PreprocessingConfig)
     fallback_ocr: FallbackOCRConfig = Field(default_factory=FallbackOCRConfig)
@@ -537,7 +543,7 @@ class AppConfig(BaseSettings):
 
 
 def load_config(
-    config_dir: Optional[Path] = None,
+    config_dir: Path | None = None,
 ) -> AppConfig:
     """Build the validated ``AppConfig`` from YAML files + env vars.
 
@@ -550,7 +556,7 @@ def load_config(
     config_dir = config_dir or _CONFIG_DIR
 
     # 1. Base configuration from default.yaml
-    base: Dict[str, Any] = _load_yaml(config_dir / "default.yaml")
+    base: dict[str, Any] = _load_yaml(config_dir / "default.yaml")
 
     # 2. Merge camera sources
     cameras_raw = _load_yaml(config_dir / "cameras.yaml")
@@ -565,7 +571,7 @@ def load_config(
         base["preprocessing"] = models_raw["preprocessing"]
 
     # Extract detector entries — top-level keys that are not frame_sampling/preprocessing
-    detector_entries: Dict[str, Any] = {}
+    detector_entries: dict[str, Any] = {}
     for key, val in models_raw.items():
         if key in ("frame_sampling", "preprocessing"):
             continue

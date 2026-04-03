@@ -14,14 +14,12 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Dict, List, Optional, Set
 
 from uni_vision.components.base import (
-    CVComponent,
     ComponentCapability,
     ComponentState,
+    CVComponent,
 )
-from uni_vision.manager.schemas import ComponentCandidate
 
 log = logging.getLogger(__name__)
 
@@ -39,10 +37,10 @@ class ComponentRegistry:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._components: Dict[str, CVComponent] = {}
+        self._components: dict[str, CVComponent] = {}
 
         # Reverse index: capability → set of component_ids that provide it
-        self._capability_index: Dict[ComponentCapability, Set[str]] = {}
+        self._capability_index: dict[ComponentCapability, set[str]] = {}
 
     # ── Registration ──────────────────────────────────────────────
 
@@ -69,7 +67,7 @@ class ComponentRegistry:
             [c.value for c in component.metadata.capabilities],
         )
 
-    def unregister(self, component_id: str) -> Optional[CVComponent]:
+    def unregister(self, component_id: str) -> CVComponent | None:
         """Remove a component from the registry entirely."""
         with self._lock:
             component = self._components.pop(component_id, None)
@@ -89,30 +87,27 @@ class ComponentRegistry:
 
     # ── Queries ───────────────────────────────────────────────────
 
-    def get(self, component_id: str) -> Optional[CVComponent]:
+    def get(self, component_id: str) -> CVComponent | None:
         """Look up a component by ID."""
         with self._lock:
             return self._components.get(component_id)
 
-    def get_all(self) -> List[CVComponent]:
+    def get_all(self) -> list[CVComponent]:
         """Return all registered components."""
         with self._lock:
             return list(self._components.values())
 
-    def get_loaded(self) -> List[CVComponent]:
+    def get_loaded(self) -> list[CVComponent]:
         """Return all components in READY state."""
         with self._lock:
-            return [
-                c for c in self._components.values()
-                if c.state == ComponentState.READY
-            ]
+            return [c for c in self._components.values() if c.state == ComponentState.READY]
 
     def get_by_capability(
         self,
         capability: ComponentCapability,
         *,
         only_ready: bool = False,
-    ) -> List[CVComponent]:
+    ) -> list[CVComponent]:
         """Find components that provide a given capability."""
         with self._lock:
             cids = self._capability_index.get(capability, set())
@@ -129,13 +124,10 @@ class ComponentRegistry:
 
     def get_missing_capabilities(
         self,
-        required: Set[ComponentCapability],
-    ) -> Set[ComponentCapability]:
+        required: set[ComponentCapability],
+    ) -> set[ComponentCapability]:
         """Return capabilities not satisfied by any READY component."""
-        return {
-            cap for cap in required
-            if not self.has_capability_loaded(cap)
-        }
+        return {cap for cap in required if not self.has_capability_loaded(cap)}
 
     # ── VRAM accounting ───────────────────────────────────────────
 
@@ -157,7 +149,7 @@ class ComponentRegistry:
 
     # ── Summary / serialisation ───────────────────────────────────
 
-    def summary(self) -> List[Dict]:
+    def summary(self) -> list[dict]:
         """Return a JSON-serialisable summary for LLM prompts."""
         with self._lock:
             return [
@@ -174,12 +166,9 @@ class ComponentRegistry:
                 for c in self._components.values()
             ]
 
-    def loaded_summary(self) -> List[Dict]:
+    def loaded_summary(self) -> list[dict]:
         """Summary of currently loaded (READY) components only."""
-        return [
-            entry for entry in self.summary()
-            if entry["state"] == "ready"
-        ]
+        return [entry for entry in self.summary() if entry["state"] == "ready"]
 
     def __len__(self) -> int:
         with self._lock:

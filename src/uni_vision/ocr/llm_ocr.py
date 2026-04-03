@@ -16,12 +16,13 @@ Spec reference: §9.1 OCR strategy.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
-
-import numpy as np
-from numpy.typing import NDArray
+from typing import TYPE_CHECKING, Any
 
 from uni_vision.contracts.dtos import DetectionContext, OCRResult, ValidationStatus
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,10 @@ class ComponentOCREngine:
             return self._normalize_result(result)
         except Exception as exc:
             logger.error(
-                "Component OCR %s failed: %s", self._name, exc, exc_info=True,
+                "Component OCR %s failed: %s",
+                self._name,
+                exc,
+                exc_info=True,
             )
             return OCRResult(
                 plate_text="UNREADABLE",
@@ -90,29 +94,19 @@ class ComponentOCREngine:
                 confidence=0.7 if plate_text else 0.0,
                 reasoning=f"Component {self._name} returned raw text",
                 engine=self.engine_name,
-                status=(
-                    ValidationStatus.VALID if plate_text
-                    else ValidationStatus.UNREADABLE
-                ),
+                status=(ValidationStatus.VALID if plate_text else ValidationStatus.UNREADABLE),
             )
 
         if isinstance(result, dict):
-            plate_text = str(
-                result.get("plate_text", result.get("text", ""))
-            ).strip().upper()
+            plate_text = str(result.get("plate_text", result.get("text", ""))).strip().upper()
             confidence = float(result.get("confidence", 0.7))
             return OCRResult(
                 plate_text=plate_text or "UNREADABLE",
                 raw_text=str(result),
                 confidence=confidence,
-                reasoning=str(
-                    result.get("reasoning", f"Component {self._name}")
-                ),
+                reasoning=str(result.get("reasoning", f"Component {self._name}")),
                 engine=self.engine_name,
-                status=(
-                    ValidationStatus.VALID if plate_text
-                    else ValidationStatus.UNREADABLE
-                ),
+                status=(ValidationStatus.VALID if plate_text else ValidationStatus.UNREADABLE),
             )
 
         text = str(result).strip().upper()
@@ -122,8 +116,5 @@ class ComponentOCREngine:
             confidence=0.5,
             reasoning=f"Component {self._name}: {type(result).__name__}",
             engine=self.engine_name,
-            status=(
-                ValidationStatus.VALID if text
-                else ValidationStatus.UNREADABLE
-            ),
+            status=(ValidationStatus.VALID if text else ValidationStatus.UNREADABLE),
         )

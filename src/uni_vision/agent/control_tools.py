@@ -12,8 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from uni_vision.agent.tools import tool
 
@@ -45,7 +44,7 @@ async def auto_tune_confidence(
     target_valid_rate: float = 0.80,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Analyzes detection quality and tunes adjudication threshold."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
@@ -133,7 +132,9 @@ async def auto_tune_confidence(
         result["applied"] = True
         logger.info(
             "auto_tune_applied old=%.4f new=%.4f reason=%s",
-            old, recommended, reason,
+            old,
+            recommended,
+            reason,
         )
 
     return result
@@ -149,14 +150,14 @@ async def auto_tune_confidence(
 async def get_stage_analytics(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Read per-stage latency metrics from Prometheus."""
     try:
         from prometheus_client import REGISTRY
     except ImportError:
         return {"error": "prometheus_client not available"}
 
-    stages: Dict[str, Dict[str, float]] = {}
+    stages: dict[str, dict[str, float]] = {}
 
     for metric in REGISTRY.collect():
         for sample in metric.samples:
@@ -179,12 +180,14 @@ async def get_stage_analytics(
         total = data.get("total_seconds", 0)
         count = data.get("invocations", 0)
         avg = total / count if count > 0 else 0
-        results.append({
-            "stage": stage,
-            "invocations": int(count),
-            "total_seconds": round(total, 4),
-            "avg_latency_ms": round(avg * 1000, 2),
-        })
+        results.append(
+            {
+                "stage": stage,
+                "invocations": int(count),
+                "total_seconds": round(total, 4),
+                "avg_latency_ms": round(avg * 1000, 2),
+            }
+        )
 
     # Sort by average latency descending
     results.sort(key=lambda x: x["avg_latency_ms"], reverse=True)
@@ -219,14 +222,14 @@ async def get_stage_analytics(
 async def get_ocr_strategy_stats(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Analyze OCR engine performance."""
     try:
         from prometheus_client import REGISTRY
     except ImportError:
         return {"error": "prometheus_client not available"}
 
-    stats: Dict[str, Any] = {
+    stats: dict[str, Any] = {
         "primary_requests": 0,
         "primary_success": 0,
         "fallback_requests": 0,
@@ -266,9 +269,7 @@ async def get_ocr_strategy_stats(
     # Calculate rates
     prim_req = stats["primary_requests"]
     prim_succ = stats["primary_success"]
-    stats["primary_success_rate"] = round(
-        prim_succ / prim_req if prim_req > 0 else 0, 4
-    )
+    stats["primary_success_rate"] = round(prim_succ / prim_req if prim_req > 0 else 0, 4)
     stats["fallback_rate"] = round(
         stats["fallback_total"] / (prim_req + stats["fallback_requests"])
         if (prim_req + stats["fallback_requests"]) > 0
@@ -295,11 +296,11 @@ async def get_ocr_strategy_stats(
 async def self_heal_pipeline(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Detect and auto-fix common pipeline issues."""
     pipeline = _get_pipeline(context)
-    actions_taken: List[str] = []
-    issues_found: List[str] = []
+    actions_taken: list[str] = []
+    issues_found: list[str] = []
 
     if pipeline is None:
         return {"error": "Pipeline not running", "actions": [], "issues": ["Pipeline not found"]}
@@ -323,13 +324,9 @@ async def self_heal_pipeline(
                         if resp.status_code == 200:
                             primary._cb_state = CircuitState.CLOSED
                             primary._failure_timestamps = []
-                            actions_taken.append(
-                                "Reset circuit breaker to CLOSED — Ollama is responsive"
-                            )
+                            actions_taken.append("Reset circuit breaker to CLOSED — Ollama is responsive")
                 except Exception:
-                    actions_taken.append(
-                        "Ollama still unreachable — circuit breaker remains OPEN"
-                    )
+                    actions_taken.append("Ollama still unreachable — circuit breaker remains OPEN")
 
     # Check queue backpressure
     inference_q = getattr(pipeline, "_inference_queue", None)
@@ -337,9 +334,7 @@ async def self_heal_pipeline(
         depth = inference_q.qsize()
         maxsize = getattr(inference_q, "maxsize", 10)
         if depth >= maxsize * 0.8:
-            issues_found.append(
-                f"Inference queue near full ({depth}/{maxsize})"
-            )
+            issues_found.append(f"Inference queue near full ({depth}/{maxsize})")
             # Enable throttle
             if not getattr(pipeline, "_throttled", False):
                 pipeline._throttled = True
@@ -351,11 +346,8 @@ async def self_heal_pipeline(
 
         for metric in REGISTRY.collect():
             for sample in metric.samples:
-                if sample.name == "uv_frames_dropped_total":
-                    if sample.value > 100:
-                        issues_found.append(
-                            f"High frame drop count: {int(sample.value)}"
-                        )
+                if sample.name == "uv_frames_dropped_total" and sample.value > 100:
+                    issues_found.append(f"High frame drop count: {int(sample.value)}")
     except ImportError:
         pass
 
@@ -376,7 +368,7 @@ async def self_heal_pipeline(
 async def get_queue_pressure(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get inference queue pressure details."""
     pipeline = _get_pipeline(context)
     if pipeline is None:
@@ -387,7 +379,7 @@ async def get_queue_pressure(
     inference_q = getattr(pipeline, "_inference_queue", None)
     stream_q = getattr(pipeline, "_stream_queue", None)
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "inference_queue_depth": inference_q.qsize() if inference_q else 0,
         "inference_queue_maxsize": getattr(inference_q, "maxsize", 0) if inference_q else 0,
         "stream_queue_depth": stream_q.qsize() if stream_q else 0,
@@ -405,14 +397,13 @@ async def get_queue_pressure(
 @tool(
     name="flush_inference_queue",
     description=(
-        "Drain the inference queue by discarding pending frames. "
-        "Use when queue is stuck or filled with stale frames."
+        "Drain the inference queue by discarding pending frames. Use when queue is stuck or filled with stale frames."
     ),
 )
 async def flush_inference_queue(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Drain the inference queue."""
     pipeline = _get_pipeline(context)
     if pipeline is None:

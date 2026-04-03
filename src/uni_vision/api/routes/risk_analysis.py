@@ -9,10 +9,10 @@ POST /impact-analysis/{detection_id} → full impact analysis (from request body
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from uni_vision.postprocessing.flag_reasoning import FlagReasoningEngine
 from uni_vision.postprocessing.impact_analysis import ImpactAnalysisEngine
@@ -27,8 +27,10 @@ _impact_engine = ImpactAnalysisEngine()
 
 # ── Request bodies for POST variants ─────────────────────────────
 
+
 class DetectionContext(BaseModel):
     """Generic detection context sent from the frontend."""
+
     camera_id: str = ""
     risk_level: str = "unknown"
     confidence: float = 0.0
@@ -45,17 +47,19 @@ class DetectionContext(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────
 
-async def _get_detection(request: Request, detection_id: str) -> Dict[str, Any]:
+
+async def _get_detection(request: Request, detection_id: str) -> dict[str, Any]:
     """Fetch a single detection row from PostgreSQL."""
     pg = getattr(request.app.state, "pg_client", None)
     if pg is None:
         from uni_vision.storage.postgres import PostgresClient
+
         config = request.app.state.config
         pg = PostgresClient(config.database, config.dispatch)
         await pg.connect()
         request.app.state.pg_client = pg
 
-    pool = pg._pool  # noqa: SLF001
+    pool = pg._pool
     assert pool is not None
 
     sql = """\
@@ -75,14 +79,16 @@ async def _get_detection(request: Request, detection_id: str) -> Dict[str, Any]:
 
 
 async def _get_recent_detections(
-    request: Request, camera_id: str, limit: int = 50,
-) -> List[Dict[str, Any]]:
+    request: Request,
+    camera_id: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
     """Fetch recent detections from the same camera for context."""
     pg = getattr(request.app.state, "pg_client", None)
     if pg is None:
         return []
 
-    pool = pg._pool  # noqa: SLF001
+    pool = pg._pool
     if pool is None:
         return []
 
@@ -108,15 +114,13 @@ async def _get_recent_detections(
             "ocr_engine": r["ocr_engine"],
             "vehicle_class": r["vehicle_class"],
             "validation_status": r["validation_status"],
-            "detected_at_utc": (
-                r["detected_at_utc"].isoformat() if r["detected_at_utc"] else None
-            ),
+            "detected_at_utc": (r["detected_at_utc"].isoformat() if r["detected_at_utc"] else None),
         }
         for r in rows
     ]
 
 
-def _build_telemetry_stub() -> Dict[str, Any]:
+def _build_telemetry_stub() -> dict[str, Any]:
     """Basic telemetry stub when live metrics are not available."""
     return {
         "detection_latency_ms": 80,
@@ -131,8 +135,9 @@ def _build_telemetry_stub() -> Dict[str, Any]:
 
 # ── Flag Reasoning ────────────────────────────────────────────────
 
+
 @router.get("/flag-reasoning/{detection_id}")
-async def get_flag_reasoning(request: Request, detection_id: str) -> Dict[str, Any]:
+async def get_flag_reasoning(request: Request, detection_id: str) -> dict[str, Any]:
     """Return the reasoning chain explaining why a detection was flagged."""
     det = await _get_detection(request, detection_id)
 
@@ -143,7 +148,7 @@ async def get_flag_reasoning(request: Request, detection_id: str) -> Dict[str, A
             "message": "This detection passed all validation checks — no flag was raised.",
         }
 
-    recent = await _get_recent_detections(request, det["camera_id"])
+    await _get_recent_detections(request, det["camera_id"])
     telemetry = _build_telemetry_stub()
 
     reasoning = _reasoning_engine.generate(
@@ -166,8 +171,9 @@ async def get_flag_reasoning(request: Request, detection_id: str) -> Dict[str, A
 
 # ── Risk Analysis ─────────────────────────────────────────────────
 
+
 @router.get("/risk-analysis/{detection_id}")
-async def get_risk_analysis(request: Request, detection_id: str) -> Dict[str, Any]:
+async def get_risk_analysis(request: Request, detection_id: str) -> dict[str, Any]:
     """Return full multi-dimensional risk analysis for a detection."""
     det = await _get_detection(request, detection_id)
 
@@ -194,8 +200,9 @@ async def get_risk_analysis(request: Request, detection_id: str) -> Dict[str, An
 
 # ── Impact Analysis ───────────────────────────────────────────────
 
+
 @router.get("/impact-analysis/{detection_id}")
-async def get_impact_analysis(request: Request, detection_id: str) -> Dict[str, Any]:
+async def get_impact_analysis(request: Request, detection_id: str) -> dict[str, Any]:
     """Return exhaustive impact analysis for a flagged detection."""
     det = await _get_detection(request, detection_id)
 
@@ -217,10 +224,12 @@ async def get_impact_analysis(request: Request, detection_id: str) -> Dict[str, 
 
 # ── POST variants (no DB required — uses frontend-supplied context) ──
 
+
 @router.post("/risk-analysis/{detection_id}")
 async def post_risk_analysis(
-    detection_id: str, body: DetectionContext,
-) -> Dict[str, Any]:
+    detection_id: str,
+    body: DetectionContext,
+) -> dict[str, Any]:
     """Return full risk analysis using context supplied in the request body."""
     validation_status = body.validation_status or body.risk_level or "unknown"
     telemetry = _build_telemetry_stub()
@@ -248,8 +257,9 @@ async def post_risk_analysis(
 
 @router.post("/impact-analysis/{detection_id}")
 async def post_impact_analysis(
-    detection_id: str, body: DetectionContext,
-) -> Dict[str, Any]:
+    detection_id: str,
+    body: DetectionContext,
+) -> dict[str, Any]:
     """Return exhaustive impact analysis using context supplied in the request body."""
     validation_status = body.validation_status or body.risk_level or "unknown"
     telemetry = _build_telemetry_stub()
@@ -272,10 +282,12 @@ async def post_impact_analysis(
 
 # ── Technical Metrics ─────────────────────────────────────────────
 
+
 @router.post("/technical-metrics/{detection_id}")
 async def post_technical_metrics(
-    detection_id: str, body: DetectionContext,
-) -> Dict[str, Any]:
+    detection_id: str,
+    body: DetectionContext,
+) -> dict[str, Any]:
     """Return technical metrics for an anomaly detection instance.
 
     Provides model inference details, processing performance, libraries
@@ -322,7 +334,8 @@ async def post_technical_metrics(
         "detection_precision_est": f"{min(99.5, confidence * 100 + 2):.1f}%",
         "detection_recall_est": f"{min(98.0, confidence * 95 + 5):.1f}%",
         "f1_score_est": round(
-            2 * (min(0.995, confidence + 0.02) * min(0.98, confidence * 0.95 + 0.05))
+            2
+            * (min(0.995, confidence + 0.02) * min(0.98, confidence * 0.95 + 0.05))
             / max(min(0.995, confidence + 0.02) + min(0.98, confidence * 0.95 + 0.05), 0.01),
             3,
         ),
@@ -387,25 +400,31 @@ async def post_technical_metrics(
     # Processing bottlenecks
     bottlenecks = []
     if telemetry.get("adjudication_latency_ms", 800) > 500:
-        bottlenecks.append({
-            "component": "LLM Inference",
-            "type": "hardware",
-            "description": f"Single-model inference at {telemetry.get('adjudication_latency_ms', 800)}ms dominates pipeline latency",
-            "mitigation": "Batch size tuning (num_batch=256), quantization (Q4_K_M), lower visual token budget for classification",
-        })
+        bottlenecks.append(
+            {
+                "component": "LLM Inference",
+                "type": "hardware",
+                "description": f"Single-model inference at {telemetry.get('adjudication_latency_ms', 800)}ms dominates pipeline latency",
+                "mitigation": "Batch size tuning (num_batch=256), quantization (Q4_K_M), lower visual token budget for classification",
+            }
+        )
     if telemetry.get("vram_utilisation_pct", 65) > 80:
-        bottlenecks.append({
-            "component": "GPU VRAM",
-            "type": "hardware",
-            "description": f"VRAM at {telemetry.get('vram_utilisation_pct', 65):.0f}% — risk of OOM under load",
-            "mitigation": "Reduce context window or switch to smaller quantization",
-        })
-    bottlenecks.append({
-        "component": "Frame Extraction",
-        "type": "media",
-        "description": "Sequential frame decode limits throughput to target FPS",
-        "mitigation": "Hardware-accelerated decode (NVDEC) or parallel extraction",
-    })
+        bottlenecks.append(
+            {
+                "component": "GPU VRAM",
+                "type": "hardware",
+                "description": f"VRAM at {telemetry.get('vram_utilisation_pct', 65):.0f}% — risk of OOM under load",
+                "mitigation": "Reduce context window or switch to smaller quantization",
+            }
+        )
+    bottlenecks.append(
+        {
+            "component": "Frame Extraction",
+            "type": "media",
+            "description": "Sequential frame decode limits throughput to target FPS",
+            "mitigation": "Hardware-accelerated decode (NVDEC) or parallel extraction",
+        }
+    )
 
     return {
         "detection_id": detection_id,

@@ -16,13 +16,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import asyncpg  # type: ignore[import-untyped]
 
-from uni_vision.common.config import DatabaseConfig, DispatchConfig
 from uni_vision.common.exceptions import DatabaseConnectionError, DatabaseWriteError
-from uni_vision.contracts.dtos import DetectionRecord
 from uni_vision.monitoring.metrics import DISPATCH_ERRORS
 from uni_vision.storage.models import (
     CREATE_AUDIT_LOG_SQL,
@@ -31,6 +29,10 @@ from uni_vision.storage.models import (
     INSERT_AUDIT_LOG_SQL,
     INSERT_SQL,
 )
+
+if TYPE_CHECKING:
+    from uni_vision.common.config import DatabaseConfig, DispatchConfig
+    from uni_vision.contracts.dtos import DetectionRecord
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ class PostgresClient:
         self._timeout = dispatch_config.db_write_timeout_s
         self._max_retries = dispatch_config.max_retries
         self._retry_delay = dispatch_config.retry_base_delay_s
-        self._pool: Optional[asyncpg.Pool] = None
+        self._pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
         """Create the connection pool and ensure the schema exists."""
@@ -72,9 +74,7 @@ class PostgresClient:
                 command_timeout=self._timeout,
             )
         except Exception as exc:
-            raise DatabaseConnectionError(
-                f"Failed to create PostgreSQL pool: {exc}"
-            ) from exc
+            raise DatabaseConnectionError(f"Failed to create PostgreSQL pool: {exc}") from exc
 
         await self._ensure_schema()
         logger.info("postgres_connected pool_min=%d pool_max=%d", self._pool_min, self._pool_max)
@@ -96,7 +96,7 @@ class PostgresClient:
         assert self._pool is not None
 
         delay = self._retry_delay
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
 
         for attempt in range(1 + self._max_retries):
             try:
@@ -131,9 +131,7 @@ class PostgresClient:
                     delay *= 2  # exponential backoff
 
         DISPATCH_ERRORS.labels(target="postgres").inc()
-        raise DatabaseWriteError(
-            f"Insert failed after {1 + self._max_retries} attempts: {last_exc}"
-        ) from last_exc
+        raise DatabaseWriteError(f"Insert failed after {1 + self._max_retries} attempts: {last_exc}") from last_exc
 
     async def insert_audit_log(
         self,

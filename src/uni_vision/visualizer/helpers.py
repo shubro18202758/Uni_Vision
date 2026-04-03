@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import streamlit as st
 
@@ -17,15 +17,15 @@ def get_api_key() -> str:
     return st.sidebar.text_input("API Key", type="password", value="")
 
 
-def api_headers(api_key: str = "") -> Dict[str, str]:
+def api_headers(api_key: str = "") -> dict[str, str]:
     """Build request headers with optional API key."""
-    headers: Dict[str, str] = {"Accept": "application/json"}
+    headers: dict[str, str] = {"Accept": "application/json"}
     if api_key:
         headers["X-API-Key"] = api_key
     return headers
 
 
-def fetch_json(url: str, api_key: str = "") -> Optional[Dict[str, Any]]:
+def fetch_json(url: str, api_key: str = "") -> dict[str, Any] | None:
     """Fetch JSON from the API, returning None on errors."""
     import httpx
 

@@ -21,11 +21,12 @@ Requires: ``pip install 'uni-vision[databricks]'``
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +40,10 @@ def _ensure_imports() -> None:
         return
     try:
         import mlflow  # type: ignore[import-untyped]
+
         _mlflow = mlflow
     except ImportError as exc:
-        raise ImportError(
-            "MLflow not installed. Run: pip install 'uni-vision[databricks]'"
-        ) from exc
+        raise ImportError("MLflow not installed. Run: pip install 'uni-vision[databricks]'") from exc
 
 
 class InferenceTracker:
@@ -79,11 +79,11 @@ class InferenceTracker:
         self._run_name_prefix = run_name_prefix
 
         # Metric accumulation buffer
-        self._buffer: List[Dict[str, Any]] = []
+        self._buffer: list[dict[str, Any]] = []
         self._frame_count = 0
-        self._run_id: Optional[str] = None
-        self._experiment_id: Optional[str] = None
-        self._start_time: Optional[float] = None
+        self._run_id: str | None = None
+        self._experiment_id: str | None = None
+        self._start_time: float | None = None
 
     # ── Lifecycle ─────────────────────────────────────────────────
 
@@ -123,10 +123,8 @@ class InferenceTracker:
         """Flush remaining metrics and close the active run."""
         self._flush_buffer()
         if self._run_id is not None:
-            try:
+            with contextlib.suppress(Exception):
                 _mlflow.end_run()
-            except Exception:
-                pass
             self._run_id = None
         logger.info("mlflow_tracker_shutdown frames_logged=%d", self._frame_count)
 
@@ -136,10 +134,10 @@ class InferenceTracker:
         self,
         stage: str,
         latency_ms: float,
-        confidence: Optional[float] = None,
-        vram_before_mb: Optional[float] = None,
-        vram_after_mb: Optional[float] = None,
-        extra: Optional[Dict[str, Any]] = None,
+        confidence: float | None = None,
+        vram_before_mb: float | None = None,
+        vram_after_mb: float | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """Record metrics for a single pipeline stage execution.
 
@@ -156,7 +154,7 @@ class InferenceTracker:
         extra : dict, optional
             Additional key-value metrics to log.
         """
-        metrics: Dict[str, float] = {
+        metrics: dict[str, float] = {
             f"{stage}_latency_ms": latency_ms,
         }
         if confidence is not None:
@@ -186,11 +184,13 @@ class InferenceTracker:
         total_pipeline_ms: float,
     ) -> None:
         """Log a complete detection result as an MLflow metric set."""
-        self._buffer.append({
-            "detection_confidence": ocr_confidence,
-            "detection_pipeline_ms": total_pipeline_ms,
-            "detection_valid": 1.0 if validation_status == "valid" else 0.0,
-        })
+        self._buffer.append(
+            {
+                "detection_confidence": ocr_confidence,
+                "detection_pipeline_ms": total_pipeline_ms,
+                "detection_valid": 1.0 if validation_status == "valid" else 0.0,
+            }
+        )
         self._frame_count += 1
 
         if len(self._buffer) >= self._log_every_n:
@@ -198,7 +198,7 @@ class InferenceTracker:
 
     # ── Model parameter logging ───────────────────────────────────
 
-    def log_model_params(self, params: Dict[str, Any]) -> None:
+    def log_model_params(self, params: dict[str, Any]) -> None:
         """Log model configuration as MLflow parameters.
 
         Call once at pipeline startup to record the active model
@@ -213,7 +213,7 @@ class InferenceTracker:
     def log_model_artifact(
         self,
         model_name: str,
-        model_info: Dict[str, Any],
+        model_info: dict[str, Any],
     ) -> None:
         """Register model metadata as an MLflow artifact."""
         if self._run_id is None:
@@ -221,9 +221,7 @@ class InferenceTracker:
         import json
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, prefix=f"model_{model_name}_"
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, prefix=f"model_{model_name}_") as f:
             json.dump(model_info, f, indent=2, default=str)
             tmp_path = f.name
 
@@ -231,7 +229,7 @@ class InferenceTracker:
         os.unlink(tmp_path)
         logger.debug("mlflow_model_artifact_logged name=%s", model_name)
 
-    def tag_run(self, tags: Dict[str, str]) -> None:
+    def tag_run(self, tags: dict[str, str]) -> None:
         """Apply tags to the active run for categorisation and filtering."""
         if self._run_id is None:
             return
@@ -240,7 +238,7 @@ class InferenceTracker:
         except Exception as exc:
             logger.warning("mlflow_tag_failed err=%s", exc)
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Return a health summary for monitoring dashboards."""
         return {
             "active": self._run_id is not None,
@@ -263,12 +261,12 @@ class InferenceTracker:
             return
 
         # Collect all values per metric key
-        collected: Dict[str, List[float]] = {}
+        collected: dict[str, list[float]] = {}
         for entry in self._buffer:
             for k, v in entry.items():
                 collected.setdefault(k, []).append(v)
 
-        metrics_out: Dict[str, float] = {}
+        metrics_out: dict[str, float] = {}
         for k, values in collected.items():
             n = len(values)
             avg = sum(values) / n
@@ -296,12 +294,12 @@ class InferenceTracker:
 
     # ── Query interface ───────────────────────────────────────────
 
-    def get_experiment_summary(self) -> Dict[str, Any]:
+    def get_experiment_summary(self) -> dict[str, Any]:
         """Return a summary of the current experiment."""
         if self._experiment_id is None:
             return {"active": False}
 
-        experiment = _mlflow.get_experiment(self._experiment_id)
+        _mlflow.get_experiment(self._experiment_id)
         runs = _mlflow.search_runs(
             experiment_ids=[self._experiment_id],
             max_results=100,
@@ -319,7 +317,7 @@ class InferenceTracker:
             "uptime_s": round(time.time() - (self._start_time or time.time()), 1),
         }
 
-    def get_run_metrics(self, run_id: Optional[str] = None) -> Dict[str, Any]:
+    def get_run_metrics(self, run_id: str | None = None) -> dict[str, Any]:
         """Retrieve metrics for a specific run (defaults to active run)."""
         target_run = run_id or self._run_id
         if target_run is None:
@@ -334,7 +332,7 @@ class InferenceTracker:
             "params": dict(run.data.params),
         }
 
-    def get_metric_history(self, metric_name: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_metric_history(self, metric_name: str, limit: int = 100) -> list[dict[str, Any]]:
         """Retrieve the logged history for a specific metric."""
         if self._run_id is None:
             return []

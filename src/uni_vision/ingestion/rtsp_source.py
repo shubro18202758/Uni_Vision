@@ -28,18 +28,16 @@ No GPU VRAM is touched.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import queue
 import threading
 import time
-from typing import Optional
 
 import cv2
-import numpy as np
 import structlog
-from numpy.typing import NDArray
 
-from uni_vision.common.exceptions import StreamError, StreamReconnectExhausted
+from uni_vision.common.exceptions import StreamError
 from uni_vision.contracts.dtos import CameraSource, FramePacket
 from uni_vision.monitoring.metrics import FRAMES_INGESTED, STREAM_STATUS
 
@@ -82,11 +80,11 @@ class RTSPFrameSource:
             maxsize=stream_queue_maxsize,
         )
 
-        self._cap: Optional[cv2.VideoCapture] = None
+        self._cap: cv2.VideoCapture | None = None
         self._frame_index: int = 0
         self._connected = False
         self._stop_event = threading.Event()
-        self._reader_thread: Optional[threading.Thread] = None
+        self._reader_thread: threading.Thread | None = None
 
         # Dynamic throttle factor — the pipeline sets this to < 1.0
         # when the inference queue is under pressure (spec §6.4).
@@ -123,7 +121,7 @@ class RTSPFrameSource:
             self._reader_thread = None
         self._close_capture()
 
-    def read_frame(self) -> Optional[FramePacket]:
+    def read_frame(self) -> FramePacket | None:
         """Non-blocking read from the internal queue.
 
         Returns the next available ``FramePacket`` or ``None`` if the
@@ -170,10 +168,7 @@ class RTSPFrameSource:
             cap.release()
             self._connected = False
             STREAM_STATUS.labels(camera_id=self._camera.camera_id).set(0)
-            raise StreamError(
-                f"Failed to open stream for {self._camera.camera_id}: "
-                f"{self._camera.source_url}"
-            )
+            raise StreamError(f"Failed to open stream for {self._camera.camera_id}: {self._camera.source_url}")
 
     def _close_capture(self) -> None:
         if self._cap is not None:
@@ -260,10 +255,8 @@ class RTSPFrameSource:
 
             # Ring-buffer eviction: drop oldest when full (§6.2)
             if self._queue.full():
-                try:
+                with contextlib.suppress(queue.Empty):
                     self._queue.get_nowait()
-                except queue.Empty:
-                    pass
 
             self._queue.put_nowait(packet)
 

@@ -11,10 +11,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy.typing import NDArray
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
 
 
 class VehicleClass(str, Enum):
@@ -105,7 +106,7 @@ class ProcessedResult:
     raw_ocr_text: str
     confidence: float
     validation_status: ValidationStatus
-    char_corrections: Dict[str, str] = field(default_factory=dict)
+    char_corrections: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -134,15 +135,15 @@ class AnalysisResult:
     camera_id: str = ""
     timestamp_utc: str = ""
     scene_description: str = ""
-    objects_detected: List[Dict[str, str]] = field(default_factory=list)
+    objects_detected: list[dict[str, str]] = field(default_factory=list)
     anomaly_detected: bool = False
-    anomalies: List[Dict[str, str]] = field(default_factory=list)
+    anomalies: list[dict[str, str]] = field(default_factory=list)
     chain_of_thought: str = ""
-    risk_level: str = "low"          # low | medium | high | critical
+    risk_level: str = "low"  # low | medium | high | critical
     risk_analysis: str = ""
     impact_analysis: str = ""
     confidence: float = 0.0
-    recommendations: List[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
 
 
 # ── Hardware telemetry DTOs ───────────────────────────────────────
@@ -173,7 +174,7 @@ class GPUTelemetry:
     temperature_c: int
     pcie_tx_kbps: int
     pcie_rx_kbps: int
-    regions: List[VRAMRegionSnapshot] = field(default_factory=list)
+    regions: list[VRAMRegionSnapshot] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -188,7 +189,7 @@ class HealthStatus:
     streams_total: int
     offload_mode: OffloadMode
     mode: str = "pipeline"
-    details: Dict[str, str] = field(default_factory=dict)
+    details: dict[str, str] = field(default_factory=dict)
 
 
 # ── Camera source DTO ─────────────────────────────────────────────

@@ -18,9 +18,10 @@ import logging
 import time
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any
 
-from uni_vision.manager.schemas import FrameContext, SceneType
+if TYPE_CHECKING:
+    from uni_vision.manager.schemas import FrameContext, SceneType
 
 log = logging.getLogger(__name__)
 
@@ -36,12 +37,8 @@ class ObjectTrack:
     first_seen: float = field(default_factory=time.monotonic)
     last_seen: float = field(default_factory=time.monotonic)
     frame_count: int = 1
-    positions: Deque[Tuple[float, float]] = field(
-        default_factory=lambda: deque(maxlen=60)
-    )
-    confidences: Deque[float] = field(
-        default_factory=lambda: deque(maxlen=60)
-    )
+    positions: deque[tuple[float, float]] = field(default_factory=lambda: deque(maxlen=60))
+    confidences: deque[float] = field(default_factory=lambda: deque(maxlen=60))
 
     @property
     def age_s(self) -> float:
@@ -113,13 +110,13 @@ class TemporalTracker:
         self._track_timeout = track_timeout_s
 
         # Per-camera frame history
-        self._frames: Dict[str, Deque[TemporalFrame]] = {}
+        self._frames: dict[str, deque[TemporalFrame]] = {}
 
         # Per-camera object tracks
-        self._tracks: Dict[str, Dict[str, ObjectTrack]] = {}
+        self._tracks: dict[str, dict[str, ObjectTrack]] = {}
 
         # Per-camera environment trends
-        self._trends: Dict[str, List[EnvironmentTrend]] = {}
+        self._trends: dict[str, list[EnvironmentTrend]] = {}
 
     def record_frame(
         self,
@@ -155,7 +152,7 @@ class TemporalTracker:
         track_id: str,
         object_class: str,
         *,
-        position: Optional[Tuple[float, float]] = None,
+        position: tuple[float, float] | None = None,
         confidence: float = 0.5,
     ) -> None:
         """Update or create an object track."""
@@ -176,20 +173,19 @@ class TemporalTracker:
             track.positions.append(position)
         track.confidences.append(confidence)
 
-    def expire_tracks(self, camera_id: str) -> List[str]:
+    def expire_tracks(self, camera_id: str) -> list[str]:
         """Remove stale tracks and return their IDs."""
         if camera_id not in self._tracks:
             return []
         now = time.monotonic()
         expired = [
-            tid for tid, track in self._tracks[camera_id].items()
-            if (now - track.last_seen) > self._track_timeout
+            tid for tid, track in self._tracks[camera_id].items() if (now - track.last_seen) > self._track_timeout
         ]
         for tid in expired:
             del self._tracks[camera_id][tid]
         return expired
 
-    def get_context_summary(self, camera_id: str) -> Dict[str, Any]:
+    def get_context_summary(self, camera_id: str) -> dict[str, Any]:
         """Get a temporal context summary for pipeline decisions.
 
         This summary is designed to be included in LLM prompts for
@@ -207,7 +203,7 @@ class TemporalTracker:
         dominant_scene = scene_counts.most_common(1)[0][0] if scene_counts else None
 
         # Object class distribution
-        class_counts: Dict[str, int] = Counter()
+        class_counts: dict[str, int] = Counter()
         stationary_count = 0
         for track in tracks.values():
             class_counts[track.object_class] += 1
@@ -218,8 +214,10 @@ class TemporalTracker:
         brightness_values = [f.avg_brightness for f in recent if f.avg_brightness > 0]
         brightness_trend = "stable"
         if len(brightness_values) >= 5:
-            first_half = sum(brightness_values[:len(brightness_values)//2]) / max(1, len(brightness_values)//2)
-            second_half = sum(brightness_values[len(brightness_values)//2:]) / max(1, len(brightness_values) - len(brightness_values)//2)
+            first_half = sum(brightness_values[: len(brightness_values) // 2]) / max(1, len(brightness_values) // 2)
+            second_half = sum(brightness_values[len(brightness_values) // 2 :]) / max(
+                1, len(brightness_values) - len(brightness_values) // 2
+            )
             if second_half > first_half * 1.15:
                 brightness_trend = "brightening"
             elif second_half < first_half * 0.85:
@@ -249,13 +247,13 @@ class TemporalTracker:
             ],
         }
 
-    def get_capability_hints(self, camera_id: str) -> Set[str]:
+    def get_capability_hints(self, camera_id: str) -> set[str]:
         """Suggest capabilities needed based on temporal context.
 
         For example, if many objects are moving fast, suggest tracking.
         If it's getting dark, suggest low-light enhancement.
         """
-        hints: Set[str] = set()
+        hints: set[str] = set()
         summary = self.get_context_summary(camera_id)
 
         if summary.get("status") == "no_data":
@@ -285,7 +283,7 @@ class TemporalTracker:
 
         return hints
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         return {
             "tracked_cameras": len(self._frames),
             "cameras": {
@@ -317,17 +315,15 @@ class TemporalTracker:
         second_half = sum(counts[5:]) / max(1, len(counts) - 5)
 
         if second_half > first_half * 1.3:
-            self._upsert_trend(trends, "traffic_density", "increasing",
-                             (second_half - first_half) / max(first_half, 1))
+            self._upsert_trend(trends, "traffic_density", "increasing", (second_half - first_half) / max(first_half, 1))
         elif second_half < first_half * 0.7:
-            self._upsert_trend(trends, "traffic_density", "decreasing",
-                             (first_half - second_half) / max(first_half, 1))
+            self._upsert_trend(trends, "traffic_density", "decreasing", (first_half - second_half) / max(first_half, 1))
         else:
             self._upsert_trend(trends, "traffic_density", "stable", 0.0)
 
     @staticmethod
     def _upsert_trend(
-        trends: List[EnvironmentTrend],
+        trends: list[EnvironmentTrend],
         trend_type: str,
         direction: str,
         magnitude: float,
@@ -338,8 +334,10 @@ class TemporalTracker:
                 t.direction = direction
                 t.magnitude = magnitude
                 return
-        trends.append(EnvironmentTrend(
-            trend_type=trend_type,
-            direction=direction,
-            magnitude=magnitude,
-        ))
+        trends.append(
+            EnvironmentTrend(
+                trend_type=trend_type,
+                direction=direction,
+                magnitude=magnitude,
+            )
+        )

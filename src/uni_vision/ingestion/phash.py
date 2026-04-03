@@ -24,9 +24,13 @@ Performance budget: < 0.3 ms per frame at 1080p on a modern x86-64 CPU.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import cv2
 import numpy as np
-from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 # ── Internal: separable DCT-II via matrix multiply ────────────────
 # Pre-compute a reusable DCT basis matrix once at import time for the
@@ -87,10 +91,7 @@ def compute_phash(
         64-bit perceptual hash packed into a scalar.
     """
     # 1. Grayscale conversion (in-place if already single-channel)
-    if image.ndim == 3:
-        grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    else:
-        grey = image
+    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
 
     # 2. Resize to hash_size × hash_size via area interpolation.
     #    Area interpolation is the best for downscaling — it correctly

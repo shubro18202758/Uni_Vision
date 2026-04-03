@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestPositionMaskInference:
     """Test the internal _infer_position_mask helper."""

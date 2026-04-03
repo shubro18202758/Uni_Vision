@@ -28,22 +28,35 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from uni_vision.common.config import NavarasaConfig
+if TYPE_CHECKING:
+    from uni_vision.common.config import NavarasaConfig
 
 logger = logging.getLogger(__name__)
 
 
 # ── Language code → display name ──────────────────────────────────
 
-LANGUAGE_NAMES: Dict[str, str] = {
-    "hi": "Hindi", "te": "Telugu", "ta": "Tamil", "kn": "Kannada",
-    "ml": "Malayalam", "mr": "Marathi", "bn": "Bengali", "gu": "Gujarati",
-    "pa": "Punjabi", "or": "Odia", "ur": "Urdu", "as": "Assamese",
-    "kok": "Konkani", "ne": "Nepali", "sd": "Sindhi", "en": "English",
+LANGUAGE_NAMES: dict[str, str] = {
+    "hi": "Hindi",
+    "te": "Telugu",
+    "ta": "Tamil",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "mr": "Marathi",
+    "bn": "Bengali",
+    "gu": "Gujarati",
+    "pa": "Punjabi",
+    "or": "Odia",
+    "ur": "Urdu",
+    "as": "Assamese",
+    "kok": "Konkani",
+    "ne": "Nepali",
+    "sd": "Sindhi",
+    "en": "English",
 }
 
 
@@ -53,7 +66,7 @@ class NavarasaResponse:
 
     content: str
     role: str = "assistant"
-    raw_body: Optional[Dict[str, Any]] = None
+    raw_body: dict[str, Any] | None = None
     total_duration_ns: int = 0
     eval_count: int = 0
     language: str = "en"
@@ -89,8 +102,8 @@ class NavarasaClient:
         instruction: str,
         input_text: str = "",
         *,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
     ) -> NavarasaResponse:
         """Send an Alpaca-format request to Navarasa via Ollama /api/chat.
 
@@ -112,7 +125,7 @@ class NavarasaClient:
         """
         user_content = f"### Instruction:\n{instruction}\n\n### Input:\n{input_text}\n\n### Response:\n"
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "model": self._cfg.model,
             "messages": [
                 {"role": "user", "content": user_content},
@@ -169,7 +182,7 @@ class NavarasaClient:
         language: str = "",
         *,
         system_context: str = "",
-        max_tokens: Optional[int] = None,
+        max_tokens: int | None = None,
     ) -> NavarasaResponse:
         """Have a free-form conversation with the user in their language.
 
@@ -203,9 +216,7 @@ class NavarasaClient:
             "Be helpful, warm, and concise.",
         ]
         if system_context:
-            instruction_parts.append(
-                f"Current system context: {system_context}"
-            )
+            instruction_parts.append(f"Current system context: {system_context}")
 
         resp = await self.chat(
             instruction=" ".join(instruction_parts),
@@ -251,7 +262,7 @@ class NavarasaClient:
         try:
             resp = await self.chat(
                 instruction=f"Translate the following text to {lang_name}. "
-                            f"Provide ONLY the translation, no explanation.",
+                f"Provide ONLY the translation, no explanation.",
                 input_text=text,
                 max_tokens=256,
             )
@@ -282,7 +293,7 @@ class NavarasaClient:
         try:
             resp = await self.chat(
                 instruction=f"Translate the following {lang_name} text to English. "
-                            f"Provide ONLY the English translation, no explanation.",
+                f"Provide ONLY the English translation, no explanation.",
                 input_text=text,
                 max_tokens=256,
             )
@@ -296,7 +307,7 @@ class NavarasaClient:
         self,
         alert_message: str,
         target_language: str = "",
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Translate a WebSocket alert into the target Indian language.
 
         Returns both the original and translated message.
@@ -318,12 +329,9 @@ class NavarasaClient:
         return lang_code in self._supported_langs
 
     @property
-    def supported_languages(self) -> Dict[str, str]:
+    def supported_languages(self) -> dict[str, str]:
         """Return dict of supported language codes → names."""
-        return {
-            code: LANGUAGE_NAMES.get(code, code)
-            for code in sorted(self._supported_langs)
-        }
+        return {code: LANGUAGE_NAMES.get(code, code) for code in sorted(self._supported_langs)}
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""

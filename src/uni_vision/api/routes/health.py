@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -25,6 +25,6 @@ async def health_check(request: Request) -> JSONResponse:
         return JSONResponse({"healthy": True, "mode": "standalone"})
 
     status = await health_svc.check()
-    payload: Dict[str, Any] = asdict(status)
+    payload: dict[str, Any] = asdict(status)
     code = 200 if status.healthy else 503
     return JSONResponse(payload, status_code=code)

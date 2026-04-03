@@ -10,19 +10,21 @@ Conflicts can arise from:
 
 from __future__ import annotations
 
-import structlog
-from typing import Dict, List, Optional, Set
+from typing import TYPE_CHECKING
 
-from uni_vision.components.base import ComponentCapability, ComponentState
-from uni_vision.manager.component_registry import ComponentRegistry
+import structlog
+
 from uni_vision.manager.schemas import (
-    ComponentCandidate,
     ComponentConflict,
     ConflictReport,
     ConflictType,
     PipelineBlueprint,
     TaskPriority,
 )
+
+if TYPE_CHECKING:
+    from uni_vision.components.base import ComponentCapability
+    from uni_vision.manager.component_registry import ComponentRegistry
 
 log = structlog.get_logger(__name__)
 
@@ -65,7 +67,7 @@ class ConflictResolver:
             Extra VRAM already consumed by the LLM or other
             non-component processes (e.g. Ollama server).
         """
-        conflicts: List[ComponentConflict] = []
+        conflicts: list[ComponentConflict] = []
 
         conflicts.extend(self._check_vram(blueprint, additional_vram_mb))
         conflicts.extend(self._check_capability_overlap(blueprint))
@@ -83,7 +85,7 @@ class ConflictResolver:
     def suggest_unloads_for_vram(
         self,
         needed_vram_mb: int,
-    ) -> List[str]:
+    ) -> list[str]:
         """Suggest components to unload to free VRAM.
 
         Uses a least-recently-used-first / lowest-priority heuristic.
@@ -99,7 +101,7 @@ class ConflictResolver:
             reverse=True,
         )
 
-        to_unload: List[str] = []
+        to_unload: list[str] = []
         freed = 0
         for comp in loaded:
             if freed >= needed_vram_mb:
@@ -115,7 +117,7 @@ class ConflictResolver:
         self,
         blueprint: PipelineBlueprint,
         additional_vram_mb: int,
-    ) -> List[ComponentConflict]:
+    ) -> list[ComponentConflict]:
         """Check if the blueprint exceeds the VRAM budget."""
         total = blueprint.estimated_vram_mb + additional_vram_mb
         if total <= self._vram_limit:
@@ -130,42 +132,42 @@ class ConflictResolver:
             f"Consider offloading components to CPU or using lighter alternatives."
         )
 
-        return [ComponentConflict(
-            conflict_type=ConflictType.VRAM_EXCEEDED,
-            component_ids=component_ids,
-            description=(
-                f"Pipeline requires {total} MB but only {self._vram_limit} MB available"
-            ),
-            severity=TaskPriority.CRITICAL,
-            suggested_resolution=suggestion,
-            auto_resolvable=overshoot < 500,
-        )]
+        return [
+            ComponentConflict(
+                conflict_type=ConflictType.VRAM_EXCEEDED,
+                component_ids=component_ids,
+                description=(f"Pipeline requires {total} MB but only {self._vram_limit} MB available"),
+                severity=TaskPriority.CRITICAL,
+                suggested_resolution=suggestion,
+                auto_resolvable=overshoot < 500,
+            )
+        ]
 
     def _check_capability_overlap(
         self,
         blueprint: PipelineBlueprint,
-    ) -> List[ComponentConflict]:
+    ) -> list[ComponentConflict]:
         """Detect if two stages provide the same core capability."""
-        conflicts: List[ComponentConflict] = []
-        seen_caps: Dict[ComponentCapability, str] = {}
+        conflicts: list[ComponentConflict] = []
+        seen_caps: dict[ComponentCapability, str] = {}
 
         for stage in blueprint.stages:
             cap = stage.required_capability
             if cap in seen_caps:
-                conflicts.append(ComponentConflict(
-                    conflict_type=ConflictType.CAPABILITY_OVERLAP,
-                    component_ids=[seen_caps[cap], stage.component_id],
-                    description=(
-                        f"Both '{seen_caps[cap]}' and '{stage.component_id}' "
-                        f"provide capability '{cap.value}'"
-                    ),
-                    severity=TaskPriority.LOW,
-                    suggested_resolution=(
-                        "Remove one of the overlapping components, "
-                        "or keep both if they serve different sub-tasks."
-                    ),
-                    auto_resolvable=True,
-                ))
+                conflicts.append(
+                    ComponentConflict(
+                        conflict_type=ConflictType.CAPABILITY_OVERLAP,
+                        component_ids=[seen_caps[cap], stage.component_id],
+                        description=(
+                            f"Both '{seen_caps[cap]}' and '{stage.component_id}' provide capability '{cap.value}'"
+                        ),
+                        severity=TaskPriority.LOW,
+                        suggested_resolution=(
+                            "Remove one of the overlapping components, or keep both if they serve different sub-tasks."
+                        ),
+                        auto_resolvable=True,
+                    )
+                )
             else:
                 seen_caps[cap] = stage.component_id
 
@@ -174,14 +176,14 @@ class ConflictResolver:
     def _check_dependencies(
         self,
         blueprint: PipelineBlueprint,
-    ) -> List[ComponentConflict]:
+    ) -> list[ComponentConflict]:
         """Basic dependency clash detection.
 
         Looks for two components requiring conflicting versions of the
         same Python package.
         """
-        conflicts: List[ComponentConflict] = []
-        pkg_owners: Dict[str, List[str]] = {}  # pkg_base_name → [component_ids]
+        conflicts: list[ComponentConflict] = []
+        pkg_owners: dict[str, list[str]] = {}  # pkg_base_name → [component_ids]
 
         for stage in blueprint.stages:
             comp = self._registry.get(stage.component_id)
@@ -214,12 +216,12 @@ class ConflictResolver:
     def auto_resolve(
         self,
         report: ConflictReport,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Attempt to auto-resolve auto_resolvable conflicts.
 
         Returns a list of actions to perform.
         """
-        actions: List[Dict] = []
+        actions: list[dict] = []
 
         for conflict in report.conflicts:
             if not conflict.auto_resolvable:
@@ -228,19 +230,23 @@ class ConflictResolver:
             if conflict.conflict_type == ConflictType.VRAM_EXCEEDED:
                 overshoot = report.total_vram_required_mb - report.vram_available_mb
                 to_unload = self.suggest_unloads_for_vram(overshoot)
-                actions.append({
-                    "action": "unload_components",
-                    "component_ids": to_unload,
-                    "reason": conflict.description,
-                })
+                actions.append(
+                    {
+                        "action": "unload_components",
+                        "component_ids": to_unload,
+                        "reason": conflict.description,
+                    }
+                )
 
             elif conflict.conflict_type == ConflictType.CAPABILITY_OVERLAP:
                 # Remove the second component (heuristic)
                 if len(conflict.component_ids) >= 2:
-                    actions.append({
-                        "action": "remove_from_blueprint",
-                        "component_id": conflict.component_ids[1],
-                        "reason": conflict.description,
-                    })
+                    actions.append(
+                        {
+                            "action": "remove_from_blueprint",
+                            "component_id": conflict.component_ids[1],
+                            "reason": conflict.description,
+                        }
+                    )
 
         return actions

@@ -49,14 +49,15 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from uni_vision.common.exceptions import VRAMBudgetExceeded, VRAMError
 from uni_vision.contracts.dtos import OffloadMode
-from uni_vision.common.exceptions import VRAMError, VRAMBudgetExceeded
 from uni_vision.monitoring.metrics import VRAM_USAGE
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-    from uni_vision.detection.vehicle_detector import VehicleDetector
+
     from uni_vision.detection.plate_detector import PlateDetector
+    from uni_vision.detection.vehicle_detector import VehicleDetector
 
 log = structlog.get_logger()
 
@@ -185,9 +186,7 @@ class GPUMemoryManager:
             if "out of memory" in str(exc).lower():
                 log.error("cuda_oom_detected_during_inference", error=str(exc))
                 _emergency_cpu_fallback(vehicle_det, plate_det)
-                raise VRAMError(
-                    "CUDA OOM during detection — both detectors moved to CPU"
-                ) from exc
+                raise VRAMError("CUDA OOM during detection — both detectors moved to CPU") from exc
             raise
         finally:
             # Release region C — models are unloaded between events
@@ -268,14 +267,10 @@ def _emergency_cpu_fallback(
 ) -> None:
     """Force both detectors to CPU after an OOM event."""
     log.warning("emergency_cpu_fallback_triggered")
-    try:
+    with contextlib.suppress(Exception):
         vehicle_det.release()
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         plate_det.release()
-    except Exception:
-        pass
     _try_empty_cuda_cache()
     vehicle_det.switch_device("cpu")
     plate_det.switch_device("cpu")

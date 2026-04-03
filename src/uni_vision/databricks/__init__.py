@@ -35,18 +35,22 @@ def __getattr__(name: str):
 
     if name == "DeltaLakeStore":
         from uni_vision.databricks.delta_store import DeltaLakeStore
+
         return DeltaLakeStore
 
     if name == "InferenceTracker":
         from uni_vision.databricks.mlflow_tracker import InferenceTracker
+
         return InferenceTracker
 
     if name == "SparkAnalyticsEngine":
         from uni_vision.databricks.spark_analytics import SparkAnalyticsEngine
+
         return SparkAnalyticsEngine
 
     if name == "VectorSearchEngine":
         from uni_vision.databricks.vector_search import VectorSearchEngine
+
         return VectorSearchEngine
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

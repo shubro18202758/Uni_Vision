@@ -24,29 +24,31 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy.typing import NDArray
-
-from uni_vision.common.config import (
-    AdjudicationConfig,
-    ValidationConfig,
-)
 from uni_vision.contracts.dtos import (
     OCRResult,
     ProcessedResult,
     ValidationStatus,
-)
-from uni_vision.postprocessing.adjudicator import (
-    AdjudicationResult,
-    ConsensusAdjudicator,
 )
 from uni_vision.postprocessing.validator import (
     DeterministicValidator,
     ValidationVerdict,
     Verdict,
 )
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+    from uni_vision.common.config import (
+        AdjudicationConfig,
+        ValidationConfig,
+    )
+    from uni_vision.postprocessing.adjudicator import (
+        AdjudicationResult,
+        ConsensusAdjudicator,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +161,7 @@ class CognitiveOrchestrator:
         ocr_confidence: float,
         corrections: dict,
         engine: str,
-    ) -> Optional[AdjudicationResult]:
+    ) -> AdjudicationResult | None:
         """Call the LLM adjudicator with timing and error isolation."""
         t0 = time.perf_counter()
         try:
@@ -171,9 +173,7 @@ class CognitiveOrchestrator:
                 ocr_engine=engine,
             )
         except Exception as exc:
-            logger.error(
-                "S8 adjudicator unexpected error: %s", exc, exc_info=True
-            )
+            logger.error("S8 adjudicator unexpected error: %s", exc, exc_info=True)
             adj = None
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
@@ -227,9 +227,7 @@ class CognitiveOrchestrator:
             plate_text=det.corrected_text,
             raw_ocr_text=ocr.raw_text,
             confidence=ocr.confidence,
-            validation_status=_VERDICT_STATUS.get(
-                det.verdict, ValidationStatus.REGEX_FAIL
-            ),
+            validation_status=_VERDICT_STATUS.get(det.verdict, ValidationStatus.REGEX_FAIL),
             char_corrections=det.corrections_applied,
         )
 

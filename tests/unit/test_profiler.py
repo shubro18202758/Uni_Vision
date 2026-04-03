@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 
 class TestProfileStage:
     """Test the @profile_stage decorator."""
@@ -119,13 +117,15 @@ class TestProfileHistory:
 
         # Fill beyond the 512 max
         for i in range(520):
-            _record_profile(StageProfile(
-                stage=f"s_{i}",
-                wall_time_ms=1.0,
-                vram_before_mb=0.0,
-                vram_after_mb=0.0,
-                vram_delta_mb=0.0,
-            ))
+            _record_profile(
+                StageProfile(
+                    stage=f"s_{i}",
+                    wall_time_ms=1.0,
+                    vram_before_mb=0.0,
+                    vram_after_mb=0.0,
+                    vram_delta_mb=0.0,
+                )
+            )
 
         history = get_profile_history()
         assert len(history) == 512
@@ -141,10 +141,15 @@ class TestProfileHistory:
             get_profile_history,
         )
 
-        _record_profile(StageProfile(
-            stage="x", wall_time_ms=1.0,
-            vram_before_mb=0.0, vram_after_mb=0.0, vram_delta_mb=0.0,
-        ))
+        _record_profile(
+            StageProfile(
+                stage="x",
+                wall_time_ms=1.0,
+                vram_before_mb=0.0,
+                vram_after_mb=0.0,
+                vram_delta_mb=0.0,
+            )
+        )
         clear_profile_history()
         assert len(get_profile_history()) == 0
 

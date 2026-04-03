@@ -7,15 +7,15 @@ at runtime without touching the core orchestrator.
 """
 
 from uni_vision.components.base import (
-    CVComponent,
     ComponentCapability,
-    ComponentType,
     ComponentState,
+    ComponentType,
+    CVComponent,
 )
 
 __all__ = [
     "CVComponent",
     "ComponentCapability",
-    "ComponentType",
     "ComponentState",
+    "ComponentType",
 ]

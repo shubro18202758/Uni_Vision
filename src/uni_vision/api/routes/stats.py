@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -18,7 +18,7 @@ async def pipeline_stats(request: Request) -> JSONResponse:
     """
     from prometheus_client import REGISTRY
 
-    stats: Dict[str, Any] = {}
+    stats: dict[str, Any] = {}
 
     # Iterate through all metrics in the default registry
     for metric in REGISTRY.collect():
@@ -46,18 +46,14 @@ async def pipeline_stats(request: Request) -> JSONResponse:
 
     # Compute friendly summary keys
     # Active streams: count distinct camera_id labels that have ingested frames
-    stats["active_streams"] = sum(
-        1 for k in stats if k.startswith("uv_frames_ingested_total|")
-    )
+    stats["active_streams"] = sum(1 for k in stats if k.startswith("uv_frames_ingested_total|"))
     # Total detections: sum counter values across all camera_id labels
     stats["total_detections"] = sum(
-        v for k, v in stats.items()
-        if k.startswith("uv_detections_total|") and isinstance(v, (int, float))
+        v for k, v in stats.items() if k.startswith("uv_detections_total|") and isinstance(v, (int, float))
     )
     # Total frames: sum counter values across all camera_id labels
     stats["total_frames"] = sum(
-        v for k, v in stats.items()
-        if k.startswith("uv_frames_ingested_total|") and isinstance(v, (int, float))
+        v for k, v in stats.items() if k.startswith("uv_frames_ingested_total|") and isinstance(v, (int, float))
     )
 
     return JSONResponse(stats)

@@ -14,15 +14,16 @@ Design:
 
 from __future__ import annotations
 
-import structlog
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
-from uni_vision.components.base import ComponentCapability
-from uni_vision.manager.schemas import ComponentCandidate, TaskPriority
+import structlog
+
+if TYPE_CHECKING:
+    from uni_vision.components.base import ComponentCapability
+    from uni_vision.manager.schemas import ComponentCandidate
 
 log = structlog.get_logger(__name__)
 
@@ -68,16 +69,16 @@ class FallbackChain:
     """Ordered fallback chain for a single capability."""
 
     capability: ComponentCapability
-    entries: List[FallbackEntry] = field(default_factory=list)
+    entries: list[FallbackEntry] = field(default_factory=list)
 
-    def active_entries(self) -> List[FallbackEntry]:
+    def active_entries(self) -> list[FallbackEntry]:
         """Return enabled entries sorted by effective score descending."""
         active = [e for e in self.entries if not e.disabled]
         active.sort(key=lambda e: e.effective_score, reverse=True)
         return active
 
     @property
-    def primary(self) -> Optional[FallbackEntry]:
+    def primary(self) -> FallbackEntry | None:
         """Current best active entry."""
         active = self.active_entries()
         return active[0] if active else None
@@ -104,7 +105,7 @@ class FallbackChainManager:
         max_consecutive_failures: int = 5,
         auto_recover_after_s: float = 120.0,
     ) -> None:
-        self._chains: Dict[ComponentCapability, FallbackChain] = {}
+        self._chains: dict[ComponentCapability, FallbackChain] = {}
         self._max_failures = max_consecutive_failures
         self._auto_recover_s = auto_recover_after_s
 
@@ -127,11 +128,13 @@ class FallbackChainManager:
             if entry.candidate.component_id == candidate.component_id:
                 return
 
-        chain.entries.append(FallbackEntry(
-            candidate=candidate,
-            tier=tier,
-            score=initial_score,
-        ))
+        chain.entries.append(
+            FallbackEntry(
+                candidate=candidate,
+                tier=tier,
+                score=initial_score,
+            )
+        )
         log.debug(
             "fallback_registered",
             capability=capability.value,
@@ -143,8 +146,8 @@ class FallbackChainManager:
         self,
         capability: ComponentCapability,
         *,
-        exclude: Optional[Set[str]] = None,
-    ) -> Optional[ComponentCandidate]:
+        exclude: set[str] | None = None,
+    ) -> ComponentCandidate | None:
         """Get the next best fallback candidate for a capability.
 
         Parameters
@@ -184,9 +187,7 @@ class FallbackChainManager:
 
         if entry.consecutive_failures >= self._max_failures:
             entry.disabled = True
-            entry.disable_reason = (
-                f"Disabled after {entry.consecutive_failures} consecutive failures"
-            )
+            entry.disable_reason = f"Disabled after {entry.consecutive_failures} consecutive failures"
             log.warning(
                 "fallback_disabled",
                 capability=capability.value,
@@ -205,7 +206,7 @@ class FallbackChainManager:
         if entry is not None:
             entry.score = max(0.0, min(1.0, new_score))
 
-    def get_chain_status(self, capability: ComponentCapability) -> Dict[str, Any]:
+    def get_chain_status(self, capability: ComponentCapability) -> dict[str, Any]:
         """Return the status of a fallback chain."""
         chain = self._chains.get(capability)
         if chain is None:
@@ -243,7 +244,7 @@ class FallbackChainManager:
             else:
                 entry.tier = FallbackTier.EMERGENCY
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         return {
             "chains": len(self._chains),
             "total_candidates": sum(len(c.entries) for c in self._chains.values()),
@@ -258,9 +259,7 @@ class FallbackChainManager:
 
     # ── Internal ──────────────────────────────────────────────
 
-    def _find_entry(
-        self, capability: ComponentCapability, component_id: str
-    ) -> Optional[FallbackEntry]:
+    def _find_entry(self, capability: ComponentCapability, component_id: str) -> FallbackEntry | None:
         chain = self._chains.get(capability)
         if chain is None:
             return None

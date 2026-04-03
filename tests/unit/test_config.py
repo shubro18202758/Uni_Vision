@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 
 class TestConfigDefaults:
     """Verify that AppConfig and sub-models have correct defaults."""

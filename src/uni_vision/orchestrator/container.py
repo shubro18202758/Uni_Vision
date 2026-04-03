@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from uni_vision.common.config import AppConfig, load_config
 from uni_vision.detection.plate_detector import PlateDetector
@@ -42,12 +41,10 @@ from uni_vision.postprocessing.orchestrator import CognitiveOrchestrator
 from uni_vision.preprocessing.deskew import HoughStraightener
 from uni_vision.preprocessing.enhance import PhotometricEnhancer
 
-
-
 logger = logging.getLogger(__name__)
 
 
-def build_pipeline(config: Optional[AppConfig] = None) -> Pipeline:
+def build_pipeline(config: AppConfig | None = None) -> Pipeline:
     """Assemble all concrete stage implementations into a live Pipeline.
 
     Parameters
@@ -96,9 +93,7 @@ def build_pipeline(config: Optional[AppConfig] = None) -> Pipeline:
         input_size=tuple(plate_model_cfg.input_size) if plate_model_cfg else (640, 640),
         confidence_threshold=plate_model_cfg.confidence_threshold if plate_model_cfg else 0.60,
         nms_iou_threshold=plate_model_cfg.nms_iou_threshold if plate_model_cfg else 0.45,
-        multi_plate_policy=(
-            plate_model_cfg.multi_plate_policy if plate_model_cfg else "highest_confidence"
-        ),
+        multi_plate_policy=(plate_model_cfg.multi_plate_policy if plate_model_cfg else "highest_confidence"),
     )
 
     # ── 4. Geometric Correction (CPU — no VRAM) ──────────────────
@@ -191,12 +186,14 @@ def _build_manager_agent(
     manager is disabled.
     """
     from uni_vision.agent.llm_client import AgentLLMClient
-    from uni_vision.components.base import ComponentCapability, ComponentType, ResourceEstimate, ComponentMetadata
+    from uni_vision.components.base import (
+        ComponentCapability,
+    )
     from uni_vision.components.wrappers import (
         BuiltinDetectorComponent,
         BuiltinOCRComponent,
-        BuiltinPreprocessorComponent,
         BuiltinPostprocessorComponent,
+        BuiltinPreprocessorComponent,
     )
     from uni_vision.manager.adaptation_engine import AdaptationEngine
     from uni_vision.manager.agent import ManagerAgent
@@ -204,19 +201,19 @@ def _build_manager_agent(
     from uni_vision.manager.component_registry import ComponentRegistry
     from uni_vision.manager.component_resolver import ComponentResolver
     from uni_vision.manager.conflict_resolver import ConflictResolver
-    from uni_vision.manager.dependency_resolver import DependencyConflictResolver
     from uni_vision.manager.context_analyzer import ContextAnalyzer
+    from uni_vision.manager.dependency_resolver import DependencyConflictResolver
     from uni_vision.manager.fallback_chain import FallbackChainManager
     from uni_vision.manager.feedback_loop import FeedbackLoop
     from uni_vision.manager.gpu_profiler import GPUProfiler
     from uni_vision.manager.hub_client import HubClient
+    from uni_vision.manager.job_lifecycle import JobLifecycleManager
     from uni_vision.manager.lifecycle import LifecycleManager
     from uni_vision.manager.pipeline_composer import PipelineComposer
     from uni_vision.manager.pipeline_validator import PipelineValidator
     from uni_vision.manager.quality_scorer import QualityScorer
     from uni_vision.manager.scene_detector import SceneTransitionDetector
     from uni_vision.manager.temporal_tracker import TemporalTracker
-    from uni_vision.manager.job_lifecycle import JobLifecycleManager
 
     mgr_cfg = config.manager
 
@@ -234,10 +231,12 @@ def _build_manager_agent(
     builtin_plate_det = BuiltinDetectorComponent(
         component_id="builtin.plate_detector",
         name="YOLOv8n Plate Detector",
-        capabilities=frozenset({
-            ComponentCapability.PLATE_DETECTION,
-            ComponentCapability.PLATE_LOCALIZATION,
-        }),
+        capabilities=frozenset(
+            {
+                ComponentCapability.PLATE_DETECTION,
+                ComponentCapability.PLATE_LOCALIZATION,
+            }
+        ),
         detector_instance=plate_detector,
         vram_mb=200,
     )
@@ -253,10 +252,12 @@ def _build_manager_agent(
     builtin_enhancer = BuiltinPreprocessorComponent(
         component_id="builtin.enhancer",
         name="Photometric Enhancer",
-        capabilities=frozenset({
-            ComponentCapability.IMAGE_ENHANCE,
-            ComponentCapability.SUPER_RESOLUTION,
-        }),
+        capabilities=frozenset(
+            {
+                ComponentCapability.IMAGE_ENHANCE,
+                ComponentCapability.SUPER_RESOLUTION,
+            }
+        ),
         preprocessor_instance=enhancer,
     )
     builtin_validator = BuiltinPostprocessorComponent(
@@ -332,7 +333,7 @@ def _build_manager_agent(
         async def generate(
             self,
             prompt: str,
-            system_prompt: Optional[str] = None,
+            system_prompt: str | None = None,
         ) -> str:
             msgs: list[dict[str, str]] = []
             if system_prompt:
@@ -347,6 +348,7 @@ def _build_manager_agent(
     dep_resolver._llm = llm_client
 
     from uni_vision.manager.schemas import SceneType as _SceneType
+
     context_analyzer = ContextAnalyzer(
         llm_client=llm_client,
         default_scene=_SceneType(mgr_cfg.default_scene),

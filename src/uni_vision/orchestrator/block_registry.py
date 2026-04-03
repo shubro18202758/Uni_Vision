@@ -14,24 +14,25 @@ by the graph engine.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 # ── Port / Config helpers ─────────────────────────────────────────
 
-def _port(id: str, name: str, type: str, direction: str) -> Dict[str, str]:
+
+def _port(id: str, name: str, type: str, direction: str) -> dict[str, str]:
     return {"id": id, "name": name, "type": type, "direction": direction}
 
 
-def _cfg(key: str, label: str, type: str, **kwargs: Any) -> Dict[str, Any]:
-    schema: Dict[str, Any] = {"key": key, "label": label, "type": type}
+def _cfg(key: str, label: str, type: str, **kwargs: Any) -> dict[str, Any]:
+    schema: dict[str, Any] = {"key": key, "label": label, "type": type}
     schema.update(kwargs)
     return schema
 
 
-def _instruction_cfg(placeholder: str = "Describe what this step should do...") -> Dict[str, Any]:
+def _instruction_cfg(placeholder: str = "Describe what this step should do...") -> dict[str, Any]:
     """Standard instruction config field — always first in every block's configSchema."""
     return _cfg(
         "instruction",
@@ -43,7 +44,7 @@ def _instruction_cfg(placeholder: str = "Describe what this step should do...") 
 
 # ── Built-in block definitions ────────────────────────────────────
 
-_BUILTIN_BLOCKS: List[Dict[str, Any]] = [
+_BUILTIN_BLOCKS: list[dict[str, Any]] = [
     # ── Input ──
     {
         "type": "image-input",
@@ -52,7 +53,10 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "Input",
         "inputs": [],
         "outputs": [_port("frame-out", "frame", "frame", "output")],
-        "defaults": {"instruction": "Load test images from my surveillance camera folder", "path": "/images/sample.jpg"},
+        "defaults": {
+            "instruction": "Load test images from my surveillance camera folder",
+            "path": "/images/sample.jpg",
+        },
         "configSchema": [
             _instruction_cfg("Describe what images to load and from where..."),
             _cfg("path", "Image Path", "text", required=True),
@@ -66,7 +70,11 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "Input",
         "inputs": [],
         "outputs": [_port("frame-out", "frame", "frame", "output")],
-        "defaults": {"instruction": "Connect to the parking lot entrance camera and stream live video", "streamUrl": "rtsp://camera.local/stream", "fps": 15},
+        "defaults": {
+            "instruction": "Connect to the parking lot entrance camera and stream live video",
+            "streamUrl": "rtsp://camera.local/stream",
+            "fps": 15,
+        },
         "configSchema": [
             _instruction_cfg("Describe which camera to connect to and any streaming preferences..."),
             _cfg("streamUrl", "Stream URL", "text", required=True),
@@ -187,7 +195,12 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "Preprocessing",
         "inputs": [_port("frame-in", "frame", "frame", "input")],
         "outputs": [_port("frame-out", "frame", "frame", "output")],
-        "defaults": {"instruction": "Clean up and deskew the plate crops, enhance contrast for better OCR", "deskew": True, "clahe": True, "targetWidth": 200},
+        "defaults": {
+            "instruction": "Clean up and deskew the plate crops, enhance contrast for better OCR",
+            "deskew": True,
+            "clahe": True,
+            "targetWidth": 200,
+        },
         "configSchema": [
             _instruction_cfg("Describe how plate images should be cleaned up..."),
             _cfg("deskew", "Deskew", "toggle"),
@@ -207,7 +220,11 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
             _port("frame-out", "frame", "frame", "output"),
             _port("boxes-out", "boxes", "bounding_box_list", "output"),
         ],
-        "defaults": {"instruction": "Detect all objects in each frame with high accuracy", "model": "yolov8n.pt", "confidence": 0.6},
+        "defaults": {
+            "instruction": "Detect all objects in each frame with high accuracy",
+            "model": "yolov8n.pt",
+            "confidence": 0.6,
+        },
         "configSchema": [
             _instruction_cfg("Describe what objects to detect and any priority areas..."),
             _cfg("model", "Model", "text", required=True),
@@ -228,10 +245,15 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "defaults": {"instruction": "Detect motion in the scene", "algorithm": "MOG2", "threshold": 25},
         "configSchema": [
             _instruction_cfg("Describe motion detection requirements..."),
-            _cfg("algorithm", "Algorithm", "select", options=[
-                {"label": "MOG2", "value": "MOG2"},
-                {"label": "KNN", "value": "KNN"},
-            ]),
+            _cfg(
+                "algorithm",
+                "Algorithm",
+                "select",
+                options=[
+                    {"label": "MOG2", "value": "MOG2"},
+                    {"label": "KNN", "value": "KNN"},
+                ],
+            ),
             _cfg("threshold", "Threshold", "number", min=1, max=255),
         ],
         "backend_handler": "detection.motion",
@@ -281,7 +303,12 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
             _port("frame-out", "frame", "frame", "output"),
             _port("boxes-out", "boxes", "bounding_box_list", "output"),
         ],
-        "defaults": {"instruction": "Detect all vehicles — focus on cars, trucks, buses, and motorcycles", "model": "yolov8n.pt", "confidence": 0.5, "classes": "car,truck,bus,motorcycle"},
+        "defaults": {
+            "instruction": "Detect all vehicles — focus on cars, trucks, buses, and motorcycles",
+            "model": "yolov8n.pt",
+            "confidence": 0.5,
+            "classes": "car,truck,bus,motorcycle",
+        },
         "configSchema": [
             _instruction_cfg("Describe which vehicle types to detect and any special conditions..."),
             _cfg("model", "Model Path", "text", required=True),
@@ -303,7 +330,11 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
             _port("plates-out", "plates", "frame", "output"),
             _port("boxes-out", "plate_boxes", "bounding_box_list", "output"),
         ],
-        "defaults": {"instruction": "Find number plates on all detected vehicles", "model": "plate_detect.pt", "confidence": 0.6},
+        "defaults": {
+            "instruction": "Find number plates on all detected vehicles",
+            "model": "plate_detect.pt",
+            "confidence": 0.6,
+        },
         "configSchema": [
             _instruction_cfg("Describe plate detection requirements and any region specifics..."),
             _cfg("model", "Plate Model", "text", required=True),
@@ -412,7 +443,11 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
             _port("frame-out", "frame", "frame", "output"),
             _port("text-out", "text", "text", "output"),
         ],
-        "defaults": {"instruction": "Describe what you see in this frame", "model": "gemma4:e2b", "prompt": "Describe the scene."},
+        "defaults": {
+            "instruction": "Describe what you see in this frame",
+            "model": "gemma4:e2b",
+            "prompt": "Describe the scene.",
+        },
         "configSchema": [
             _instruction_cfg("Describe what the LLM should analyze..."),
             _cfg("model", "Model", "text", required=True),
@@ -428,13 +463,21 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "OCR",
         "inputs": [_port("frame-in", "frame", "frame", "input")],
         "outputs": [_port("text-out", "text", "text", "output")],
-        "defaults": {"instruction": "Read the license plate text from cropped plate images in English", "language": "en"},
+        "defaults": {
+            "instruction": "Read the license plate text from cropped plate images in English",
+            "language": "en",
+        },
         "configSchema": [
             _instruction_cfg("Describe what text to read and language preferences..."),
-            _cfg("language", "Language", "select", options=[
-                {"label": "English", "value": "en"},
-                {"label": "Hindi", "value": "hi"},
-            ]),
+            _cfg(
+                "language",
+                "Language",
+                "select",
+                options=[
+                    {"label": "English", "value": "en"},
+                    {"label": "Hindi", "value": "hi"},
+                ],
+            ),
         ],
         "backend_handler": "ocr.easyocr",
     },
@@ -445,14 +488,23 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "OCR",
         "inputs": [_port("frame-in", "frame", "frame", "input")],
         "outputs": [_port("text-out", "text", "text", "output")],
-        "defaults": {"instruction": "Use high-accuracy OCR to read plate numbers precisely", "useAngleClassifier": True, "language": "en"},
+        "defaults": {
+            "instruction": "Use high-accuracy OCR to read plate numbers precisely",
+            "useAngleClassifier": True,
+            "language": "en",
+        },
         "configSchema": [
             _instruction_cfg("Describe OCR accuracy requirements..."),
             _cfg("useAngleClassifier", "Angle Classifier", "toggle"),
-            _cfg("language", "Language", "select", options=[
-                {"label": "English", "value": "en"},
-                {"label": "Chinese", "value": "ch"},
-            ]),
+            _cfg(
+                "language",
+                "Language",
+                "select",
+                options=[
+                    {"label": "English", "value": "en"},
+                    {"label": "Chinese", "value": "ch"},
+                ],
+            ),
         ],
         "backend_handler": "ocr.paddleocr",
     },
@@ -466,10 +518,15 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "defaults": {"instruction": "Read visible text from the frame", "engine": "easyocr", "language": "en"},
         "configSchema": [
             _instruction_cfg("Describe what text to extract..."),
-            _cfg("engine", "OCR Engine", "select", options=[
-                {"label": "EasyOCR", "value": "easyocr"},
-                {"label": "PaddleOCR", "value": "paddleocr"},
-            ]),
+            _cfg(
+                "engine",
+                "OCR Engine",
+                "select",
+                options=[
+                    {"label": "EasyOCR", "value": "easyocr"},
+                    {"label": "PaddleOCR", "value": "paddleocr"},
+                ],
+            ),
             _cfg("language", "Language", "text"),
         ],
         "backend_handler": "ocr.text_reader",
@@ -491,10 +548,15 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "defaults": {"instruction": "Track objects across frames", "algorithm": "DeepSORT", "maxAge": 30},
         "configSchema": [
             _instruction_cfg("Describe tracking requirements..."),
-            _cfg("algorithm", "Algorithm", "select", options=[
-                {"label": "SORT", "value": "SORT"},
-                {"label": "DeepSORT", "value": "DeepSORT"},
-            ]),
+            _cfg(
+                "algorithm",
+                "Algorithm",
+                "select",
+                options=[
+                    {"label": "SORT", "value": "SORT"},
+                    {"label": "DeepSORT", "value": "DeepSORT"},
+                ],
+            ),
             _cfg("maxAge", "Max Age (frames)", "number", min=1, max=300),
         ],
         "backend_handler": "postprocessing.object_tracker",
@@ -509,10 +571,15 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "defaults": {"instruction": "Compute optical flow", "method": "Farneback"},
         "configSchema": [
             _instruction_cfg("Describe optical flow requirements..."),
-            _cfg("method", "Method", "select", options=[
-                {"label": "Farneback", "value": "Farneback"},
-                {"label": "Lucas-Kanade", "value": "LucasKanade"},
-            ]),
+            _cfg(
+                "method",
+                "Method",
+                "select",
+                options=[
+                    {"label": "Farneback", "value": "Farneback"},
+                    {"label": "Lucas-Kanade", "value": "LucasKanade"},
+                ],
+            ),
         ],
         "backend_handler": "postprocessing.optical_flow",
     },
@@ -523,7 +590,10 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "PostProcessing",
         "inputs": [_port("text-in", "text", "text", "input")],
         "outputs": [_port("text-out", "text", "text", "output")],
-        "defaults": {"instruction": "Validate detected plates against Indian number plate format XX00XX0000", "pattern": "^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$"},
+        "defaults": {
+            "instruction": "Validate detected plates against Indian number plate format XX00XX0000",
+            "pattern": "^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$",
+        },
         "configSchema": [
             _instruction_cfg("Describe what format plates should match..."),
             _cfg("pattern", "Pattern", "text", required=True),
@@ -537,7 +607,11 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "PostProcessing",
         "inputs": [_port("text-in", "text", "text", "input")],
         "outputs": [_port("text-out", "text", "text", "output")],
-        "defaults": {"instruction": "Remove duplicate plate readings within a 10-second window", "windowSeconds": 10, "hashThreshold": 8},
+        "defaults": {
+            "instruction": "Remove duplicate plate readings within a 10-second window",
+            "windowSeconds": 10,
+            "hashThreshold": 8,
+        },
         "configSchema": [
             _instruction_cfg("Describe deduplication rules and timing..."),
             _cfg("windowSeconds", "Dedup Window (s)", "number", min=1, max=60),
@@ -556,12 +630,17 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "configSchema": [
             _instruction_cfg("Describe filtering criteria..."),
             _cfg("threshold", "Threshold", "number", min=0, max=1),
-            _cfg("operator", "Operator", "select", options=[
-                {"label": ">=", "value": ">="},
-                {"label": ">", "value": ">"},
-                {"label": "<=", "value": "<="},
-                {"label": "<", "value": "<"},
-            ]),
+            _cfg(
+                "operator",
+                "Operator",
+                "select",
+                options=[
+                    {"label": ">=", "value": ">="},
+                    {"label": ">", "value": ">"},
+                    {"label": "<=", "value": "<="},
+                    {"label": "<", "value": "<"},
+                ],
+            ),
         ],
         "backend_handler": "postprocessing.threshold_gate",
     },
@@ -578,10 +657,15 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "defaults": {"instruction": "Blur all detected faces for privacy", "method": "gaussian", "strength": 25},
         "configSchema": [
             _instruction_cfg("Describe anonymization requirements..."),
-            _cfg("method", "Method", "select", options=[
-                {"label": "Gaussian Blur", "value": "gaussian"},
-                {"label": "Pixelate", "value": "pixelate"},
-            ]),
+            _cfg(
+                "method",
+                "Method",
+                "select",
+                options=[
+                    {"label": "Gaussian Blur", "value": "gaussian"},
+                    {"label": "Pixelate", "value": "pixelate"},
+                ],
+            ),
             _cfg("strength", "Strength", "number", min=1, max=100),
         ],
         "backend_handler": "postprocessing.face_anonymizer",
@@ -593,14 +677,22 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "PostProcessing",
         "inputs": [_port("text-in", "text", "text", "input")],
         "outputs": [_port("text-out", "text", "text", "output")],
-        "defaults": {"instruction": "Pick the most accurate plate reading from multiple OCR engines using confidence scoring", "strategy": "confidence"},
+        "defaults": {
+            "instruction": "Pick the most accurate plate reading from multiple OCR engines using confidence scoring",
+            "strategy": "confidence",
+        },
         "configSchema": [
             _instruction_cfg("Describe how to pick the best OCR result..."),
-            _cfg("strategy", "Strategy", "select", options=[
-                {"label": "Confidence", "value": "confidence"},
-                {"label": "Majority Vote", "value": "majority"},
-                {"label": "LLM Adjudication", "value": "llm"},
-            ]),
+            _cfg(
+                "strategy",
+                "Strategy",
+                "select",
+                options=[
+                    {"label": "Confidence", "value": "confidence"},
+                    {"label": "Majority Vote", "value": "majority"},
+                    {"label": "LLM Adjudication", "value": "llm"},
+                ],
+            ),
         ],
         "backend_handler": "postprocessing.adjudicator",
     },
@@ -619,11 +711,16 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "configSchema": [
             _instruction_cfg("Describe heatmap configuration..."),
             _cfg("decay", "Decay Factor", "number", min=0.5, max=1.0),
-            _cfg("colormap", "Color Map", "select", options=[
-                {"label": "Jet", "value": "jet"},
-                {"label": "Hot", "value": "hot"},
-                {"label": "Viridis", "value": "viridis"},
-            ]),
+            _cfg(
+                "colormap",
+                "Color Map",
+                "select",
+                options=[
+                    {"label": "Jet", "value": "jet"},
+                    {"label": "Hot", "value": "hot"},
+                    {"label": "Viridis", "value": "viridis"},
+                ],
+            ),
         ],
         "backend_handler": "output.heatmap_generator",
     },
@@ -651,7 +748,10 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "Output",
         "inputs": [_port("text-in", "text", "text", "input")],
         "outputs": [],
-        "defaults": {"instruction": "Save all validated plate readings to the database and notify via Redis", "sinks": "database,redis"},
+        "defaults": {
+            "instruction": "Save all validated plate readings to the database and notify via Redis",
+            "sinks": "database,redis",
+        },
         "configSchema": [
             _instruction_cfg("Describe where to send results and any alerting rules..."),
             _cfg("sinks", "Sinks (comma-separated)", "text", required=True),
@@ -668,11 +768,16 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "defaults": {"instruction": "Send alert when threshold exceeded", "channel": "webhook", "url": ""},
         "configSchema": [
             _instruction_cfg("Describe alert conditions and channels..."),
-            _cfg("channel", "Channel", "select", options=[
-                {"label": "Webhook", "value": "webhook"},
-                {"label": "Email", "value": "email"},
-                {"label": "Push", "value": "push"},
-            ]),
+            _cfg(
+                "channel",
+                "Channel",
+                "select",
+                options=[
+                    {"label": "Webhook", "value": "webhook"},
+                    {"label": "Email", "value": "email"},
+                    {"label": "Push", "value": "push"},
+                ],
+            ),
             _cfg("url", "Webhook URL", "text"),
         ],
         "backend_handler": "output.alert_trigger",
@@ -687,10 +792,15 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "defaults": {"instruction": "Log all detected plates to the console for monitoring", "level": "info"},
         "configSchema": [
             _instruction_cfg("Describe what to log and how..."),
-            _cfg("level", "Level", "select", options=[
-                {"label": "Info", "value": "info"},
-                {"label": "Warning", "value": "warning"},
-            ]),
+            _cfg(
+                "level",
+                "Level",
+                "select",
+                options=[
+                    {"label": "Info", "value": "info"},
+                    {"label": "Warning", "value": "warning"},
+                ],
+            ),
         ],
         "backend_handler": "output.console_logger",
     },
@@ -701,15 +811,25 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
         "category": "Output",
         "inputs": [_port("frame-in", "frame", "frame", "input")],
         "outputs": [],
-        "defaults": {"instruction": "Record annotated output to video", "outputPath": "/recordings/out.mp4", "codec": "mp4v", "fps": 15},
+        "defaults": {
+            "instruction": "Record annotated output to video",
+            "outputPath": "/recordings/out.mp4",
+            "codec": "mp4v",
+            "fps": 15,
+        },
         "configSchema": [
             _instruction_cfg("Describe recording preferences..."),
             _cfg("outputPath", "Output Path", "text", required=True),
-            _cfg("codec", "Codec", "select", options=[
-                {"label": "MP4V", "value": "mp4v"},
-                {"label": "XVID", "value": "XVID"},
-                {"label": "H264", "value": "avc1"},
-            ]),
+            _cfg(
+                "codec",
+                "Codec",
+                "select",
+                options=[
+                    {"label": "MP4V", "value": "mp4v"},
+                    {"label": "XVID", "value": "XVID"},
+                    {"label": "H264", "value": "avc1"},
+                ],
+            ),
             _cfg("fps", "FPS", "number", min=1, max=60),
         ],
         "backend_handler": "output.video_recorder",
@@ -719,7 +839,7 @@ _BUILTIN_BLOCKS: List[Dict[str, Any]] = [
 
 # ── Default categories & port types ──────────────────────────────
 
-DEFAULT_CATEGORIES: Dict[str, str] = {
+DEFAULT_CATEGORIES: dict[str, str] = {
     "Input": "#22d3ee",
     "Ingestion": "#06b6d4",
     "Detection": "#f43f5e",
@@ -730,7 +850,7 @@ DEFAULT_CATEGORIES: Dict[str, str] = {
     "Utility": "#94a3b8",
 }
 
-DEFAULT_PORT_TYPES: Dict[str, str] = {
+DEFAULT_PORT_TYPES: dict[str, str] = {
     "frame": "#60a5fa",
     "bounding_box_list": "#fb923c",
     "text": "#4ade80",
@@ -750,9 +870,9 @@ class BlockRegistry:
     """
 
     def __init__(self) -> None:
-        self._blocks: Dict[str, Dict[str, Any]] = {}
-        self._categories: Dict[str, str] = dict(DEFAULT_CATEGORIES)
-        self._port_types: Dict[str, str] = dict(DEFAULT_PORT_TYPES)
+        self._blocks: dict[str, dict[str, Any]] = {}
+        self._categories: dict[str, str] = dict(DEFAULT_CATEGORIES)
+        self._port_types: dict[str, str] = dict(DEFAULT_PORT_TYPES)
 
         # Register all builtins
         for block_def in _BUILTIN_BLOCKS:
@@ -760,25 +880,25 @@ class BlockRegistry:
 
     # ── Query ─────────────────────────────────────────────────────
 
-    def get_all_blocks(self) -> List[Dict[str, Any]]:
+    def get_all_blocks(self) -> list[dict[str, Any]]:
         """Return all registered block definitions."""
         return list(self._blocks.values())
 
-    def get_block(self, block_type: str) -> Optional[Dict[str, Any]]:
+    def get_block(self, block_type: str) -> dict[str, Any] | None:
         """Return a single block definition by type, or None."""
         return self._blocks.get(block_type)
 
-    def get_categories(self) -> Dict[str, str]:
+    def get_categories(self) -> dict[str, str]:
         """Return category → color mapping."""
         return dict(self._categories)
 
-    def get_port_types(self) -> Dict[str, str]:
+    def get_port_types(self) -> dict[str, str]:
         """Return port type → color mapping."""
         return dict(self._port_types)
 
     # ── Mutation ──────────────────────────────────────────────────
 
-    def register_block(self, block_def: Dict[str, Any]) -> None:
+    def register_block(self, block_def: dict[str, Any]) -> None:
         """Register a new block definition (or overwrite an existing one).
 
         Automatically adds unknown categories and port types with

@@ -6,8 +6,8 @@ from uni_vision.preprocessing.enhance import PhotometricEnhancer
 from uni_vision.preprocessing.roi_extractor import extract_plate_roi
 
 __all__ = [
-    "PreprocessingChain",
     "HoughStraightener",
     "PhotometricEnhancer",
+    "PreprocessingChain",
     "extract_plate_roi",
 ]

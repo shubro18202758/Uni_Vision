@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable
+from typing import TYPE_CHECKING
 
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from starlette.requests import Request
+    from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +21,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Logs method, path, status code and latency for every request."""
 
     async def dispatch(
-        self, request: Request, call_next: Callable  # type: ignore[type-arg]
+        self,
+        request: Request,
+        call_next: Callable,  # type: ignore[type-arg]
     ) -> Response:
         start = time.perf_counter()
         try:

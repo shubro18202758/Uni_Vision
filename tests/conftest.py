@@ -6,9 +6,8 @@ import sys
 from types import ModuleType
 from unittest.mock import MagicMock
 
-import pytest
 import numpy as np
-
+import pytest
 
 # ── Stub out heavy third-party modules before any uni_vision import ──
 # This lets the test suite run in a lightweight CI environment without
@@ -66,6 +65,7 @@ def _build_cv2_stub() -> ModuleType:
 
     def resize(src, dsize, interpolation=None):
         from PIL import Image
+
         img = Image.fromarray(src)
         img = img.resize(dsize, Image.BILINEAR)
         return np.array(img)
@@ -204,6 +204,7 @@ def sample_grayscale_image() -> np.ndarray:
 def validation_config():
     """A ValidationConfig with default Indian locale patterns."""
     from uni_vision.common.config import ValidationConfig
+
     return ValidationConfig()
 
 
@@ -211,6 +212,7 @@ def validation_config():
 def dedup_config():
     """A DeduplicationConfig with a short window for testing."""
     from uni_vision.common.config import DeduplicationConfig
+
     return DeduplicationConfig(window_seconds=2.0, purge_interval_seconds=1.0)
 
 
@@ -218,6 +220,7 @@ def dedup_config():
 def dispatch_config():
     """Default DispatchConfig for tests."""
     from uni_vision.common.config import DispatchConfig
+
     return DispatchConfig()
 
 
@@ -225,6 +228,7 @@ def dispatch_config():
 def sample_detection_record():
     """A typical valid DetectionRecord for testing."""
     from uni_vision.contracts.dtos import DetectionRecord
+
     return DetectionRecord(
         id="test-001",
         camera_id="cam_01",

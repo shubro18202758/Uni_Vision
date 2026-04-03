@@ -27,19 +27,11 @@ Spec references: §4 S8 dispatch, §9.2 Dispatcher protocol, §13 F09/F10.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from dataclasses import replace
-from typing import Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy.typing import NDArray
-
-from uni_vision.common.config import (
-    DatabaseConfig,
-    DeduplicationConfig,
-    DispatchConfig,
-    StorageConfig,
-)
 from uni_vision.common.exceptions import DatabaseWriteError, ObjectStoreError
 from uni_vision.contracts.dtos import DetectionRecord, ValidationStatus
 from uni_vision.monitoring.metrics import DISPATCH_ERRORS, DISPATCH_SUCCESS, STAGE_LATENCY
@@ -47,16 +39,29 @@ from uni_vision.postprocessing.deduplicator import SlidingWindowDeduplicator
 from uni_vision.storage.object_store import ObjectStoreArchiver
 from uni_vision.storage.postgres import PostgresClient
 
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+    from uni_vision.common.config import (
+        DatabaseConfig,
+        DeduplicationConfig,
+        DispatchConfig,
+        StorageConfig,
+    )
+
 logger = logging.getLogger(__name__)
 
 # Module-level frozenset — avoids rebuilding per dispatch item.
-_AUDIT_STATUSES: frozenset[str] = frozenset({
-    ValidationStatus.LOW_CONFIDENCE.value,
-    ValidationStatus.REGEX_FAIL.value,
-    ValidationStatus.LLM_ERROR.value,
-    ValidationStatus.PARSE_FAIL.value,
-    ValidationStatus.UNREADABLE.value,
-})
+_AUDIT_STATUSES: frozenset[str] = frozenset(
+    {
+        ValidationStatus.LOW_CONFIDENCE.value,
+        ValidationStatus.REGEX_FAIL.value,
+        ValidationStatus.LLM_ERROR.value,
+        ValidationStatus.PARSE_FAIL.value,
+        ValidationStatus.UNREADABLE.value,
+    }
+)
 
 
 class MultiDispatcher:
@@ -95,7 +100,7 @@ class MultiDispatcher:
         self._queue: asyncio.Queue[_DispatchItem] = asyncio.Queue(
             maxsize=dispatch_config.queue_maxsize,
         )
-        self._consumer_task: Optional[asyncio.Task[None]] = None
+        self._consumer_task: asyncio.Task[None] | None = None
 
     # ── Lifecycle ─────────────────────────────────────────────────
 
@@ -112,10 +117,8 @@ class MultiDispatcher:
         # Signal consumer to stop after draining
         if self._consumer_task is not None:
             # Push a sentinel to unblock the consumer
-            try:
+            with contextlib.suppress(asyncio.QueueFull):
                 self._queue.put_nowait(_SENTINEL)
-            except asyncio.QueueFull:
-                pass
 
             try:
                 await asyncio.wait_for(self._consumer_task, timeout=10.0)
@@ -133,7 +136,7 @@ class MultiDispatcher:
     async def dispatch(
         self,
         record: DetectionRecord,
-        plate_image: Optional[NDArray[np.uint8]] = None,
+        plate_image: NDArray[np.uint8] | None = None,
     ) -> None:
         """Enqueue a record for async persistence.
 
@@ -149,9 +152,7 @@ class MultiDispatcher:
             try:
                 dropped = self._queue.get_nowait()
                 self._queue.task_done()
-                logger.warning(
-                    "dispatch_queue_full dropped_id=%s", dropped.record.id
-                )
+                logger.warning("dispatch_queue_full dropped_id=%s", dropped.record.id)
                 DISPATCH_ERRORS.labels(target="queue_overflow").inc()
             except asyncio.QueueEmpty:
                 pass
@@ -182,9 +183,7 @@ class MultiDispatcher:
                     exc_info=True,
                 )
             finally:
-                STAGE_LATENCY.labels(stage="S8_dispatch_io").observe(
-                    time.perf_counter() - t0
-                )
+                STAGE_LATENCY.labels(stage="S8_dispatch_io").observe(time.perf_counter() - t0)
                 self._queue.task_done()
 
     async def _process_item(self, item: _DispatchItem) -> None:
@@ -249,18 +248,19 @@ class MultiDispatcher:
             except Exception as exc:
                 logger.warning("delta_write_failed id=%s err=%s", record.id, exc)
 
+
 # ── Internal data types ───────────────────────────────────────────
 
 
 class _DispatchItem:
     """Carrier for a record + optional plate image through the queue."""
 
-    __slots__ = ("record", "plate_image")
+    __slots__ = ("plate_image", "record")
 
     def __init__(
         self,
         record: DetectionRecord,
-        plate_image: Optional[NDArray[np.uint8]],
+        plate_image: NDArray[np.uint8] | None,
     ) -> None:
         self.record = record
         self.plate_image = plate_image

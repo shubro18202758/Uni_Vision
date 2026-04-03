@@ -8,7 +8,7 @@ health checks.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -23,8 +23,9 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
-    session_id: Optional[str] = Field(
-        default=None, max_length=64,
+    session_id: str | None = Field(
+        default=None,
+        max_length=64,
         description="Session ID for multi-turn conversations",
     )
 
@@ -32,28 +33,28 @@ class ChatRequest(BaseModel):
 class StepDetail(BaseModel):
     step: int
     thought: str = ""
-    tool: Optional[str] = None
-    observation: Optional[str] = None
-    answer: Optional[str] = None
+    tool: str | None = None
+    observation: str | None = None
+    answer: str | None = None
     elapsed_ms: float = 0.0
 
 
 class ChatResponse(BaseModel):
     answer: str
-    steps: List[StepDetail] = Field(default_factory=list)
+    steps: list[StepDetail] = Field(default_factory=list)
     total_steps: int = 0
     elapsed_ms: float = 0.0
     success: bool = True
-    error: Optional[str] = None
-    session_id: Optional[str] = None
-    intent: Optional[str] = None
-    agent_role: Optional[str] = None
+    error: str | None = None
+    session_id: str | None = None
+    intent: str | None = None
+    agent_role: str | None = None
 
 
 class AgentStatus(BaseModel):
     running: bool
     tool_count: int
-    available_tools: List[str]
+    available_tools: list[str]
 
 
 class FeedbackRequest(BaseModel):
@@ -183,7 +184,7 @@ async def submit_feedback(body: FeedbackRequest, request: Request) -> FeedbackRe
 
 
 @router.get("/sessions")
-async def list_sessions(request: Request) -> Dict[str, Any]:
+async def list_sessions(request: Request) -> dict[str, Any]:
     """List active conversation sessions."""
     coordinator = getattr(request.app.state, "agent_coordinator", None)
     if coordinator is None:
@@ -194,7 +195,7 @@ async def list_sessions(request: Request) -> Dict[str, Any]:
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str, request: Request) -> Dict[str, str]:
+async def delete_session(session_id: str, request: Request) -> dict[str, str]:
     """Delete a conversation session."""
     coordinator = getattr(request.app.state, "agent_coordinator", None)
     if coordinator is None:
@@ -206,7 +207,7 @@ async def delete_session(session_id: str, request: Request) -> Dict[str, str]:
 
 
 @router.get("/monitor")
-async def monitor_status(request: Request) -> Dict[str, Any]:
+async def monitor_status(request: Request) -> dict[str, Any]:
     """Get autonomous monitor status and recent alerts."""
     coordinator = getattr(request.app.state, "agent_coordinator", None)
     if coordinator is None or coordinator._monitor is None:
@@ -218,23 +219,25 @@ async def monitor_status(request: Request) -> Dict[str, Any]:
 
 
 @router.get("/agents")
-async def list_agents(request: Request) -> Dict[str, Any]:
+async def list_agents(request: Request) -> dict[str, Any]:
     """List available sub-agent roles and their tool allocations."""
     from uni_vision.agent.sub_agents import PROFILES
 
     agents = []
     for role, profile in PROFILES.items():
-        agents.append({
-            "role": role.value,
-            "display_name": profile.display_name,
-            "tool_count": len(profile.tool_whitelist),
-            "tools": sorted(profile.tool_whitelist),
-        })
+        agents.append(
+            {
+                "role": role.value,
+                "display_name": profile.display_name,
+                "tool_count": len(profile.tool_whitelist),
+                "tools": sorted(profile.tool_whitelist),
+            }
+        )
     return {"agents": agents, "total": len(agents)}
 
 
 @router.get("/audit")
-async def audit_trail(request: Request) -> Dict[str, Any]:
+async def audit_trail(request: Request) -> dict[str, Any]:
     """Get recent agent audit entries (buffered, not yet flushed)."""
     coordinator = getattr(request.app.state, "agent_coordinator", None)
     if coordinator is None:
@@ -251,15 +254,19 @@ async def audit_trail(request: Request) -> Dict[str, Any]:
 
 class DesignWorkflowRequest(BaseModel):
     description: str = Field(
-        ..., min_length=3, max_length=5000,
+        ...,
+        min_length=3,
+        max_length=5000,
         description="Natural-language description of the pipeline to build",
     )
     language: str = Field(
-        default="auto", max_length=10,
+        default="auto",
+        max_length=10,
         description="ISO language code or 'auto' for auto-detection",
     )
-    session_id: Optional[str] = Field(
-        default=None, max_length=64,
+    session_id: str | None = Field(
+        default=None,
+        max_length=64,
         description="Session ID for conversation history",
     )
 
@@ -273,18 +280,19 @@ class DesignPhaseDetail(BaseModel):
 
 class DesignWorkflowResponse(BaseModel):
     success: bool
-    graph: Optional[Dict[str, Any]] = None
-    phases: List[DesignPhaseDetail] = Field(default_factory=list)
-    detected_language: Optional[str] = None
-    english_input: Optional[str] = None
-    original_input: Optional[str] = None
-    error: Optional[str] = None
+    graph: dict[str, Any] | None = None
+    phases: list[DesignPhaseDetail] = Field(default_factory=list)
+    detected_language: str | None = None
+    english_input: str | None = None
+    original_input: str | None = None
+    error: str | None = None
     total_elapsed_ms: float = 0.0
 
 
 @router.post("/design-workflow", response_model=DesignWorkflowResponse)
 async def design_workflow(
-    body: DesignWorkflowRequest, request: Request,
+    body: DesignWorkflowRequest,
+    request: Request,
 ) -> DesignWorkflowResponse:
     """Autonomous NL → pipeline workflow designer.
 
@@ -302,9 +310,7 @@ async def design_workflow(
         session_id=body.session_id,
     )
 
-    phases = [
-        DesignPhaseDetail(**p) for p in result.get("phases", [])
-    ]
+    phases = [DesignPhaseDetail(**p) for p in result.get("phases", [])]
 
     return DesignWorkflowResponse(
         success=result.get("success", False),

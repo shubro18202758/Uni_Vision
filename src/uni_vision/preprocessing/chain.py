@@ -11,14 +11,17 @@ single composable call.
 from __future__ import annotations
 
 import time
-from typing import List
+from typing import TYPE_CHECKING
 
-import numpy as np
 import structlog
-from numpy.typing import NDArray
 
-from uni_vision.contracts.preprocessor import Preprocessor
 from uni_vision.monitoring.metrics import STAGE_LATENCY
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+    from uni_vision.contracts.preprocessor import Preprocessor
 
 log = structlog.get_logger()
 
@@ -33,7 +36,7 @@ class PreprocessingChain:
         are automatically skipped at runtime.
     """
 
-    def __init__(self, stages: List[Preprocessor]) -> None:
+    def __init__(self, stages: list[Preprocessor]) -> None:
         self._stages = stages
 
     def run(self, image: NDArray[np.uint8]) -> NDArray[np.uint8]:

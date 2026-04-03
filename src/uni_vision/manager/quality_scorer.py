@@ -17,11 +17,11 @@ from __future__ import annotations
 import logging
 import math
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from uni_vision.components.base import ComponentCapability
+if TYPE_CHECKING:
+    from uni_vision.components.base import ComponentCapability
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ class ComponentScore:
         """How confident we are in this composite score."""
         return self.reliability_tracker.confidence
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {
             "component_id": self.component_id,
             "capability": self.capability.value,
@@ -138,7 +138,7 @@ class QualityScorer:
     ) -> None:
         self._latency_budget = latency_budget_ms
         self._vram_budget = vram_budget_mb
-        self._scores: Dict[str, ComponentScore] = {}
+        self._scores: dict[str, ComponentScore] = {}
 
     def ensure_component(
         self,
@@ -160,8 +160,8 @@ class QualityScorer:
         *,
         latency_ms: float,
         success: bool,
-        confidence: Optional[float] = None,
-        vram_mb: Optional[int] = None,
+        confidence: float | None = None,
+        vram_mb: int | None = None,
     ) -> float:
         """Record an execution and return the updated composite score.
 
@@ -202,25 +202,21 @@ class QualityScorer:
 
         return cs.composite
 
-    def get_score(self, component_id: str) -> Optional[float]:
+    def get_score(self, component_id: str) -> float | None:
         """Get composite score for a component (or None if unknown)."""
         cs = self._scores.get(component_id)
         return cs.composite if cs else None
 
-    def get_full_score(self, component_id: str) -> Optional[Dict[str, Any]]:
+    def get_full_score(self, component_id: str) -> dict[str, Any] | None:
         cs = self._scores.get(component_id)
         return cs.summary() if cs else None
 
     def rank_by_capability(
         self,
         capability: ComponentCapability,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """Return components for a capability ranked by composite score."""
-        items = [
-            (cid, cs.composite)
-            for cid, cs in self._scores.items()
-            if cs.capability == capability
-        ]
+        items = [(cid, cs.composite) for cid, cs in self._scores.items() if cs.capability == capability]
         items.sort(key=lambda x: x[1], reverse=True)
         return items
 
@@ -229,7 +225,7 @@ class QualityScorer:
         capability: ComponentCapability,
         *,
         min_observations: int = 3,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Return the component ID with the highest score for a capability
         that has enough observations."""
         ranked = [
@@ -242,25 +238,19 @@ class QualityScorer:
         ranked.sort(key=lambda x: x[1], reverse=True)
         return ranked[0][0]
 
-    def prune_stale(self, max_age_s: float = 600.0) -> List[str]:
+    def prune_stale(self, max_age_s: float = 600.0) -> list[str]:
         """Remove scores for components not seen in a while."""
         now = time.monotonic()
-        stale = [
-            cid for cid, cs in self._scores.items()
-            if (now - cs.last_updated) > max_age_s
-        ]
+        stale = [cid for cid, cs in self._scores.items() if (now - cs.last_updated) > max_age_s]
         for cid in stale:
             del self._scores[cid]
         return stale
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Full scorer status for monitoring."""
         return {
             "tracked_components": len(self._scores),
             "latency_budget_ms": self._latency_budget,
             "vram_budget_mb": self._vram_budget,
-            "scores": {
-                cid: cs.summary()
-                for cid, cs in self._scores.items()
-            },
+            "scores": {cid: cs.summary() for cid, cs in self._scores.items()},
         }

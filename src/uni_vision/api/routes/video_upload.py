@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import os
 import re
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 router = APIRouter(prefix="/sources/upload", tags=["sources"])
 
 # Allowed video MIME types → extensions
-_ALLOWED_TYPES: Dict[str, str] = {
+_ALLOWED_TYPES: dict[str, str] = {
     "video/mp4": ".mp4",
     "video/avi": ".avi",
     "video/x-msvideo": ".avi",
@@ -56,7 +54,7 @@ async def upload_video(
     camera_id: str = Form(default=""),
     location_tag: str = Form(default=""),
     fps_target: int = Form(default=3, ge=1, le=60),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Upload a video file and register it as a camera source for the pipeline.
 
     The file is saved to ``data/uploads/videos/`` and a corresponding
@@ -133,7 +131,7 @@ async def upload_video(
         try:
             from uni_vision.storage.models import INSERT_CAMERA_SOURCE_SQL
 
-            async with pg._pool.acquire() as conn:  # noqa: SLF001
+            async with pg._pool.acquire() as conn:
                 await conn.execute(
                     INSERT_CAMERA_SOURCE_SQL,
                     camera_id,
@@ -162,7 +160,7 @@ async def upload_video(
 
 
 @router.get("")
-async def list_uploads() -> List[Dict[str, Any]]:
+async def list_uploads() -> list[dict[str, Any]]:
     """List all uploaded video files currently on disk."""
     if not _UPLOAD_DIR.exists():
         return []
@@ -170,17 +168,19 @@ async def list_uploads() -> List[Dict[str, Any]]:
     uploads = []
     for f in sorted(_UPLOAD_DIR.iterdir()):
         if f.is_file() and f.suffix.lower() in _ALLOWED_EXTENSIONS:
-            uploads.append({
-                "filename": f.name,
-                "size_bytes": f.stat().st_size,
-                "format": f.suffix.lstrip("."),
-                "source_url": str(f.resolve()),
-            })
+            uploads.append(
+                {
+                    "filename": f.name,
+                    "size_bytes": f.stat().st_size,
+                    "format": f.suffix.lstrip("."),
+                    "source_url": str(f.resolve()),
+                }
+            )
     return uploads
 
 
 @router.delete("/{filename}")
-async def delete_upload(filename: str) -> Dict[str, str]:
+async def delete_upload(filename: str) -> dict[str, str]:
     """Delete an uploaded video file from disk."""
     # Prevent path traversal
     safe = Path(filename).name

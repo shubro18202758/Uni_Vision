@@ -18,25 +18,24 @@ to dynamically adjust the active pipeline.  Key capabilities:
 
 from __future__ import annotations
 
-import asyncio
-import structlog
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Deque, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+import structlog
 
-from uni_vision.components.base import ComponentCapability, ComponentState
 from uni_vision.manager.schemas import (
     FrameContext,
-    PipelineBlueprint,
     PipelineExecutionResult,
     SceneType,
     StageResult,
     TaskPriority,
 )
+
+if TYPE_CHECKING:
+    from uni_vision.components.base import ComponentCapability
 
 log = structlog.get_logger(__name__)
 
@@ -63,8 +62,8 @@ class AdaptationEvent:
 
     signal: AdaptationSignal
     severity: TaskPriority
-    source_component: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    source_component: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.monotonic)
 
 
@@ -73,9 +72,9 @@ class AdaptationAction:
     """A concrete action the adaptation engine wants to perform."""
 
     action_type: str  # "swap_component" | "add_stage" | "remove_stage" | "downgrade" | "recompose"
-    target_component: Optional[str] = None
-    replacement_component: Optional[str] = None
-    capability: Optional[ComponentCapability] = None
+    target_component: str | None = None
+    replacement_component: str | None = None
+    capability: ComponentCapability | None = None
     priority: TaskPriority = TaskPriority.NORMAL
     reasoning: str = ""
 
@@ -88,9 +87,9 @@ class ComponentPerformanceWindow:
     """Sliding-window performance tracker for a single component."""
 
     component_id: str
-    latency_ms: Deque[float] = field(default_factory=lambda: deque(maxlen=50))
-    confidences: Deque[float] = field(default_factory=lambda: deque(maxlen=50))
-    errors: Deque[float] = field(default_factory=lambda: deque(maxlen=50))
+    latency_ms: deque[float] = field(default_factory=lambda: deque(maxlen=50))
+    confidences: deque[float] = field(default_factory=lambda: deque(maxlen=50))
+    errors: deque[float] = field(default_factory=lambda: deque(maxlen=50))
     last_success: float = 0.0
 
     @property
@@ -120,11 +119,11 @@ class ComponentPerformanceWindow:
 class SceneHistory:
     """Tracks scene transitions over time."""
 
-    scenes: Deque[SceneType] = field(default_factory=lambda: deque(maxlen=30))
-    timestamps: Deque[float] = field(default_factory=lambda: deque(maxlen=30))
+    scenes: deque[SceneType] = field(default_factory=lambda: deque(maxlen=30))
+    timestamps: deque[float] = field(default_factory=lambda: deque(maxlen=30))
 
     @property
-    def current_scene(self) -> Optional[SceneType]:
+    def current_scene(self) -> SceneType | None:
         return self.scenes[-1] if self.scenes else None
 
     @property
@@ -134,12 +133,13 @@ class SceneHistory:
             return True
         return len(set(list(self.scenes)[-5:])) == 1
 
-    def dominant_scene(self, window: int = 10) -> Optional[SceneType]:
+    def dominant_scene(self, window: int = 10) -> SceneType | None:
         """Most common scene in the last N entries."""
         recent = list(self.scenes)[-window:]
         if not recent:
             return None
         from collections import Counter
+
         counts = Counter(recent)
         return counts.most_common(1)[0][0]
 
@@ -187,16 +187,16 @@ class AdaptationEngine:
         self._cooldown_s = cooldown_s
 
         # Per-component performance tracking
-        self._perf: Dict[str, ComponentPerformanceWindow] = {}
+        self._perf: dict[str, ComponentPerformanceWindow] = {}
 
         # Per-camera scene history
-        self._scene_history: Dict[str, SceneHistory] = {}
+        self._scene_history: dict[str, SceneHistory] = {}
 
         # Event log (last N adaptation events)
-        self._events: Deque[AdaptationEvent] = deque(maxlen=200)
+        self._events: deque[AdaptationEvent] = deque(maxlen=200)
 
         # Cooldown tracking
-        self._last_adaptation: Dict[str, float] = {}
+        self._last_adaptation: dict[str, float] = {}
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -204,12 +204,12 @@ class AdaptationEngine:
         self,
         result: PipelineExecutionResult,
         context: FrameContext,
-    ) -> List[AdaptationAction]:
+    ) -> list[AdaptationAction]:
         """Ingest a pipeline execution result and return adaptation actions.
 
         This is the main hot-path method called after every frame.
         """
-        actions: List[AdaptationAction] = []
+        actions: list[AdaptationAction] = []
 
         # Update component performance windows
         for sr in result.stage_results:
@@ -245,7 +245,7 @@ class AdaptationEngine:
         self,
         vram_used_mb: int,
         vram_budget_mb: int,
-    ) -> List[AdaptationAction]:
+    ) -> list[AdaptationAction]:
         """Check for VRAM pressure and suggest proactive downgrades."""
         if vram_budget_mb <= 0:
             return []
@@ -268,17 +268,19 @@ class AdaptationEngine:
         # Find the highest-VRAM component with acceptable alternatives
         heaviest = self._find_heaviest_components()
         actions = []
-        for comp_id, avg_lat in heaviest[:2]:
-            actions.append(AdaptationAction(
-                action_type="downgrade",
-                target_component=comp_id,
-                priority=TaskPriority.HIGH,
-                reasoning=f"VRAM at {utilisation:.0%} — proactive downgrade of {comp_id}",
-            ))
+        for comp_id, _avg_lat in heaviest[:2]:
+            actions.append(
+                AdaptationAction(
+                    action_type="downgrade",
+                    target_component=comp_id,
+                    priority=TaskPriority.HIGH,
+                    reasoning=f"VRAM at {utilisation:.0%} — proactive downgrade of {comp_id}",
+                )
+            )
 
         return self._apply_cooldown(actions)
 
-    def get_component_health(self, component_id: str) -> Dict[str, Any]:
+    def get_component_health(self, component_id: str) -> dict[str, Any]:
         """Return health metrics for a specific component."""
         perf = self._perf.get(component_id)
         if perf is None:
@@ -292,7 +294,7 @@ class AdaptationEngine:
             "samples": len(perf.latency_ms),
         }
 
-    def get_scene_status(self, camera_id: str) -> Dict[str, Any]:
+    def get_scene_status(self, camera_id: str) -> dict[str, Any]:
         """Return scene tracking status for a camera."""
         sh = self._scene_history.get(camera_id)
         if sh is None:
@@ -325,17 +327,17 @@ class AdaptationEngine:
             if isinstance(sr.output, dict) and "confidence" in sr.output:
                 perf.confidences.append(float(sr.output["confidence"]))
 
-    def _check_scene_drift(self, camera_id: str) -> List[AdaptationAction]:
+    def _check_scene_drift(self, camera_id: str) -> list[AdaptationAction]:
         """Detect if the scene has drifted and a recomposition is needed."""
         sh = self._scene_history.get(camera_id)
         if sh is None or len(sh.scenes) < self._scene_stability_window:
             return []
 
-        recent = list(sh.scenes)[-self._scene_stability_window:]
+        list(sh.scenes)[-self._scene_stability_window :]
         dominant = sh.dominant_scene(self._scene_stability_window)
 
         # Check if there was a change
-        older = list(sh.scenes)[-(self._scene_stability_window * 2):-self._scene_stability_window]
+        older = list(sh.scenes)[-(self._scene_stability_window * 2) : -self._scene_stability_window]
         if not older:
             return []
 
@@ -355,13 +357,15 @@ class AdaptationEngine:
         )
         self._events.append(event)
 
-        return [AdaptationAction(
-            action_type="recompose",
-            priority=TaskPriority.HIGH,
-            reasoning=f"Scene drift: {old_dominant.value if old_dominant else '?'} → {dominant.value if dominant else '?'}",
-        )]
+        return [
+            AdaptationAction(
+                action_type="recompose",
+                priority=TaskPriority.HIGH,
+                reasoning=f"Scene drift: {old_dominant.value if old_dominant else '?'} → {dominant.value if dominant else '?'}",
+            )
+        ]
 
-    def _check_quality_degradation(self) -> List[AdaptationAction]:
+    def _check_quality_degradation(self) -> list[AdaptationAction]:
         """Check for components with degrading output quality."""
         actions = []
         for cid, perf in self._perf.items():
@@ -375,15 +379,17 @@ class AdaptationEngine:
                     details={"avg_confidence": perf.avg_confidence},
                 )
                 self._events.append(event)
-                actions.append(AdaptationAction(
-                    action_type="swap_component",
-                    target_component=cid,
-                    priority=TaskPriority.HIGH,
-                    reasoning=f"Confidence degraded to {perf.avg_confidence:.2f} (threshold {self._confidence_threshold})",
-                ))
+                actions.append(
+                    AdaptationAction(
+                        action_type="swap_component",
+                        target_component=cid,
+                        priority=TaskPriority.HIGH,
+                        reasoning=f"Confidence degraded to {perf.avg_confidence:.2f} (threshold {self._confidence_threshold})",
+                    )
+                )
         return actions
 
-    def _check_latency_spikes(self) -> List[AdaptationAction]:
+    def _check_latency_spikes(self) -> list[AdaptationAction]:
         """Check for components with sustained latency spikes."""
         actions = []
         for cid, perf in self._perf.items():
@@ -397,15 +403,17 @@ class AdaptationEngine:
                     details={"p95_latency_ms": perf.p95_latency},
                 )
                 self._events.append(event)
-                actions.append(AdaptationAction(
-                    action_type="downgrade",
-                    target_component=cid,
-                    priority=TaskPriority.NORMAL,
-                    reasoning=f"p95 latency {perf.p95_latency:.1f} ms > threshold {self._latency_threshold}",
-                ))
+                actions.append(
+                    AdaptationAction(
+                        action_type="downgrade",
+                        target_component=cid,
+                        priority=TaskPriority.NORMAL,
+                        reasoning=f"p95 latency {perf.p95_latency:.1f} ms > threshold {self._latency_threshold}",
+                    )
+                )
         return actions
 
-    def _check_error_rates(self) -> List[AdaptationAction]:
+    def _check_error_rates(self) -> list[AdaptationAction]:
         """Check for components with high error rates."""
         actions = []
         for cid, perf in self._perf.items():
@@ -419,25 +427,23 @@ class AdaptationEngine:
                     details={"error_rate": perf.error_rate},
                 )
                 self._events.append(event)
-                actions.append(AdaptationAction(
-                    action_type="swap_component",
-                    target_component=cid,
-                    priority=TaskPriority.CRITICAL,
-                    reasoning=f"Error rate {perf.error_rate:.0%} > threshold {self._error_rate_threshold:.0%}",
-                ))
+                actions.append(
+                    AdaptationAction(
+                        action_type="swap_component",
+                        target_component=cid,
+                        priority=TaskPriority.CRITICAL,
+                        reasoning=f"Error rate {perf.error_rate:.0%} > threshold {self._error_rate_threshold:.0%}",
+                    )
+                )
         return actions
 
-    def _find_heaviest_components(self) -> List[tuple]:
+    def _find_heaviest_components(self) -> list[tuple]:
         """Return components sorted by avg latency (proxy for resource use)."""
-        items = [
-            (cid, perf.avg_latency)
-            for cid, perf in self._perf.items()
-            if len(perf.latency_ms) > 0
-        ]
+        items = [(cid, perf.avg_latency) for cid, perf in self._perf.items() if len(perf.latency_ms) > 0]
         items.sort(key=lambda x: x[1], reverse=True)
         return items
 
-    def _apply_cooldown(self, actions: List[AdaptationAction]) -> List[AdaptationAction]:
+    def _apply_cooldown(self, actions: list[AdaptationAction]) -> list[AdaptationAction]:
         """Filter out actions that are within cooldown period."""
         now = time.monotonic()
         filtered = []
@@ -451,7 +457,7 @@ class AdaptationEngine:
 
     # ── Telemetry ─────────────────────────────────────────────────
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Return adaptation engine status for monitoring."""
         return {
             "tracked_components": len(self._perf),
@@ -466,8 +472,5 @@ class AdaptationEngine:
                 }
                 for e in list(self._events)[-5:]
             ],
-            "component_health": {
-                cid: self.get_component_health(cid)
-                for cid in self._perf
-            },
+            "component_health": {cid: self.get_component_health(cid) for cid in self._perf},
         }

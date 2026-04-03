@@ -16,14 +16,16 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy.typing import NDArray
-
-from uni_vision.common.config import DispatchConfig, StorageConfig
 from uni_vision.common.exceptions import ObjectStoreError
 from uni_vision.monitoring.metrics import DISPATCH_ERRORS
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+    from uni_vision.common.config import DispatchConfig, StorageConfig
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,7 @@ def _get_cv2():
     global _cv2_module
     if _cv2_module is None:
         import cv2
+
         _cv2_module = cv2
     return _cv2_module
 
@@ -120,7 +123,7 @@ class ObjectStoreArchiver:
         body = _encode_image(plate_image, ext)
 
         delay = self._retry_delay
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
 
         for attempt in range(1 + self._max_retries):
             try:
@@ -151,9 +154,7 @@ class ObjectStoreArchiver:
                     delay *= 2
 
         DISPATCH_ERRORS.labels(target="object_store").inc()
-        raise ObjectStoreError(
-            f"Image upload failed after {1 + self._max_retries} attempts: {last_exc}"
-        ) from last_exc
+        raise ObjectStoreError(f"Image upload failed after {1 + self._max_retries} attempts: {last_exc}") from last_exc
 
     async def close(self) -> None:
         """Release resources (session is lightweight — no-op)."""

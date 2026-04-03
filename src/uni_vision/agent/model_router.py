@@ -20,7 +20,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 import httpx
 
@@ -30,10 +29,10 @@ logger = logging.getLogger(__name__)
 class ModelPhase(str, Enum):
     """Current VRAM occupant phase."""
 
-    PRE_LAUNCH = "pre_launch"    # Navarasa active, primary dormant
+    PRE_LAUNCH = "pre_launch"  # Navarasa active, primary dormant
     POST_LAUNCH = "post_launch"  # Primary active, Navarasa dormant
     TRANSITIONING = "transitioning"
-    IDLE = "idle"                # Neither loaded
+    IDLE = "idle"  # Neither loaded
 
 
 @dataclass

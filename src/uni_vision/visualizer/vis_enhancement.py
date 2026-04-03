@@ -56,9 +56,7 @@ def render() -> None:
 
     import pandas as pd
 
-    df_buckets = pd.DataFrame(
-        list(buckets.items()), columns=["Quality Tier", "Count"]
-    )
+    df_buckets = pd.DataFrame(list(buckets.items()), columns=["Quality Tier", "Count"])
     st.bar_chart(df_buckets.set_index("Quality Tier"))
 
     # ── Per-plate details ─────────────────────────────────────────
@@ -68,9 +66,7 @@ def render() -> None:
         conf = item["ocr_confidence"]
         indicator = "🟢" if conf >= 0.85 else ("🟡" if conf >= 0.6 else "🔴")
 
-        with st.expander(
-            f"{indicator} {item['plate_number']} — conf={conf:.2f}", expanded=False
-        ):
+        with st.expander(f"{indicator} {item['plate_number']} — conf={conf:.2f}", expanded=False):
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**Raw Plate Crop**")

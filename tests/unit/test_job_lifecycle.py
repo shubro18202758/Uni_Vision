@@ -10,7 +10,6 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,9 +18,7 @@ from uni_vision.manager.job_lifecycle import (
     JobLifecycleConfig,
     JobLifecycleManager,
     JobPhase,
-    JobRecord,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────
 
@@ -71,7 +68,6 @@ def manager(mock_registry, mock_lifecycle, mock_broadcaster, config):
 
 
 class TestJobCreation:
-
     @pytest.mark.asyncio
     async def test_create_job(self, manager):
         job = await manager.create_job("j1", "cam-01")
@@ -113,7 +109,6 @@ class TestJobCreation:
 
 
 class TestComponentRegistration:
-
     @pytest.mark.asyncio
     async def test_register_component(self, manager):
         await manager.create_job("j1", "cam-01")
@@ -124,9 +119,7 @@ class TestComponentRegistration:
     @pytest.mark.asyncio
     async def test_register_component_with_pip(self, manager):
         await manager.create_job("j1", "cam-01")
-        await manager.register_dynamic_component(
-            "j1", "yolov8_detect", pip_package="ultralytics"
-        )
+        await manager.register_dynamic_component("j1", "yolov8_detect", pip_package="ultralytics")
         job = manager.get_job("j1")
         assert "ultralytics" in job.dynamic_pip_packages
 
@@ -150,7 +143,6 @@ class TestComponentRegistration:
 
 
 class TestPhaseTransitions:
-
     @pytest.mark.asyncio
     async def test_update_phase(self, manager):
         await manager.create_job("j1", "cam-01")
@@ -172,7 +164,6 @@ class TestPhaseTransitions:
 
 
 class TestAnomalyCompletion:
-
     @pytest.mark.asyncio
     async def test_no_anomaly_no_complete(self, manager):
         """Normal frames don't trigger completion."""
@@ -192,7 +183,7 @@ class TestAnomalyCompletion:
         assert job.phase == JobPhase.ANOMALY_DETECTED
 
         # Send stable frames (threshold is 3)
-        for i in range(config.post_anomaly_stable_threshold - 1):
+        for _i in range(config.post_anomaly_stable_threshold - 1):
             done = await manager.record_frame_result("j1", anomaly_detected=False)
             assert done is False
 
@@ -222,7 +213,7 @@ class TestAnomalyCompletion:
     async def test_max_frames_forces_completion(self, manager, config):
         """Max frames limit triggers completion even without anomalies."""
         await manager.create_job("j1", "cam-01")
-        for i in range(config.max_frames_per_job - 1):
+        for _i in range(config.max_frames_per_job - 1):
             done = await manager.record_frame_result("j1", anomaly_detected=False)
             assert done is False
         done = await manager.record_frame_result("j1", anomaly_detected=False)
@@ -232,12 +223,8 @@ class TestAnomalyCompletion:
     async def test_anomaly_data_stored(self, manager):
         """Anomaly data dicts are accumulated."""
         await manager.create_job("j1", "cam-01")
-        await manager.record_frame_result(
-            "j1", anomaly_detected=True, anomaly_data={"type": "fire"}
-        )
-        await manager.record_frame_result(
-            "j1", anomaly_detected=True, anomaly_data={"type": "smoke"}
-        )
+        await manager.record_frame_result("j1", anomaly_detected=True, anomaly_data={"type": "fire"})
+        await manager.record_frame_result("j1", anomaly_detected=True, anomaly_data={"type": "smoke"})
         job = manager.get_job("j1")
         assert len(job.anomaly.anomaly_results) == 2
         assert job.anomaly.anomaly_results[0]["type"] == "fire"
@@ -252,7 +239,6 @@ class TestAnomalyCompletion:
 
 
 class TestFlushJob:
-
     @pytest.mark.asyncio
     async def test_flush_unloads_components(self, manager, mock_lifecycle, mock_registry):
         await manager.create_job("j1", "cam-01")
@@ -312,7 +298,6 @@ class TestFlushJob:
 
 
 class TestStatus:
-
     @pytest.mark.asyncio
     async def test_status_snapshot(self, manager):
         await manager.create_job("j1", "cam-01")

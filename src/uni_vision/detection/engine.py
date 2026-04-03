@@ -30,19 +30,23 @@ Design notes
 
 from __future__ import annotations
 
+import contextlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
-
 import structlog
 
-from uni_vision.contracts.dtos import BoundingBox
 from uni_vision.common.exceptions import VRAMError
-from uni_vision.monitoring.metrics import STAGE_LATENCY, VRAM_USAGE
+from uni_vision.contracts.dtos import BoundingBox
+from uni_vision.monitoring.metrics import STAGE_LATENCY
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from numpy.typing import NDArray
 
 log = structlog.get_logger()
 
@@ -54,6 +58,7 @@ def _get_cv2():
     global _cv2
     if _cv2 is None:
         import cv2
+
         _cv2 = cv2
     return _cv2
 
@@ -66,11 +71,11 @@ class EngineConfig:
     """Immutable configuration for a single inference engine instance."""
 
     model_path: str
-    model_format: str                       # "tensorrt" | "onnx"
-    input_size: Tuple[int, int] = (640, 640)  # (H, W)
+    model_format: str  # "tensorrt" | "onnx"
+    input_size: tuple[int, int] = (640, 640)  # (H, W)
     confidence_threshold: float = 0.60
     nms_iou_threshold: float = 0.45
-    classes: dict[int, str] | None = None   # class_id → name mapping
+    classes: dict[int, str] | None = None  # class_id → name mapping
     device: str = "cuda"
     device_index: int = 0
 
@@ -80,8 +85,8 @@ class EngineConfig:
 
 def letterbox(
     image: NDArray[np.uint8],
-    target_size: Tuple[int, int],
-) -> Tuple[NDArray[np.float32], float, Tuple[int, int]]:
+    target_size: tuple[int, int],
+) -> tuple[NDArray[np.float32], float, tuple[int, int]]:
     """Resize *image* with letterbox padding for YOLO input.
 
     Returns
@@ -93,7 +98,7 @@ def letterbox(
     ih, iw = image.shape[:2]
     th, tw = target_size
     ratio = min(tw / iw, th / ih)
-    new_w, new_h = int(round(iw * ratio)), int(round(ih * ratio))
+    new_w, new_h = round(iw * ratio), round(ih * ratio)
     pad_w, pad_h = (tw - new_w) // 2, (th - new_h) // 2
 
     cv2 = _get_cv2()
@@ -169,9 +174,9 @@ class _TensorRTBackend:
 
     def load(self) -> None:
         """Deserialise TensorRT engine and allocate I/O device buffers."""
-        import tensorrt as trt
-        import pycuda.driver as cuda
         import pycuda.autoinit  # noqa: F401 — initialises CUDA context
+        import pycuda.driver as cuda
+        import tensorrt as trt
 
         trt_logger = trt.Logger(trt.Logger.WARNING)
         self._runtime = trt.Runtime(trt_logger)
@@ -202,9 +207,7 @@ class _TensorRTBackend:
             if mode == trt.TensorIOMode.INPUT:
                 self._d_inputs.append(device_mem)
             else:
-                host_buf = np.empty(
-                    [d if d > 0 else 1 for d in shape], dtype=dtype
-                )
+                host_buf = np.empty([d if d > 0 else 1 for d in shape], dtype=dtype)
                 self._d_outputs.append(device_mem)
                 self._h_outputs.append(host_buf)
 
@@ -227,7 +230,7 @@ class _TensorRTBackend:
 
         self._context.execute_async_v3(stream_handle=self._stream.handle)
 
-        for d_out, h_out in zip(self._d_outputs, self._h_outputs):
+        for d_out, h_out in zip(self._d_outputs, self._h_outputs, strict=False):
             cuda.memcpy_dtoh_async(h_out, d_out, self._stream)
 
         self._stream.synchronize()
@@ -239,10 +242,8 @@ class _TensorRTBackend:
             return
 
         for mem in self._d_inputs + self._d_outputs:
-            try:
+            with contextlib.suppress(Exception):
                 mem.free()
-            except Exception:
-                pass
 
         self._d_inputs.clear()
         self._d_outputs.clear()
@@ -394,7 +395,7 @@ class InferenceEngine:
         confidence_threshold: float | None = None,
         nms_iou_threshold: float | None = None,
         class_filter: Sequence[int] | None = None,
-    ) -> List[BoundingBox]:
+    ) -> list[BoundingBox]:
         """Run the full detect pipeline: preprocess → infer → postprocess.
 
         Parameters
@@ -428,9 +429,7 @@ class InferenceEngine:
         raw = self._backend.infer(blob)
         infer_ms = (time.perf_counter() - t0) * 1000
         if self._stage_label:
-            STAGE_LATENCY.labels(stage=f"{self._stage_label}_infer").observe(
-                infer_ms / 1000
-            )
+            STAGE_LATENCY.labels(stage=f"{self._stage_label}_infer").observe(infer_ms / 1000)
 
         # 3. Post-process: decode YOLO output → BoundingBox DTOs
         return self._postprocess(
@@ -450,12 +449,12 @@ class InferenceEngine:
         raw: NDArray[np.float32],
         *,
         ratio: float,
-        pad: Tuple[int, int],
-        orig_shape: Tuple[int, int],
+        pad: tuple[int, int],
+        orig_shape: tuple[int, int],
         conf_thr: float,
         iou_thr: float,
         class_filter: Sequence[int] | None,
-    ) -> List[BoundingBox]:
+    ) -> list[BoundingBox]:
         """Decode raw YOLO output into ``BoundingBox`` DTOs.
 
         Handles both YOLOv8 output formats:
@@ -472,7 +471,7 @@ class InferenceEngine:
         # Split xywh and class scores
         xywh = raw[:, :4]
         class_scores = raw[:, 4:]
-        num_classes = class_scores.shape[1]
+        class_scores.shape[1]
 
         # Best class per detection
         class_ids = class_scores.argmax(axis=1)
@@ -518,15 +517,15 @@ class InferenceEngine:
         # Sort by descending confidence
         order = confidences.argsort()[::-1]
 
-        results: List[BoundingBox] = []
+        results: list[BoundingBox] = []
         for idx in order:
             cid = int(class_ids[idx])
             results.append(
                 BoundingBox(
-                    x1=int(round(boxes[idx, 0])),
-                    y1=int(round(boxes[idx, 1])),
-                    x2=int(round(boxes[idx, 2])),
-                    y2=int(round(boxes[idx, 3])),
+                    x1=round(boxes[idx, 0]),
+                    y1=round(boxes[idx, 1]),
+                    x2=round(boxes[idx, 2]),
+                    y2=round(boxes[idx, 3]),
                     confidence=float(confidences[idx]),
                     class_id=cid,
                     class_name=self._classes.get(cid, str(cid)),

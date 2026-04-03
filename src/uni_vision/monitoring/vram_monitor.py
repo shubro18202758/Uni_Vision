@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
 
 import structlog
 
@@ -73,7 +72,7 @@ class VRAMMonitor:
         vram_ceiling_mb: int = 8192,
         safety_margin_mb: int = 256,
         poll_interval_ms: int = 500,
-        region_budgets: Optional[dict[str, int]] = None,
+        region_budgets: dict[str, int] | None = None,
     ) -> None:
         self._device_index = device_index
         self._vram_ceiling_mb = vram_ceiling_mb
@@ -87,8 +86,8 @@ class VRAMMonitor:
         }
 
         self._running = False
-        self._handle: Optional[object] = None  # pynvml device handle
-        self._latest: Optional[GPUTelemetry] = None
+        self._handle: object | None = None  # pynvml device handle
+        self._latest: GPUTelemetry | None = None
         self._offload_mode: OffloadMode = OffloadMode.GPU_PRIMARY
 
     # ── Lifecycle ─────────────────────────────────────────────────
@@ -123,7 +122,7 @@ class VRAMMonitor:
 
     # ── Query interface ───────────────────────────────────────────
 
-    def latest_telemetry(self) -> Optional[GPUTelemetry]:
+    def latest_telemetry(self) -> GPUTelemetry | None:
         """Return the most recently captured ``GPUTelemetry`` snapshot."""
         return self._latest
 
@@ -140,17 +139,11 @@ class VRAMMonitor:
 
         mem_info = pynvml.nvmlDeviceGetMemoryInfo(self._handle)
         util_rates = pynvml.nvmlDeviceGetUtilizationRates(self._handle)
-        temperature = pynvml.nvmlDeviceGetTemperature(
-            self._handle, pynvml.NVML_TEMPERATURE_GPU
-        )
+        temperature = pynvml.nvmlDeviceGetTemperature(self._handle, pynvml.NVML_TEMPERATURE_GPU)
 
         # PCIe throughput (KB/s) — NVML counter type constants
-        pcie_tx = pynvml.nvmlDeviceGetPcieThroughput(
-            self._handle, pynvml.NVML_PCIE_UTIL_TX_BYTES
-        )
-        pcie_rx = pynvml.nvmlDeviceGetPcieThroughput(
-            self._handle, pynvml.NVML_PCIE_UTIL_RX_BYTES
-        )
+        pcie_tx = pynvml.nvmlDeviceGetPcieThroughput(self._handle, pynvml.NVML_PCIE_UTIL_TX_BYTES)
+        pcie_rx = pynvml.nvmlDeviceGetPcieThroughput(self._handle, pynvml.NVML_PCIE_UTIL_RX_BYTES)
 
         vram_total_mb = mem_info.total / (1024 * 1024)
         vram_used_mb = mem_info.used / (1024 * 1024)

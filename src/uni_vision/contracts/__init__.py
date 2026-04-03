@@ -1,5 +1,7 @@
 """Public contract surface — import Protocols and DTOs from here."""
 
+from uni_vision.contracts.detector import Detector
+from uni_vision.contracts.dispatcher import Dispatcher
 from uni_vision.contracts.dtos import (
     BoundingBox,
     CameraSource,
@@ -16,8 +18,6 @@ from uni_vision.contracts.dtos import (
     VehicleClass,
     VRAMRegionSnapshot,
 )
-from uni_vision.contracts.detector import Detector
-from uni_vision.contracts.dispatcher import Dispatcher
 from uni_vision.contracts.frame_source import FrameSource
 from uni_vision.contracts.ocr_engine import OCREngine
 from uni_vision.contracts.post_processor import PostProcessor
@@ -30,20 +30,20 @@ __all__ = [
     "CircuitState",
     "DetectionContext",
     "DetectionRecord",
-    "FramePacket",
-    "GPUTelemetry",
-    "HealthStatus",
-    "OCRResult",
-    "OffloadMode",
-    "ProcessedResult",
-    "ValidationStatus",
-    "VehicleClass",
-    "VRAMRegionSnapshot",
     # Protocols
     "Detector",
     "Dispatcher",
+    "FramePacket",
     "FrameSource",
+    "GPUTelemetry",
+    "HealthStatus",
     "OCREngine",
+    "OCRResult",
+    "OffloadMode",
     "PostProcessor",
     "Preprocessor",
+    "ProcessedResult",
+    "VRAMRegionSnapshot",
+    "ValidationStatus",
+    "VehicleClass",
 ]

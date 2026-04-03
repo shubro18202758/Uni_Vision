@@ -37,27 +37,35 @@ def main() -> None:
 
     if page == "Pipeline Stats":
         from uni_vision.visualizer.vis_pipeline_stats import render
+
         render()
     elif page == "Frame Sampler":
         from uni_vision.visualizer.vis_frame_sampler import render
+
         render()
     elif page == "Vehicle Detection":
         from uni_vision.visualizer.vis_vehicle_detection import render
+
         render()
     elif page == "Plate Detection":
         from uni_vision.visualizer.vis_plate_detection import render
+
         render()
     elif page == "Crop & Straighten":
         from uni_vision.visualizer.vis_crop_straighten import render
+
         render()
     elif page == "Enhancement":
         from uni_vision.visualizer.vis_enhancement import render
+
         render()
     elif page == "OCR Output":
         from uni_vision.visualizer.vis_ocr_output import render
+
         render()
     elif page == "Post-Processing":
         from uni_vision.visualizer.vis_postprocess import render
+
         render()
 
 

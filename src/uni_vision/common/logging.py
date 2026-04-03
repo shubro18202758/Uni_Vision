@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Optional
 
 import structlog
 
@@ -24,7 +23,7 @@ def configure_logging(
     level: str = "INFO",
     fmt: str = "json",
     *,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
 ) -> None:
     """Initialise the structlog + stdlib logging pipeline.
 

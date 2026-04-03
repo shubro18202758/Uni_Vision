@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from uni_vision.agent.tools import tool
 
@@ -51,7 +50,7 @@ async def query_detections(
     limit: int = 20,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Query detection records from PostgreSQL."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
@@ -59,8 +58,8 @@ async def query_detections(
 
     limit = min(max(1, limit), 100)
 
-    clauses: List[str] = []
-    params: List[Any] = []
+    clauses: list[str] = []
+    params: list[Any] = []
     idx = 1
 
     if camera_id:
@@ -119,7 +118,7 @@ async def get_detection_summary(
     hours_back: float = 24.0,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Aggregate detection statistics."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
@@ -170,18 +169,11 @@ async def get_detection_summary(
         "min_confidence": round(float(row["min_confidence"]) if row else 0, 4),
         "max_confidence": round(float(row["max_confidence"]) if row else 0, 4),
         "by_camera": [
-            {"camera_id": r["camera_id"], "count": r["count"],
-             "avg_confidence": round(float(r["avg_conf"]), 4)}
+            {"camera_id": r["camera_id"], "count": r["count"], "avg_confidence": round(float(r["avg_conf"]), 4)}
             for r in camera_rows
         ],
-        "by_status": [
-            {"status": r["validation_status"], "count": r["count"]}
-            for r in status_rows
-        ],
-        "by_vehicle_class": [
-            {"class": r["vehicle_class"], "count": r["count"]}
-            for r in class_rows
-        ],
+        "by_status": [{"status": r["validation_status"], "count": r["count"]} for r in status_rows],
+        "by_vehicle_class": [{"class": r["vehicle_class"], "count": r["count"]} for r in class_rows],
     }
 
 
@@ -204,14 +196,14 @@ async def get_pipeline_stats(
     metric_filter: str = "",
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Read Prometheus metrics from the in-process registry."""
     try:
         from prometheus_client import REGISTRY
     except ImportError:
         return {"error": "prometheus_client not available"}
 
-    stats: Dict[str, Any] = {}
+    stats: dict[str, Any] = {}
 
     for metric in REGISTRY.collect():
         for sample in metric.samples:
@@ -227,11 +219,7 @@ async def get_pipeline_stats(
 
             labels = sample.labels
             value = sample.value
-            key = (
-                f"{name}|{'|'.join(f'{k}={v}' for k, v in sorted(labels.items()))}"
-                if labels
-                else name
-            )
+            key = f"{name}|{'|'.join(f'{k}={v}' for k, v in sorted(labels.items()))}" if labels else name
             stats[key] = value
 
     return stats
@@ -247,9 +235,9 @@ async def get_pipeline_stats(
 async def get_system_health(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Perform a system health check."""
-    health: Dict[str, Any] = {
+    health: dict[str, Any] = {
         "pipeline_running": False,
         "database_connected": False,
         "inference_queue_depth": 0,
@@ -261,9 +249,7 @@ async def get_system_health(
     pipeline = _get_pipeline(context)
     if pipeline is not None:
         health["pipeline_running"] = not getattr(pipeline, "_shutting_down", True)
-        health["inference_queue_depth"] = getattr(
-            pipeline, "_inference_queue", asyncio.Queue()
-        ).qsize()
+        health["inference_queue_depth"] = getattr(pipeline, "_inference_queue", asyncio.Queue()).qsize()
         health["throttled"] = getattr(pipeline, "_throttled", False)
 
         # Circuit breaker state from OCR strategy
@@ -283,6 +269,7 @@ async def get_system_health(
     # Read error metrics
     try:
         from prometheus_client import REGISTRY
+
         for metric in REGISTRY.collect():
             for sample in metric.samples:
                 if "error" in sample.name and sample.name.startswith("uv_"):
@@ -305,7 +292,7 @@ async def get_system_health(
 async def list_cameras(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List camera sources from the database."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
@@ -334,10 +321,7 @@ async def list_cameras(
 
 @tool(
     name="manage_camera",
-    description=(
-        "Enable or disable a camera source. "
-        "Use action='enable' or action='disable'."
-    ),
+    description=("Enable or disable a camera source. Use action='enable' or action='disable'."),
     param_descriptions={
         "camera_id": "The camera ID to manage",
         "action": "Action to perform: 'enable' or 'disable'",
@@ -348,7 +332,7 @@ async def manage_camera(
     action: str = "enable",
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Enable or disable a camera source."""
     if action not in ("enable", "disable"):
         return {"error": f"Invalid action: {action}. Use 'enable' or 'disable'."}
@@ -398,7 +382,7 @@ async def adjust_threshold(
     value: float,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Dynamically adjust a pipeline threshold at runtime."""
     config = _get_config(context)
     if config is None:
@@ -425,12 +409,7 @@ async def adjust_threshold(
 
     old_value = None
 
-    if section_name == "validation" and attr_name:
-        section = getattr(config, section_name, None)
-        if section is not None:
-            old_value = getattr(section, attr_name, None)
-            object.__setattr__(section, attr_name, value)
-    elif section_name == "ollama" and attr_name:
+    if (section_name == "validation" and attr_name) or (section_name == "ollama" and attr_name):
         section = getattr(config, section_name, None)
         if section is not None:
             old_value = getattr(section, attr_name, None)
@@ -461,7 +440,7 @@ async def adjust_threshold(
 async def get_current_config(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return current pipeline configuration."""
     config = _get_config(context)
     if config is None:
@@ -522,7 +501,7 @@ async def search_audit_log(
     limit: int = 20,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Search the OCR audit log."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
@@ -535,8 +514,8 @@ async def search_audit_log(
     limit = min(max(1, limit), 100)
     interval = f"{max(0.01, hours_back)} hours"
 
-    clauses: List[str] = [f"created_at >= NOW() - INTERVAL '{interval}'"]
-    params: List[Any] = []
+    clauses: list[str] = [f"created_at >= NOW() - INTERVAL '{interval}'"]
+    params: list[Any] = []
     idx = 1
 
     if camera_id:
@@ -587,7 +566,7 @@ async def analyze_detection_patterns(
     top_n: int = 10,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Analyse detection patterns."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
@@ -683,7 +662,7 @@ async def diagnose_camera(
     hours_back: float = 1.0,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run diagnostics for a specific camera."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
@@ -719,8 +698,7 @@ async def diagnose_camera(
 
         # Audit log entries for this camera
         audit_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM ocr_audit_log "
-            f"WHERE camera_id = $1 AND created_at >= NOW() - INTERVAL '{interval}'",
+            f"SELECT COUNT(*) FROM ocr_audit_log WHERE camera_id = $1 AND created_at >= NOW() - INTERVAL '{interval}'",
             camera_id,
         )
 
@@ -728,7 +706,7 @@ async def diagnose_camera(
     error_count = summary["error_count"] if summary else 0
     error_rate = (error_count / total * 100) if total > 0 else 0
 
-    diagnosis: Dict[str, Any] = {
+    diagnosis: dict[str, Any] = {
         "camera_id": camera_id,
         "time_window_hours": hours_back,
         "total_detections": total,
@@ -737,18 +715,13 @@ async def diagnose_camera(
         "error_rate_pct": round(error_rate, 2),
         "avg_confidence": round(float(summary["avg_conf"]) if summary else 0, 4),
         "audit_log_entries": audit_count or 0,
-        "failure_breakdown": [
-            {"status": r["validation_status"], "count": r["count"]}
-            for r in failures
-        ],
+        "failure_breakdown": [{"status": r["validation_status"], "count": r["count"]} for r in failures],
     }
 
     # Generate recommendations
-    recommendations: List[str] = []
+    recommendations: list[str] = []
     if error_rate > 50:
-        recommendations.append(
-            "High error rate (>50%). Check camera focus, lighting, and angle."
-        )
+        recommendations.append("High error rate (>50%). Check camera focus, lighting, and angle.")
     if float(summary["avg_conf"] if summary else 0) < 0.5:
         recommendations.append(
             "Low average confidence. Consider adjusting camera position or "
@@ -756,13 +729,11 @@ async def diagnose_camera(
         )
     if audit_count and audit_count > total * 0.3:
         recommendations.append(
-            "Many audit log entries. The OCR engine may be struggling with "
-            "this camera's image quality."
+            "Many audit log entries. The OCR engine may be struggling with this camera's image quality."
         )
     if total == 0:
         recommendations.append(
-            "No detections in the time window. Verify the camera is online "
-            "and the stream URL is correct."
+            "No detections in the time window. Verify the camera is online and the stream URL is correct."
         )
 
     diagnosis["recommendations"] = recommendations
@@ -780,7 +751,7 @@ async def diagnose_camera(
 async def reset_circuit_breaker(
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Reset the circuit breaker to CLOSED."""
     from uni_vision.contracts.dtos import CircuitState
 
@@ -827,7 +798,7 @@ async def run_analytics_query(
     query_description: str,
     *,
     context: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """The agent describes what it wants; we map to a safe query.
 
     This tool accepts a natural language description and translates it
@@ -875,14 +846,13 @@ async def run_analytics_query(
         pattern_key = "hourly_trend"
     elif "camera" in desc_lower and ("performance" in desc_lower or "comparison" in desc_lower):
         pattern_key = "camera_performance"
-    elif "engine" in desc_lower or "ocr" in desc_lower and "comparison" in desc_lower:
+    elif "engine" in desc_lower or ("ocr" in desc_lower and "comparison" in desc_lower):
         pattern_key = "engine_comparison"
     elif "error" in desc_lower or "failure" in desc_lower or "audit" in desc_lower:
         pattern_key = "recent_errors"
     else:
         return {
-            "error": "Could not match query pattern. Available patterns: "
-            + ", ".join(_QUERY_PATTERNS.keys()),
+            "error": "Could not match query pattern. Available patterns: " + ", ".join(_QUERY_PATTERNS.keys()),
             "hint": "Try describing your query using keywords like: "
             "hourly trend, camera performance, engine comparison, recent errors",
         }

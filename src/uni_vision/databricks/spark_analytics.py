@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +36,11 @@ def _ensure_imports() -> None:
     try:
         from pyspark.sql import SparkSession  # type: ignore[import-untyped]
         from pyspark.sql import functions as F  # type: ignore[import-untyped]
+
         _SparkSession = SparkSession
         _F = F
     except ImportError as exc:
-        raise ImportError(
-            "PySpark not installed. Run: pip install 'uni-vision[databricks]'"
-        ) from exc
+        raise ImportError("PySpark not installed. Run: pip install 'uni-vision[databricks]'") from exc
 
 
 class SparkAnalyticsEngine:
@@ -84,8 +83,7 @@ class SparkAnalyticsEngine:
     def initialise(self) -> None:
         """Create or get the SparkSession with Delta Lake support."""
         self._spark = (
-            _SparkSession.builder
-            .master(self._master)
+            _SparkSession.builder.master(self._master)
             .appName(self._app_name)
             .config("spark.driver.memory", self._driver_memory)
             .config("spark.executor.memory", self._executor_memory)
@@ -128,7 +126,7 @@ class SparkAnalyticsEngine:
 
     # ── Analytics queries ─────────────────────────────────────────
 
-    def hourly_rollup(self, hours_back: int = 24) -> List[Dict[str, Any]]:
+    def hourly_rollup(self, hours_back: int = 24) -> list[dict[str, Any]]:
         """Aggregate detection metrics by hour.
 
         Returns
@@ -154,7 +152,7 @@ class SparkAnalyticsEngine:
         )
         return [row.asDict() for row in result.collect()]
 
-    def plate_frequency(self, top_n: int = 30) -> List[Dict[str, Any]]:
+    def plate_frequency(self, top_n: int = 30) -> list[dict[str, Any]]:
         """Top-N most frequently detected plates.
 
         Returns
@@ -191,9 +189,7 @@ class SparkAnalyticsEngine:
             for r in rows
         ]
 
-    def cross_camera_correlation(
-        self, min_cameras: int = 2
-    ) -> List[Dict[str, Any]]:
+    def cross_camera_correlation(self, min_cameras: int = 2) -> list[dict[str, Any]]:
         """Find plates detected across multiple cameras.
 
         Useful for tracking vehicle movement patterns and
@@ -226,7 +222,7 @@ class SparkAnalyticsEngine:
             for r in rows
         ]
 
-    def confidence_trend(self, bucket_hours: int = 1) -> List[Dict[str, Any]]:
+    def confidence_trend(self, bucket_hours: int = 1) -> list[dict[str, Any]]:
         """Track OCR confidence trends over time.
 
         Useful for detecting model drift or environmental changes
@@ -259,7 +255,7 @@ class SparkAnalyticsEngine:
             for r in result.collect()
         ]
 
-    def camera_performance(self) -> List[Dict[str, Any]]:
+    def camera_performance(self) -> list[dict[str, Any]]:
         """Compare per-camera detection volume and quality.
 
         Identifies cameras with low confidence or high error rates,
@@ -274,9 +270,7 @@ class SparkAnalyticsEngine:
                 F.count("*").alias("total_detections"),
                 F.avg("ocr_confidence").alias("avg_confidence"),
                 F.countDistinct("plate_number").alias("unique_plates"),
-                F.sum(
-                    F.when(F.col("validation_status") != "valid", 1).otherwise(0)
-                ).alias("error_count"),
+                F.sum(F.when(F.col("validation_status") != "valid", 1).otherwise(0)).alias("error_count"),
                 F.min("detected_at_utc").alias("first_detection"),
                 F.max("detected_at_utc").alias("last_detection"),
             )
@@ -300,7 +294,7 @@ class SparkAnalyticsEngine:
             for r in result.collect()
         ]
 
-    def temporal_pattern(self) -> Dict[str, Any]:
+    def temporal_pattern(self) -> dict[str, Any]:
         """Analyse traffic patterns by hour of day and day of week.
 
         Returns peak/quiet hours and day-of-week distributions
@@ -341,7 +335,7 @@ class SparkAnalyticsEngine:
 
     # ── Overview ──────────────────────────────────────────────────
 
-    def anomaly_detection(self, z_threshold: float = 2.0) -> List[Dict[str, Any]]:
+    def anomaly_detection(self, z_threshold: float = 2.0) -> list[dict[str, Any]]:
         """Detect plates with anomalous confidence patterns via Z-score.
 
         Flags plates whose average confidence deviates significantly from
@@ -386,7 +380,7 @@ class SparkAnalyticsEngine:
             for r in per_plate.collect()
         ]
 
-    def detection_rate(self, bucket_minutes: int = 5) -> List[Dict[str, Any]]:
+    def detection_rate(self, bucket_minutes: int = 5) -> list[dict[str, Any]]:
         """Calculate detection rate (plates per minute) in time buckets.
 
         Useful for capacity planning and identifying traffic surges.
@@ -422,7 +416,7 @@ class SparkAnalyticsEngine:
             for r in result.collect()
         ]
 
-    def get_analytics_overview(self) -> Dict[str, Any]:
+    def get_analytics_overview(self) -> dict[str, Any]:
         """Return a high-level analytics summary."""
         F = _F
         try:

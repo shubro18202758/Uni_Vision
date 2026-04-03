@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
 from uni_vision.components.base import ComponentCapability, ComponentState
 from uni_vision.components.wrappers import (
@@ -25,8 +25,6 @@ from uni_vision.components.wrappers import (
     PipPackageComponent,
     TorchHubComponent,
 )
-from uni_vision.manager.component_registry import ComponentRegistry
-from uni_vision.manager.hub_client import HubClient
 from uni_vision.manager.schemas import (
     ComponentCandidate,
     DiscoveryQuery,
@@ -35,8 +33,10 @@ from uni_vision.manager.schemas import (
 )
 
 if TYPE_CHECKING:
-    from uni_vision.manager.lifecycle import ComponentLifecycle
+    from uni_vision.manager.component_registry import ComponentRegistry
     from uni_vision.manager.dependency_resolver import DependencyConflictResolver
+    from uni_vision.manager.hub_client import HubClient
+    from uni_vision.manager.lifecycle import ComponentLifecycle
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 # Well-known pip packages for common CV capabilities (SEED KNOWLEDGE —
 # these are performance shortcuts, NOT the upper bound.  The LLM can
 # discover any package from the open internet via open_search.)
-_KNOWN_PIP_PACKAGES: Dict[ComponentCapability, Dict] = {
+_KNOWN_PIP_PACKAGES: dict[ComponentCapability, dict] = {
     ComponentCapability.PLATE_OCR: {
         "package": "paddleocr",
         "name": "PaddleOCR",
@@ -130,9 +130,9 @@ class ComponentResolver:
         registry: ComponentRegistry,
         hub_client: HubClient,
         *,
-        llm_client: Optional[Any] = None,
-        lifecycle: Optional["ComponentLifecycle"] = None,
-        dependency_resolver: Optional["DependencyConflictResolver"] = None,
+        llm_client: Any | None = None,
+        lifecycle: ComponentLifecycle | None = None,
+        dependency_resolver: DependencyConflictResolver | None = None,
         vram_limit_mb: int = 8192,
         prefer_trusted: bool = True,
     ) -> None:
@@ -144,22 +144,22 @@ class ComponentResolver:
         self._vram_limit = vram_limit_mb
         self._prefer_trusted = prefer_trusted
         # Cache failed resolutions to avoid repeated network calls
-        self._failed_caps: dict[ComponentCapability, "ResolutionResult"] = {}
+        self._failed_caps: dict[ComponentCapability, ResolutionResult] = {}
 
     # ── Public API ────────────────────────────────────────────────
 
     async def resolve_capabilities(
         self,
-        required: Set[ComponentCapability],
+        required: set[ComponentCapability],
         *,
-        available_vram_mb: Optional[int] = None,
-    ) -> List[ResolutionResult]:
+        available_vram_mb: int | None = None,
+    ) -> list[ResolutionResult]:
         """Resolve each required capability to a component.
 
         Returns a ResolutionResult for every capability in *required*.
         """
         vram_budget = available_vram_mb or self._vram_limit
-        results: List[ResolutionResult] = []
+        results: list[ResolutionResult] = []
 
         for cap in required:
             # Return cached result immediately (avoids repeated network calls
@@ -187,7 +187,7 @@ class ComponentResolver:
     async def provision_candidate(
         self,
         candidate: ComponentCandidate,
-    ) -> Optional[object]:
+    ) -> object | None:
         """Download, install, wrap, register, and *load* a candidate.
 
         Returns the CVComponent instance in READY state, or None on failure.
@@ -223,8 +223,7 @@ class ComponentResolver:
         if candidate.source == "huggingface" and candidate.source_id:
             dl_ok = await self._hub.download_model(candidate.source_id)
             if not dl_ok:
-                log.warning("model_download_failed source_id=%s (will try loading anyway)",
-                            candidate.source_id)
+                log.warning("model_download_failed source_id=%s (will try loading anyway)", candidate.source_id)
 
         # Create appropriate wrapper
         component = self._create_wrapper(candidate)
@@ -241,13 +240,12 @@ class ComponentResolver:
                 await self._lifecycle.load_component(candidate.component_id)
                 log.info("component_loaded component_id=%s", candidate.component_id)
             except Exception as exc:
-                log.error("component_load_failed component_id=%s error=%s",
-                          candidate.component_id, exc)
+                log.error("component_load_failed component_id=%s error=%s", candidate.component_id, exc)
                 return None
 
         return component
 
-    def _create_wrapper(self, candidate: ComponentCandidate) -> Optional[object]:
+    def _create_wrapper(self, candidate: ComponentCandidate) -> object | None:
         """Instantiate the correct CVComponent wrapper for a candidate."""
         metadata = candidate.metadata or {}
         load_pattern = metadata.get("load_pattern", "from_pretrained")
@@ -294,11 +292,11 @@ class ComponentResolver:
 
     async def resolve_dynamic_capabilities(
         self,
-        dynamic_caps: Set[str],
-        discovery_queries: Optional[List[DiscoveryQuery]] = None,
+        dynamic_caps: set[str],
+        discovery_queries: list[DiscoveryQuery] | None = None,
         *,
-        available_vram_mb: Optional[int] = None,
-    ) -> List[ResolutionResult]:
+        available_vram_mb: int | None = None,
+    ) -> list[ResolutionResult]:
         """Resolve free-form capability strings discovered by the LLM.
 
         Unlike ``resolve_capabilities`` (which works with the fixed
@@ -319,11 +317,11 @@ class ComponentResolver:
             Current VRAM budget.
         """
         vram_budget = available_vram_mb or self._vram_limit
-        results: List[ResolutionResult] = []
+        results: list[ResolutionResult] = []
 
         # Build a lookup from capability label → its discovery queries
-        query_map: Dict[str, List[DiscoveryQuery]] = {}
-        for dq in (discovery_queries or []):
+        query_map: dict[str, list[DiscoveryQuery]] = {}
+        for dq in discovery_queries or []:
             hint = dq.capability_hint or ""
             query_map.setdefault(hint, []).append(dq)
 
@@ -372,27 +370,30 @@ class ComponentResolver:
             )
 
         # 2. Check well-known pip packages (SEED KNOWLEDGE — fast path)
-        candidates: List[ComponentCandidate] = []
+        candidates: list[ComponentCandidate] = []
         known = _KNOWN_PIP_PACKAGES.get(capability)
         if known:
-            candidates.append(ComponentCandidate(
-                component_id=f"pip.{known['source_id']}",
-                name=known["name"],
-                source="pypi",
-                source_id=known["source_id"],
-                capabilities={capability},
-                vram_mb=known["vram_mb"],
-                score=0.8,
-                python_requirements=known["requirements"],
-                model_class=known["model_class"],
-                trusted=True,
-                metadata={"load_pattern": known.get("load_pattern", "from_pretrained")},
-            ))
+            candidates.append(
+                ComponentCandidate(
+                    component_id=f"pip.{known['source_id']}",
+                    name=known["name"],
+                    source="pypi",
+                    source_id=known["source_id"],
+                    capabilities={capability},
+                    vram_mb=known["vram_mb"],
+                    score=0.8,
+                    python_requirements=known["requirements"],
+                    model_class=known["model_class"],
+                    trusted=True,
+                    metadata={"load_pattern": known.get("load_pattern", "from_pretrained")},
+                )
+            )
 
         # 3. LLM-guided open internet search (goes beyond seed knowledge)
         if self._llm is not None:
             llm_candidates = await self._llm_open_search(
-                capability.value, vram_budget,
+                capability.value,
+                vram_budget,
             )
             for c in llm_candidates:
                 if not any(x.source_id == c.source_id for x in candidates):
@@ -434,7 +435,9 @@ class ComponentResolver:
         # 5. LLM evaluates and picks the best (or simple ranking fallback)
         if self._llm is not None and len(candidates) > 1:
             best = await self._llm_evaluate_candidates(
-                candidates, capability.value, vram_budget,
+                candidates,
+                capability.value,
+                vram_budget,
             )
             if best is not None:
                 ranked = [best] + [c for c in candidates if c.source_id != best.source_id]
@@ -458,7 +461,7 @@ class ComponentResolver:
     async def _resolve_dynamic_single(
         self,
         cap_label: str,
-        queries: List[DiscoveryQuery],
+        queries: list[DiscoveryQuery],
         vram_budget: int,
     ) -> ResolutionResult:
         """Resolve a single free-form dynamic capability label.
@@ -466,7 +469,7 @@ class ComponentResolver:
         Uses LLM-generated DiscoveryQuery objects to drive open internet
         search, then has the LLM evaluate candidates.
         """
-        candidates: List[ComponentCandidate] = []
+        candidates: list[ComponentCandidate] = []
 
         # Execute pre-generated discovery queries from context analysis
         for dq in queries:
@@ -481,13 +484,16 @@ class ComponentResolver:
             except Exception as exc:
                 log.warning(
                     "discovery_query_failed query=%r source=%s error=%s",
-                    dq.query, dq.source, exc,
+                    dq.query,
+                    dq.source,
+                    exc,
                 )
 
         # If no pre-generated queries, use the LLM to generate them
         if not queries and self._llm is not None:
             llm_candidates = await self._llm_open_search(
-                cap_label, vram_budget,
+                cap_label,
+                vram_budget,
             )
             candidates.extend(llm_candidates)
 
@@ -507,8 +513,8 @@ class ComponentResolver:
                     pass
 
         # Deduplicate by source_id
-        seen: Set[str] = set()
-        unique: List[ComponentCandidate] = []
+        seen: set[str] = set()
+        unique: list[ComponentCandidate] = []
         for c in candidates:
             if c.source_id not in seen:
                 seen.add(c.source_id)
@@ -525,7 +531,9 @@ class ComponentResolver:
         # LLM evaluates and picks the best
         if self._llm is not None and len(candidates) > 1:
             best = await self._llm_evaluate_candidates(
-                candidates, cap_label, vram_budget,
+                candidates,
+                cap_label,
+                vram_budget,
             )
             if best is not None:
                 ranked = [best] + [c for c in candidates if c.source_id != best.source_id]
@@ -550,7 +558,7 @@ class ComponentResolver:
         self,
         capability_label: str,
         vram_budget: int,
-    ) -> List[ComponentCandidate]:
+    ) -> list[ComponentCandidate]:
         """Ask the LLM what to search for, then execute the searches.
 
         The LLM generates structured search queries based on the capability
@@ -580,8 +588,8 @@ class ComponentResolver:
                 {"query": capability_label.replace("_", " "), "source": "pypi"},
             ]
 
-        candidates: List[ComponentCandidate] = []
-        seen_ids: Set[str] = set()
+        candidates: list[ComponentCandidate] = []
+        seen_ids: set[str] = set()
 
         for sq in search_queries:
             try:
@@ -596,17 +604,16 @@ class ComponentResolver:
                         seen_ids.add(c.source_id)
                         candidates.append(c)
             except Exception as exc:
-                log.debug("llm_search_execution_failed query=%r error=%s",
-                          sq, exc)
+                log.debug("llm_search_execution_failed query=%r error=%s", sq, exc)
 
         return candidates
 
     async def _llm_evaluate_candidates(
         self,
-        candidates: List[ComponentCandidate],
+        candidates: list[ComponentCandidate],
         capability_label: str,
         vram_budget: int,
-    ) -> Optional[ComponentCandidate]:
+    ) -> ComponentCandidate | None:
         """Ask the LLM to evaluate candidates and pick the best one.
 
         Uses the CANDIDATE_EVALUATION_PROMPT to have Gemma 4 E2B reason about
@@ -617,19 +624,22 @@ class ComponentResolver:
 
         from uni_vision.manager.prompts import CANDIDATE_EVALUATION_PROMPT
 
-        candidates_json = json.dumps([
-            {
-                "id": c.component_id,
-                "name": c.name,
-                "source": c.source,
-                "source_id": c.source_id,
-                "vram_mb": c.vram_mb,
-                "score": c.score,
-                "trusted": c.trusted,
-                "model_class": c.model_class,
-            }
-            for c in candidates
-        ], indent=2)
+        candidates_json = json.dumps(
+            [
+                {
+                    "id": c.component_id,
+                    "name": c.name,
+                    "source": c.source,
+                    "source_id": c.source_id,
+                    "vram_mb": c.vram_mb,
+                    "score": c.score,
+                    "trusted": c.trusted,
+                    "model_class": c.model_class,
+                }
+                for c in candidates
+            ],
+            indent=2,
+        )
 
         prompt = CANDIDATE_EVALUATION_PROMPT.format(
             capability_description=capability_label,
@@ -647,7 +657,8 @@ class ComponentResolver:
                 if c.component_id == chosen_id:
                     log.info(
                         "llm_selected_candidate capability=%s chosen=%s reason=%s",
-                        capability_label, chosen_id,
+                        capability_label,
+                        chosen_id,
                         parsed.get("reasoning", ""),
                     )
                     return c
@@ -660,9 +671,9 @@ class ComponentResolver:
 
     def _rank_candidates(
         self,
-        candidates: List[ComponentCandidate],
+        candidates: list[ComponentCandidate],
         vram_budget: int,
-    ) -> List[ComponentCandidate]:
+    ) -> list[ComponentCandidate]:
         """Score and rank candidates.  Higher = better."""
 
         def score(c: ComponentCandidate) -> float:
@@ -677,7 +688,7 @@ class ComponentResolver:
             if c.vram_mb > vram_budget:
                 s -= 0.5
             # Prefer smaller models (faster)
-            s -= (c.vram_mb / 10_000)
+            s -= c.vram_mb / 10_000
             return s
 
         return sorted(candidates, key=score, reverse=True)

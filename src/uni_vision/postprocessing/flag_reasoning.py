@@ -14,7 +14,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +54,10 @@ class EvidenceItem:
     evidence_type: str
     label: str
     description: str
-    metric_value: Optional[float] = None
-    threshold: Optional[float] = None
+    metric_value: float | None = None
+    threshold: float | None = None
     severity: str = "medium"
-    raw_data: Dict[str, Any] = field(default_factory=dict)
+    raw_data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -72,13 +72,13 @@ class FlagReasoning:
     flag_type: str  # ValidationStatus value
     severity: str
     headline: str  # one-line summary
-    reasoning_chain: List[str]  # ordered reasoning steps
-    evidence: List[EvidenceItem]
+    reasoning_chain: list[str]  # ordered reasoning steps
+    evidence: list[EvidenceItem]
     alert_count: int = 0  # how many alerts were raised from this evidence
     confidence_score: float = 0.0  # 0-1 how confident we are in this reasoning
     generated_at_ms: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "detection_id": self.detection_id,
             "flag_type": self.flag_type,
@@ -115,7 +115,7 @@ class FlagReasoningEngine:
     """
 
     # Severity mapping based on flag type
-    _SEVERITY_MAP: Dict[str, str] = {
+    _SEVERITY_MAP: dict[str, str] = {
         "low_confidence": FlagSeverity.MEDIUM.value,
         "regex_fail": FlagSeverity.HIGH.value,
         "llm_error": FlagSeverity.MEDIUM.value,
@@ -134,26 +134,26 @@ class FlagReasoningEngine:
         ocr_engine: str,
         vehicle_class: str,
         camera_id: str,
-        char_corrections: Optional[Dict[str, str]] = None,
-        adjudication_result: Optional[Dict[str, Any]] = None,
-        pipeline_telemetry: Optional[Dict[str, Any]] = None,
+        char_corrections: dict[str, str] | None = None,
+        adjudication_result: dict[str, Any] | None = None,
+        pipeline_telemetry: dict[str, Any] | None = None,
     ) -> FlagReasoning:
         """Build a complete reasoning package for a flagged detection."""
         t0 = time.perf_counter()
 
         severity = self._SEVERITY_MAP.get(validation_status, FlagSeverity.MEDIUM.value)
-        evidence: List[EvidenceItem] = []
-        reasoning_chain: List[str] = []
+        evidence: list[EvidenceItem] = []
+        reasoning_chain: list[str] = []
 
         # ── Step 1: Identify the primary flag cause ───────────────
         headline = self._build_headline(validation_status, plate_number, camera_id)
-        reasoning_chain.append(
-            f"Detection from camera '{camera_id}' flagged with status '{validation_status}'."
-        )
+        reasoning_chain.append(f"Detection from camera '{camera_id}' flagged with status '{validation_status}'.")
 
         # ── Step 2: OCR confidence analysis ───────────────────────
         conf_evidence, conf_reasoning = self._analyze_confidence(
-            ocr_confidence, ocr_engine, validation_status,
+            ocr_confidence,
+            ocr_engine,
+            validation_status,
         )
         evidence.extend(conf_evidence)
         reasoning_chain.extend(conf_reasoning)
@@ -161,7 +161,9 @@ class FlagReasoningEngine:
         # ── Step 3: Character correction analysis ─────────────────
         if char_corrections:
             corr_evidence, corr_reasoning = self._analyze_corrections(
-                char_corrections, raw_ocr_text, plate_number,
+                char_corrections,
+                raw_ocr_text,
+                plate_number,
             )
             evidence.extend(corr_evidence)
             reasoning_chain.extend(corr_reasoning)
@@ -169,7 +171,8 @@ class FlagReasoningEngine:
         # ── Step 4: Regex / format analysis ───────────────────────
         if validation_status in ("regex_fail", "parse_fail"):
             fmt_evidence, fmt_reasoning = self._analyze_format_failure(
-                plate_number, raw_ocr_text,
+                plate_number,
+                raw_ocr_text,
             )
             evidence.extend(fmt_evidence)
             reasoning_chain.extend(fmt_reasoning)
@@ -182,13 +185,15 @@ class FlagReasoningEngine:
             evidence.extend(adj_evidence)
             reasoning_chain.extend(adj_reasoning)
         elif validation_status == "llm_error":
-            evidence.append(EvidenceItem(
-                evidence_type=EvidenceType.LLM_ADJUDICATION.value,
-                label="LLM Adjudication Failed",
-                description="The consensus adjudicator (LLM) failed to produce a result. "
-                "This may indicate model overload, timeout, or VRAM pressure.",
-                severity=FlagSeverity.MEDIUM.value,
-            ))
+            evidence.append(
+                EvidenceItem(
+                    evidence_type=EvidenceType.LLM_ADJUDICATION.value,
+                    label="LLM Adjudication Failed",
+                    description="The consensus adjudicator (LLM) failed to produce a result. "
+                    "This may indicate model overload, timeout, or VRAM pressure.",
+                    severity=FlagSeverity.MEDIUM.value,
+                )
+            )
             reasoning_chain.append(
                 "LLM adjudication was attempted but failed — the system fell back to deterministic validation."
             )
@@ -201,21 +206,19 @@ class FlagReasoningEngine:
 
         # ── Step 7: Unreadable plate analysis ─────────────────────
         if validation_status == "unreadable":
-            evidence.append(EvidenceItem(
-                evidence_type=EvidenceType.IMAGE_QUALITY.value,
-                label="Plate Unreadable",
-                description="Neither deterministic validation nor LLM adjudication could extract "
-                "a valid plate number. The plate image may be occluded, damaged, or too low resolution.",
-                severity=FlagSeverity.CRITICAL.value,
-            ))
-            reasoning_chain.append(
-                "All recognition attempts exhausted — plate classified as unreadable."
+            evidence.append(
+                EvidenceItem(
+                    evidence_type=EvidenceType.IMAGE_QUALITY.value,
+                    label="Plate Unreadable",
+                    description="Neither deterministic validation nor LLM adjudication could extract "
+                    "a valid plate number. The plate image may be occluded, damaged, or too low resolution.",
+                    severity=FlagSeverity.CRITICAL.value,
+                )
             )
+            reasoning_chain.append("All recognition attempts exhausted — plate classified as unreadable.")
 
         # ── Step 8: Count alerts raised from evidence ─────────────
-        alert_count = sum(
-            1 for e in evidence if e.severity in (FlagSeverity.HIGH.value, FlagSeverity.CRITICAL.value)
-        )
+        alert_count = sum(1 for e in evidence if e.severity in (FlagSeverity.HIGH.value, FlagSeverity.CRITICAL.value))
 
         # ── Final confidence in this reasoning ────────────────────
         confidence_score = min(1.0, 0.5 + len(evidence) * 0.1)
@@ -252,8 +255,10 @@ class FlagReasoningEngine:
 
     @staticmethod
     def _analyze_confidence(
-        confidence: float, engine: str, status: str,
-    ) -> tuple[List[EvidenceItem], List[str]]:
+        confidence: float,
+        engine: str,
+        status: str,
+    ) -> tuple[list[EvidenceItem], list[str]]:
         evidence = []
         reasoning = []
 
@@ -272,8 +277,7 @@ class FlagReasoningEngine:
         elif confidence < 0.7:
             sev = FlagSeverity.MEDIUM.value
             reasoning.append(
-                f"OCR confidence is moderate at {confidence:.1%} (engine: {engine}). "
-                "Some characters may be incorrect."
+                f"OCR confidence is moderate at {confidence:.1%} (engine: {engine}). Some characters may be incorrect."
             )
         else:
             sev = FlagSeverity.LOW.value
@@ -282,22 +286,26 @@ class FlagReasoningEngine:
                 "but the flag was triggered by another factor."
             )
 
-        evidence.append(EvidenceItem(
-            evidence_type=EvidenceType.OCR_CONFIDENCE.value,
-            label="OCR Confidence Score",
-            description=f"{engine} reported {confidence:.1%} confidence",
-            metric_value=round(confidence, 4),
-            threshold=0.7,
-            severity=sev,
-            raw_data={"engine": engine, "confidence": confidence},
-        ))
+        evidence.append(
+            EvidenceItem(
+                evidence_type=EvidenceType.OCR_CONFIDENCE.value,
+                label="OCR Confidence Score",
+                description=f"{engine} reported {confidence:.1%} confidence",
+                metric_value=round(confidence, 4),
+                threshold=0.7,
+                severity=sev,
+                raw_data={"engine": engine, "confidence": confidence},
+            )
+        )
 
         return evidence, reasoning
 
     @staticmethod
     def _analyze_corrections(
-        corrections: Dict[str, str], raw_text: str, final_text: str,
-    ) -> tuple[List[EvidenceItem], List[str]]:
+        corrections: dict[str, str],
+        raw_text: str,
+        final_text: str,
+    ) -> tuple[list[EvidenceItem], list[str]]:
         evidence = []
         reasoning = []
 
@@ -305,24 +313,26 @@ class FlagReasoningEngine:
         if n > 0:
             pairs = ", ".join(f"'{k}'→'{v}'" for k, v in corrections.items())
             reasoning.append(
-                f"{n} character correction(s) applied: {pairs}. "
-                f"Raw text '{raw_text}' was corrected to '{final_text}'."
+                f"{n} character correction(s) applied: {pairs}. Raw text '{raw_text}' was corrected to '{final_text}'."
             )
-            evidence.append(EvidenceItem(
-                evidence_type=EvidenceType.CHARACTER_CORRECTION.value,
-                label=f"{n} Character Corrections",
-                description=f"Corrections applied: {pairs}",
-                metric_value=float(n),
-                severity=FlagSeverity.LOW.value if n <= 2 else FlagSeverity.MEDIUM.value,
-                raw_data={"corrections": corrections, "raw": raw_text, "final": final_text},
-            ))
+            evidence.append(
+                EvidenceItem(
+                    evidence_type=EvidenceType.CHARACTER_CORRECTION.value,
+                    label=f"{n} Character Corrections",
+                    description=f"Corrections applied: {pairs}",
+                    metric_value=float(n),
+                    severity=FlagSeverity.LOW.value if n <= 2 else FlagSeverity.MEDIUM.value,
+                    raw_data={"corrections": corrections, "raw": raw_text, "final": final_text},
+                )
+            )
 
         return evidence, reasoning
 
     @staticmethod
     def _analyze_format_failure(
-        plate: str, raw_text: str,
-    ) -> tuple[List[EvidenceItem], List[str]]:
+        plate: str,
+        raw_text: str,
+    ) -> tuple[list[EvidenceItem], list[str]]:
         evidence = []
         reasoning = []
 
@@ -330,20 +340,22 @@ class FlagReasoningEngine:
             f"The plate text '{plate}' (raw: '{raw_text}') does not match any known "
             "locale-specific plate format regex pattern (e.g. Indian format XX##XX####)."
         )
-        evidence.append(EvidenceItem(
-            evidence_type=EvidenceType.REGEX_MISMATCH.value,
-            label="Format Pattern Mismatch",
-            description=f"'{plate}' failed all locale regex patterns",
-            severity=FlagSeverity.HIGH.value,
-            raw_data={"plate_text": plate, "raw_ocr": raw_text},
-        ))
+        evidence.append(
+            EvidenceItem(
+                evidence_type=EvidenceType.REGEX_MISMATCH.value,
+                label="Format Pattern Mismatch",
+                description=f"'{plate}' failed all locale regex patterns",
+                severity=FlagSeverity.HIGH.value,
+                raw_data={"plate_text": plate, "raw_ocr": raw_text},
+            )
+        )
 
         return evidence, reasoning
 
     @staticmethod
     def _analyze_adjudication(
-        adj_result: Dict[str, Any],
-    ) -> tuple[List[EvidenceItem], List[str]]:
+        adj_result: dict[str, Any],
+    ) -> tuple[list[EvidenceItem], list[str]]:
         evidence = []
         reasoning = []
 
@@ -352,25 +364,25 @@ class FlagReasoningEngine:
         adj_reasoning_text = adj_result.get("reasoning", "")
 
         if adj_reasoning_text:
-            reasoning.append(
-                f"LLM adjudicator analysis: {adj_reasoning_text}"
-            )
+            reasoning.append(f"LLM adjudicator analysis: {adj_reasoning_text}")
 
-        evidence.append(EvidenceItem(
-            evidence_type=EvidenceType.LLM_ADJUDICATION.value,
-            label="LLM Adjudication Result",
-            description=f"Adjudicator returned '{adj_plate}' at {adj_conf:.1%} confidence",
-            metric_value=round(adj_conf, 4),
-            severity=FlagSeverity.MEDIUM.value if adj_conf < 0.7 else FlagSeverity.LOW.value,
-            raw_data=adj_result,
-        ))
+        evidence.append(
+            EvidenceItem(
+                evidence_type=EvidenceType.LLM_ADJUDICATION.value,
+                label="LLM Adjudication Result",
+                description=f"Adjudicator returned '{adj_plate}' at {adj_conf:.1%} confidence",
+                metric_value=round(adj_conf, 4),
+                severity=FlagSeverity.MEDIUM.value if adj_conf < 0.7 else FlagSeverity.LOW.value,
+                raw_data=adj_result,
+            )
+        )
 
         return evidence, reasoning
 
     @staticmethod
     def _analyze_telemetry(
-        telemetry: Dict[str, Any],
-    ) -> tuple[List[EvidenceItem], List[str]]:
+        telemetry: dict[str, Any],
+    ) -> tuple[list[EvidenceItem], list[str]]:
         evidence = []
         reasoning = []
 
@@ -383,42 +395,44 @@ class FlagReasoningEngine:
                 f"Pipeline latency is elevated at {latency:.0f}ms (target < 2000ms). "
                 "High latency may indicate resource contention affecting OCR accuracy."
             )
-            evidence.append(EvidenceItem(
-                evidence_type=EvidenceType.COMPONENT_DEGRADATION.value,
-                label="Elevated Pipeline Latency",
-                description=f"{latency:.0f}ms pipeline latency (target: <2000ms)",
-                metric_value=round(latency, 1),
-                threshold=2000.0,
-                severity=FlagSeverity.MEDIUM.value,
-            ))
+            evidence.append(
+                EvidenceItem(
+                    evidence_type=EvidenceType.COMPONENT_DEGRADATION.value,
+                    label="Elevated Pipeline Latency",
+                    description=f"{latency:.0f}ms pipeline latency (target: <2000ms)",
+                    metric_value=round(latency, 1),
+                    threshold=2000.0,
+                    severity=FlagSeverity.MEDIUM.value,
+                )
+            )
 
         if vram_pct and vram_pct > 90:
             reasoning.append(
                 f"VRAM utilisation is critical at {vram_pct:.1f}%. "
                 "GPU memory pressure may degrade model inference quality."
             )
-            evidence.append(EvidenceItem(
-                evidence_type=EvidenceType.COMPONENT_DEGRADATION.value,
-                label="VRAM Pressure",
-                description=f"{vram_pct:.1f}% VRAM utilisation",
-                metric_value=round(vram_pct, 1),
-                threshold=90.0,
-                severity=FlagSeverity.HIGH.value,
-            ))
+            evidence.append(
+                EvidenceItem(
+                    evidence_type=EvidenceType.COMPONENT_DEGRADATION.value,
+                    label="VRAM Pressure",
+                    description=f"{vram_pct:.1f}% VRAM utilisation",
+                    metric_value=round(vram_pct, 1),
+                    threshold=90.0,
+                    severity=FlagSeverity.HIGH.value,
+                )
+            )
 
         if error_rate and error_rate > 0.05:
-            reasoning.append(
-                f"Component error rate is {error_rate:.1%}, exceeding the 5% threshold."
+            reasoning.append(f"Component error rate is {error_rate:.1%}, exceeding the 5% threshold.")
+            evidence.append(
+                EvidenceItem(
+                    evidence_type=EvidenceType.COMPONENT_DEGRADATION.value,
+                    label="Component Error Rate",
+                    description=f"{error_rate:.1%} error rate across pipeline components",
+                    metric_value=round(error_rate, 4),
+                    threshold=0.05,
+                    severity=FlagSeverity.HIGH.value,
+                )
             )
-            evidence.append(EvidenceItem(
-                evidence_type=EvidenceType.COMPONENT_DEGRADATION.value,
-                label="Component Error Rate",
-                description=f"{error_rate:.1%} error rate across pipeline components",
-                metric_value=round(error_rate, 4),
-                threshold=0.05,
-                severity=FlagSeverity.HIGH.value,
-            ))
 
         return evidence, reasoning
-
-

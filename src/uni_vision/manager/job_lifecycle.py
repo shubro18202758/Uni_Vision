@@ -15,18 +15,19 @@ clean for the next upload.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import enum
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from uni_vision.components.base import ComponentState
-from uni_vision.manager.component_registry import ComponentRegistry
-from uni_vision.manager.lifecycle import LifecycleManager
+if TYPE_CHECKING:
+    from uni_vision.manager.component_registry import ComponentRegistry
+    from uni_vision.manager.lifecycle import LifecycleManager
 
 log = structlog.get_logger(__name__)
 
@@ -38,12 +39,12 @@ class JobPhase(str, enum.Enum):
     """Pipeline job processing phases."""
 
     INITIALIZING = "initializing"
-    DISCOVERING = "discovering"      # Manager Agent analysing scene
-    PROVISIONING = "provisioning"    # Downloading / installing packages
-    PROCESSING = "processing"        # CV pipeline running
+    DISCOVERING = "discovering"  # Manager Agent analysing scene
+    PROVISIONING = "provisioning"  # Downloading / installing packages
+    PROCESSING = "processing"  # CV pipeline running
     ANOMALY_DETECTED = "anomaly_detected"
-    COMPLETING = "completing"        # Anomaly analysis done, wrapping up
-    FLUSHING = "flushing"            # Unloading + uninstalling packages
+    COMPLETING = "completing"  # Anomaly analysis done, wrapping up
+    FLUSHING = "flushing"  # Unloading + uninstalling packages
     COMPLETED = "completed"
     ERROR = "error"
 
@@ -55,13 +56,13 @@ class AnomalyState:
     total_frames_processed: int = 0
     anomaly_frames: int = 0
     consecutive_anomaly_frames: int = 0
-    anomaly_first_detected_at: Optional[float] = None
+    anomaly_first_detected_at: float | None = None
     anomaly_fully_analysed: bool = False
     # Number of consecutive non-anomaly frames after detection
     # to confirm the anomaly series is complete
     post_anomaly_stable_frames: int = 0
     # Aggregated anomaly results
-    anomaly_results: List[Dict[str, Any]] = field(default_factory=list)
+    anomaly_results: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -72,12 +73,12 @@ class JobRecord:
     camera_id: str
     phase: JobPhase = JobPhase.INITIALIZING
     created_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
 
     # Components dynamically provisioned for THIS job (component IDs)
-    dynamic_components: Set[str] = field(default_factory=set)
+    dynamic_components: set[str] = field(default_factory=set)
     # Pip packages installed for THIS job (package names)
-    dynamic_pip_packages: Set[str] = field(default_factory=set)
+    dynamic_pip_packages: set[str] = field(default_factory=set)
 
     # Anomaly tracking
     anomaly: AnomalyState = field(default_factory=AnomalyState)
@@ -126,14 +127,14 @@ class JobLifecycleManager:
         registry: ComponentRegistry,
         lifecycle: LifecycleManager,
         *,
-        config: Optional[JobLifecycleConfig] = None,
-        broadcaster: Optional[Any] = None,
+        config: JobLifecycleConfig | None = None,
+        broadcaster: Any | None = None,
     ) -> None:
         self._registry = registry
         self._lifecycle = lifecycle
         self._config = config or JobLifecycleConfig()
         self._broadcaster = broadcaster
-        self._jobs: Dict[str, JobRecord] = {}
+        self._jobs: dict[str, JobRecord] = {}
         self._lock = asyncio.Lock()
 
     # ── Job creation / lookup ─────────────────────────────────────
@@ -145,23 +146,22 @@ class JobLifecycleManager:
             self._jobs[job_id] = job
             log.info("job_created", job_id=job_id, camera_id=camera_id)
             if self._broadcaster is not None:
-                try:
+                with contextlib.suppress(Exception):
                     await self._broadcaster.emit_custom(
                         event_type="job_created",
                         data={"job_id": job_id, "camera_id": camera_id},
                     )
-                except Exception:
-                    pass
             return job
 
-    def get_job(self, job_id: str) -> Optional[JobRecord]:
+    def get_job(self, job_id: str) -> JobRecord | None:
         return self._jobs.get(job_id)
 
-    def get_job_for_camera(self, camera_id: str) -> Optional[JobRecord]:
+    def get_job_for_camera(self, camera_id: str) -> JobRecord | None:
         """Find the active job for a camera (most recent non-completed)."""
         for job in reversed(list(self._jobs.values())):
             if job.camera_id == camera_id and job.phase not in (
-                JobPhase.COMPLETED, JobPhase.ERROR,
+                JobPhase.COMPLETED,
+                JobPhase.ERROR,
             ):
                 return job
         return None
@@ -172,14 +172,13 @@ class JobLifecycleManager:
         self,
         job_id: str,
         component_id: str,
-        pip_package: Optional[str] = None,
+        pip_package: str | None = None,
     ) -> None:
         """Record that a component was dynamically provisioned for a job."""
         async with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
-                log.warning("register_component_no_job", job_id=job_id,
-                            component_id=component_id)
+                log.warning("register_component_no_job", job_id=job_id, component_id=component_id)
                 return
             job.dynamic_components.add(component_id)
             if pip_package:
@@ -192,7 +191,7 @@ class JobLifecycleManager:
                 total_dynamic=len(job.dynamic_components),
             )
             if self._broadcaster is not None:
-                try:
+                with contextlib.suppress(Exception):
                     await self._broadcaster.emit_custom(
                         event_type="component_provisioned",
                         data={
@@ -202,8 +201,6 @@ class JobLifecycleManager:
                             "total_dynamic": len(job.dynamic_components),
                         },
                     )
-                except Exception:
-                    pass
 
     async def update_phase(self, job_id: str, phase: JobPhase) -> None:
         """Transition a job to a new phase."""
@@ -213,10 +210,9 @@ class JobLifecycleManager:
                 return
             old = job.phase
             job.phase = phase
-            log.info("job_phase_changed", job_id=job_id,
-                      old_phase=old, new_phase=phase)
+            log.info("job_phase_changed", job_id=job_id, old_phase=old, new_phase=phase)
             if self._broadcaster is not None:
-                try:
+                with contextlib.suppress(Exception):
                     await self._broadcaster.emit_custom(
                         event_type="job_phase_changed",
                         data={
@@ -225,8 +221,6 @@ class JobLifecycleManager:
                             "new_phase": phase.value,
                         },
                     )
-                except Exception:
-                    pass
 
     # ── Anomaly tracking ──────────────────────────────────────────
 
@@ -235,7 +229,7 @@ class JobLifecycleManager:
         job_id: str,
         *,
         anomaly_detected: bool,
-        anomaly_data: Optional[Dict[str, Any]] = None,
+        anomaly_data: dict[str, Any] | None = None,
     ) -> bool:
         """Record a frame's analysis result.  Returns True if the job
         should be considered complete (anomaly series fully analysed
@@ -257,8 +251,7 @@ class JobLifecycleManager:
                 if state.anomaly_first_detected_at is None:
                     state.anomaly_first_detected_at = time.time()
                     job.phase = JobPhase.ANOMALY_DETECTED
-                    log.info("anomaly_first_detected", job_id=job_id,
-                              frame=state.total_frames_processed)
+                    log.info("anomaly_first_detected", job_id=job_id, frame=state.total_frames_processed)
 
                 if anomaly_data:
                     state.anomaly_results.append(anomaly_data)
@@ -272,8 +265,7 @@ class JobLifecycleManager:
             # 2. Max frames reached
             if (
                 state.anomaly_first_detected_at is not None
-                and state.post_anomaly_stable_frames
-                    >= self._config.post_anomaly_stable_threshold
+                and state.post_anomaly_stable_frames >= self._config.post_anomaly_stable_threshold
             ):
                 state.anomaly_fully_analysed = True
                 job.phase = JobPhase.COMPLETING
@@ -299,7 +291,7 @@ class JobLifecycleManager:
 
     # ── Flushing ──────────────────────────────────────────────────
 
-    async def flush_job(self, job_id: str) -> Dict[str, Any]:
+    async def flush_job(self, job_id: str) -> dict[str, Any]:
         """Unload and optionally uninstall all dynamic components for a job.
 
         Returns a summary dict of what was flushed.
@@ -319,10 +311,10 @@ class JobLifecycleManager:
             pip_packages=len(job.dynamic_pip_packages),
         )
 
-        unloaded: List[str] = []
-        unload_errors: List[str] = []
-        uninstalled: List[str] = []
-        uninstall_errors: List[str] = []
+        unloaded: list[str] = []
+        unload_errors: list[str] = []
+        uninstalled: list[str] = []
+        uninstall_errors: list[str] = []
 
         # 1. Unload all dynamic components from GPU/CPU
         for cid in list(job.dynamic_components):
@@ -384,7 +376,7 @@ class JobLifecycleManager:
 
     # ── Status ────────────────────────────────────────────────────
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         """Return a snapshot of all tracked jobs."""
         return {
             jid: {

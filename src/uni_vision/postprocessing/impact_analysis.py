@@ -23,7 +23,7 @@ import math
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,8 @@ class ImpactDimension:
     score: float  # 0-100
     severity: str
     description: str
-    affected_components: List[str] = field(default_factory=list)
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    affected_components: list[str] = field(default_factory=list)
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -88,7 +88,7 @@ class CascadeNode:
     failure_mode: str
     time_to_failure: str
     probability: float
-    downstream: List[str]  # components affected
+    downstream: list[str]  # components affected
     severity: str
 
 
@@ -181,20 +181,20 @@ class ImpactAnalysis:
     detection_id: str
     overall_impact_score: float  # 0-100
     overall_severity: str
-    impact_dimensions: List[ImpactDimension]
-    temporal_propagation: List[TemporalImpactPoint]
-    cascade_chain: List[CascadeNode]
-    resource_impacts: List[ResourceImpact]
-    coverage_gaps: List[CoverageGap]
-    data_corruption_vectors: List[DataCorruptionVector]
-    compliance_impacts: List[ComplianceImpact]
-    processing_funnel: List[FunnelStage]
-    component_heatmap: List[HeatmapCell]
-    correlations: List[CorrelationPair]
+    impact_dimensions: list[ImpactDimension]
+    temporal_propagation: list[TemporalImpactPoint]
+    cascade_chain: list[CascadeNode]
+    resource_impacts: list[ResourceImpact]
+    coverage_gaps: list[CoverageGap]
+    data_corruption_vectors: list[DataCorruptionVector]
+    compliance_impacts: list[ComplianceImpact]
+    processing_funnel: list[FunnelStage]
+    component_heatmap: list[HeatmapCell]
+    correlations: list[CorrelationPair]
     summary: str
     analysis_time_ms: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "detection_id": self.detection_id,
             "overall_impact_score": self.overall_impact_score,
@@ -333,8 +333,8 @@ class ImpactAnalysisEngine:
         plate_number: str,
         ocr_confidence: float,
         camera_id: str,
-        telemetry: Dict[str, Any],
-        recent_detections: List[Dict[str, Any]],
+        telemetry: dict[str, Any],
+        recent_detections: list[dict[str, Any]],
         anomaly_type: str = "",
         anomaly_severity: str = "",
         anomaly_description: str = "",
@@ -343,8 +343,14 @@ class ImpactAnalysisEngine:
 
         # Step 1: Impact dimensions (7 domains)
         dimensions = self._compute_dimensions(
-            validation_status, ocr_confidence, camera_id, telemetry, recent_detections,
-            anomaly_type, anomaly_severity, anomaly_description,
+            validation_status,
+            ocr_confidence,
+            camera_id,
+            telemetry,
+            recent_detections,
+            anomaly_type,
+            anomaly_severity,
+            anomaly_description,
         )
 
         # Step 2: Overall impact score
@@ -353,12 +359,18 @@ class ImpactAnalysisEngine:
 
         # Step 3: Temporal propagation on live feed
         temporal = self._compute_temporal_propagation(
-            validation_status, ocr_confidence, telemetry, recent_detections, camera_id,
+            validation_status,
+            ocr_confidence,
+            telemetry,
+            recent_detections,
+            camera_id,
         )
 
         # Step 4: Cascading failure chain
         cascade = self._compute_cascade_chain(
-            validation_status, ocr_confidence, telemetry,
+            validation_status,
+            ocr_confidence,
+            telemetry,
         )
 
         # Step 5: Resource impacts
@@ -366,17 +378,26 @@ class ImpactAnalysisEngine:
 
         # Step 6: Coverage gaps
         gaps = self._compute_coverage_gaps(
-            camera_id, validation_status, ocr_confidence, recent_detections,
+            camera_id,
+            validation_status,
+            ocr_confidence,
+            recent_detections,
         )
 
         # Step 7: Data corruption vectors
         corruption = self._compute_data_corruption(
-            validation_status, ocr_confidence, recent_detections, camera_id,
+            validation_status,
+            ocr_confidence,
+            recent_detections,
+            camera_id,
         )
 
         # Step 8: Compliance impacts
         compliance = self._compute_compliance_impacts(
-            validation_status, overall_score, recent_detections, camera_id,
+            validation_status,
+            overall_score,
+            recent_detections,
+            camera_id,
         )
 
         # Step 9: Processing funnel
@@ -390,9 +411,14 @@ class ImpactAnalysisEngine:
 
         # Step 12: Summary
         summary = self._build_summary(
-            overall_score, overall_severity, validation_status,
-            camera_id, plate_number, len(dimensions),
-            len(gaps), len(corruption),
+            overall_score,
+            overall_severity,
+            validation_status,
+            camera_id,
+            plate_number,
+            len(dimensions),
+            len(gaps),
+            len(corruption),
         )
 
         elapsed = (time.perf_counter() - t0) * 1000
@@ -422,17 +448,18 @@ class ImpactAnalysisEngine:
         status: str,
         confidence: float,
         camera_id: str,
-        telemetry: Dict[str, Any],
-        recent: List[Dict[str, Any]],
+        telemetry: dict[str, Any],
+        recent: list[dict[str, Any]],
         anomaly_type: str = "",
         anomaly_severity: str = "",
         anomaly_description: str = "",
-    ) -> List[ImpactDimension]:
-        dims: List[ImpactDimension] = []
+    ) -> list[ImpactDimension]:
+        dims: list[ImpactDimension] = []
 
         # ── Anomaly-type severity multiplier ──
         sev_mult = {"low": 0.7, "medium": 1.0, "high": 1.3, "critical": 1.6}.get(
-            anomaly_severity.lower() if anomaly_severity else "", 1.0,
+            anomaly_severity.lower() if anomaly_severity else "",
+            1.0,
         )
         atype = anomaly_type.lower() if anomaly_type else ""
         atype_label = anomaly_type or "detected anomaly"
@@ -443,24 +470,26 @@ class ImpactAnalysisEngine:
         n_flags = sum(1 for d in recent if d.get("validation_status", "valid") != "valid")
         throughput_loss = (n_flags / n_total) * 100
         op_score = min(100, (throughput_loss * 1.5 + (latency / 50)) * sev_mult)
-        dims.append(ImpactDimension(
-            domain=ImpactDomain.OPERATIONAL.value,
-            title=f"Operational Impact — {atype_label}",
-            score=round(op_score, 1),
-            severity=self._score_to_severity(op_score),
-            description=(
-                f"'{atype_label}' detected: pipeline processing {n_flags}/{n_total} flagged frames. "
-                f"Throughput degradation at {throughput_loss:.1f}% with {latency:.0f}ms latency."
-            ),
-            affected_components=["Pipeline Orchestrator", "Frame Ingestion", "Queue Manager"],
-            metrics={
-                "throughput_loss_pct": round(throughput_loss, 1),
-                "latency_ms": round(latency, 1),
-                "flagged_ratio": round(n_flags / n_total, 3),
-                "frames_processed": n_total,
-                "anomaly_type": anomaly_type,
-            },
-        ))
+        dims.append(
+            ImpactDimension(
+                domain=ImpactDomain.OPERATIONAL.value,
+                title=f"Operational Impact — {atype_label}",
+                score=round(op_score, 1),
+                severity=self._score_to_severity(op_score),
+                description=(
+                    f"'{atype_label}' detected: pipeline processing {n_flags}/{n_total} flagged frames. "
+                    f"Throughput degradation at {throughput_loss:.1f}% with {latency:.0f}ms latency."
+                ),
+                affected_components=["Pipeline Orchestrator", "Frame Ingestion", "Queue Manager"],
+                metrics={
+                    "throughput_loss_pct": round(throughput_loss, 1),
+                    "latency_ms": round(latency, 1),
+                    "flagged_ratio": round(n_flags / n_total, 3),
+                    "frames_processed": n_total,
+                    "anomaly_type": anomaly_type,
+                },
+            )
+        )
 
         # 2. Surveillance integrity
         cam_dets = [d for d in recent if d.get("camera_id") == camera_id]
@@ -472,24 +501,26 @@ class ImpactAnalysisEngine:
         if atype in ("structural_damage", "physical_intrusion", "vandalism", "obstruction"):
             surv_mult *= 1.3
         surv_score = min(100, coverage_loss * 1.8 * surv_mult)
-        dims.append(ImpactDimension(
-            domain=ImpactDomain.SURVEILLANCE.value,
-            title=f"Surveillance Impact — {atype_label}",
-            score=round(surv_score, 1),
-            severity=self._score_to_severity(surv_score),
-            description=(
-                f"Camera {camera_id}: '{atype_label}' affecting {cam_flags}/{cam_total} frames — "
-                f"{coverage_loss:.1f}% coverage loss. "
-                f"{'Total blind spot risk.' if coverage_loss > 60 else 'Intermittent gaps.'}"
-            ),
-            affected_components=["Camera Feed", "Cross-Camera Tracking", "Zone Coverage"],
-            metrics={
-                "coverage_loss_pct": round(coverage_loss, 1),
-                "cam_flag_count": cam_flags,
-                "cam_total_frames": cam_total,
-                "anomaly_type": anomaly_type,
-            },
-        ))
+        dims.append(
+            ImpactDimension(
+                domain=ImpactDomain.SURVEILLANCE.value,
+                title=f"Surveillance Impact — {atype_label}",
+                score=round(surv_score, 1),
+                severity=self._score_to_severity(surv_score),
+                description=(
+                    f"Camera {camera_id}: '{atype_label}' affecting {cam_flags}/{cam_total} frames — "
+                    f"{coverage_loss:.1f}% coverage loss. "
+                    f"{'Total blind spot risk.' if coverage_loss > 60 else 'Intermittent gaps.'}"
+                ),
+                affected_components=["Camera Feed", "Cross-Camera Tracking", "Zone Coverage"],
+                metrics={
+                    "coverage_loss_pct": round(coverage_loss, 1),
+                    "cam_flag_count": cam_flags,
+                    "cam_total_frames": cam_total,
+                    "anomaly_type": anomaly_type,
+                },
+            )
+        )
 
         # 3. Data quality
         avg_conf = 0.7
@@ -497,24 +528,26 @@ class ImpactAnalysisEngine:
             confs = [d.get("ocr_confidence", 0.7) for d in recent]
             avg_conf = sum(confs) / len(confs)
         dq_score = min(100, ((1.0 - avg_conf) * 130 + throughput_loss * 0.5) * sev_mult)
-        dims.append(ImpactDimension(
-            domain=ImpactDomain.DATA_QUALITY.value,
-            title=f"Data Quality — {atype_label}",
-            score=round(dq_score, 1),
-            severity=self._score_to_severity(dq_score),
-            description=(
-                f"'{atype_label}' detection confidence at {confidence:.1%}. "
-                f"Data quality index: {100 - dq_score:.1f}/100. "
-                f"{'Forensic reliability compromised.' if dq_score > 50 else 'Acceptable with caveats.'}"
-            ),
-            affected_components=["Detection Engine", "Detection Log", "Analytics", "Forensics"],
-            metrics={
-                "avg_confidence": round(avg_conf, 3),
-                "current_confidence": round(confidence, 3),
-                "quality_index": round(100 - dq_score, 1),
-                "anomaly_type": anomaly_type,
-            },
-        ))
+        dims.append(
+            ImpactDimension(
+                domain=ImpactDomain.DATA_QUALITY.value,
+                title=f"Data Quality — {atype_label}",
+                score=round(dq_score, 1),
+                severity=self._score_to_severity(dq_score),
+                description=(
+                    f"'{atype_label}' detection confidence at {confidence:.1%}. "
+                    f"Data quality index: {100 - dq_score:.1f}/100. "
+                    f"{'Forensic reliability compromised.' if dq_score > 50 else 'Acceptable with caveats.'}"
+                ),
+                affected_components=["Detection Engine", "Detection Log", "Analytics", "Forensics"],
+                metrics={
+                    "avg_confidence": round(avg_conf, 3),
+                    "current_confidence": round(confidence, 3),
+                    "quality_index": round(100 - dq_score, 1),
+                    "anomaly_type": anomaly_type,
+                },
+            )
+        )
 
         # 4. Cascading failure potential
         vram = telemetry.get("vram_utilisation_pct", 50)
@@ -524,23 +557,25 @@ class ImpactAnalysisEngine:
         if atype in ("fire", "flooding", "gas_leak", "environmental_hazard"):
             casc_base += 20
         casc_score = min(100, max(0, casc_base * sev_mult))
-        dims.append(ImpactDimension(
-            domain=ImpactDomain.CASCADING.value,
-            title=f"Cascade Risk — {atype_label}",
-            score=round(casc_score, 1),
-            severity=self._score_to_severity(casc_score),
-            description=(
-                f"'{atype_label}' impact: VRAM at {vram:.0f}%, error rate {err_rate:.1%}. "
-                f"{'HIGH cascade risk — domino failure likely.' if casc_score > 60 else 'Contained — cascade unlikely.'}"
-            ),
-            affected_components=["GPU / VRAM", "All Models", "Pipeline Orchestrator"],
-            metrics={
-                "vram_pct": round(vram, 1),
-                "error_rate": round(err_rate, 4),
-                "cascade_probability": round(min(1, casc_score / 100), 2),
-                "anomaly_type": anomaly_type,
-            },
-        ))
+        dims.append(
+            ImpactDimension(
+                domain=ImpactDomain.CASCADING.value,
+                title=f"Cascade Risk — {atype_label}",
+                score=round(casc_score, 1),
+                severity=self._score_to_severity(casc_score),
+                description=(
+                    f"'{atype_label}' impact: VRAM at {vram:.0f}%, error rate {err_rate:.1%}. "
+                    f"{'HIGH cascade risk — domino failure likely.' if casc_score > 60 else 'Contained — cascade unlikely.'}"
+                ),
+                affected_components=["GPU / VRAM", "All Models", "Pipeline Orchestrator"],
+                metrics={
+                    "vram_pct": round(vram, 1),
+                    "error_rate": round(err_rate, 4),
+                    "cascade_probability": round(min(1, casc_score / 100), 2),
+                    "anomaly_type": anomaly_type,
+                },
+            )
+        )
 
         # 5. Temporal escalation risk
         trend = self._flag_trend(camera_id, recent)
@@ -551,45 +586,49 @@ class ImpactAnalysisEngine:
         elif atype in ("crowd_anomaly", "traffic_congestion"):
             temp_base += 10
         temp_score = min(100, (temp_base + (n_flags / n_total) * 50) * sev_mult)
-        dims.append(ImpactDimension(
-            domain=ImpactDomain.TEMPORAL.value,
-            title=f"Temporal Escalation — {atype_label}",
-            score=round(temp_score, 1),
-            severity=self._score_to_severity(temp_score),
-            description=(
-                f"'{atype_label}' trend: {trend}. "
-                f"{'Rapid escalation expected' if trend == 'worsening' else 'Condition may stabilise' if trend == 'improving' else 'Unclear trajectory'}. "
-                f"Each second without resolution {'' if temp_score < 40 else 'significantly '}"
-                f"increases cumulative damage."
-            ),
-            affected_components=["Live Feed", "Detection Timeline", "Alert System"],
-            metrics={
-                "trend": trend,
-                "escalation_rate": round(temp_score / 100, 2),
-                "flag_ratio": round(n_flags / n_total, 3),
-                "anomaly_type": anomaly_type,
-            },
-        ))
+        dims.append(
+            ImpactDimension(
+                domain=ImpactDomain.TEMPORAL.value,
+                title=f"Temporal Escalation — {atype_label}",
+                score=round(temp_score, 1),
+                severity=self._score_to_severity(temp_score),
+                description=(
+                    f"'{atype_label}' trend: {trend}. "
+                    f"{'Rapid escalation expected' if trend == 'worsening' else 'Condition may stabilise' if trend == 'improving' else 'Unclear trajectory'}. "
+                    f"Each second without resolution {'' if temp_score < 40 else 'significantly '}"
+                    f"increases cumulative damage."
+                ),
+                affected_components=["Live Feed", "Detection Timeline", "Alert System"],
+                metrics={
+                    "trend": trend,
+                    "escalation_rate": round(temp_score / 100, 2),
+                    "flag_ratio": round(n_flags / n_total, 3),
+                    "anomaly_type": anomaly_type,
+                },
+            )
+        )
 
         # 6. Resource utilisation impact
         cpu = telemetry.get("cpu_utilisation_pct", 40)
         res_score = min(100, max(0, ((vram - 40) * 1.2 + (cpu - 40) * 0.5 + latency / 100) * sev_mult))
-        dims.append(ImpactDimension(
-            domain=ImpactDomain.RESOURCE.value,
-            title=f"Resource Impact — {atype_label}",
-            score=round(res_score, 1),
-            severity=self._score_to_severity(res_score),
-            description=(
-                f"GPU VRAM {vram:.0f}%, CPU {cpu:.0f}%, latency {latency:.0f}ms. "
-                f"{'Resource exhaustion imminent.' if res_score > 70 else 'Resources strained.' if res_score > 40 else 'Resources adequate.'}"
-            ),
-            affected_components=["GPU / VRAM", "CPU", "Memory", "Model Inference"],
-            metrics={
-                "vram_pct": round(vram, 1),
-                "cpu_pct": round(cpu, 1),
-                "latency_ms": round(latency, 1),
-            },
-        ))
+        dims.append(
+            ImpactDimension(
+                domain=ImpactDomain.RESOURCE.value,
+                title=f"Resource Impact — {atype_label}",
+                score=round(res_score, 1),
+                severity=self._score_to_severity(res_score),
+                description=(
+                    f"GPU VRAM {vram:.0f}%, CPU {cpu:.0f}%, latency {latency:.0f}ms. "
+                    f"{'Resource exhaustion imminent.' if res_score > 70 else 'Resources strained.' if res_score > 40 else 'Resources adequate.'}"
+                ),
+                affected_components=["GPU / VRAM", "CPU", "Memory", "Model Inference"],
+                metrics={
+                    "vram_pct": round(vram, 1),
+                    "cpu_pct": round(cpu, 1),
+                    "latency_ms": round(latency, 1),
+                },
+            )
+        )
 
         # 7. Compliance / SLA impact
         compliance_score = 0.0
@@ -602,23 +641,25 @@ class ImpactAnalysisEngine:
         if status == "unreadable":
             compliance_score += 25
         compliance_score = min(100, compliance_score * sev_mult)
-        dims.append(ImpactDimension(
-            domain=ImpactDomain.COMPLIANCE.value,
-            title=f"Compliance & SLA — {atype_label}",
-            score=round(compliance_score, 1),
-            severity=self._score_to_severity(compliance_score),
-            description=(
-                f"'{atype_label}' SLA risk score: {compliance_score:.0f}/100. "
-                f"{'SLA violation imminent.' if compliance_score > 60 else 'SLA at risk.' if compliance_score > 30 else 'Within SLA bounds.'} "
-                f"Detection accuracy and coverage requirements may not be met."
-            ),
-            affected_components=["SLA Monitor", "Audit Trail", "Compliance Reporting"],
-            metrics={
-                "sla_risk": round(compliance_score, 1),
-                "coverage_loss": round(coverage_loss, 1),
-                "data_quality_loss": round(dq_score, 1),
-            },
-        ))
+        dims.append(
+            ImpactDimension(
+                domain=ImpactDomain.COMPLIANCE.value,
+                title=f"Compliance & SLA — {atype_label}",
+                score=round(compliance_score, 1),
+                severity=self._score_to_severity(compliance_score),
+                description=(
+                    f"'{atype_label}' SLA risk score: {compliance_score:.0f}/100. "
+                    f"{'SLA violation imminent.' if compliance_score > 60 else 'SLA at risk.' if compliance_score > 30 else 'Within SLA bounds.'} "
+                    f"Detection accuracy and coverage requirements may not be met."
+                ),
+                affected_components=["SLA Monitor", "Audit Trail", "Compliance Reporting"],
+                metrics={
+                    "sla_risk": round(compliance_score, 1),
+                    "coverage_loss": round(coverage_loss, 1),
+                    "data_quality_loss": round(dq_score, 1),
+                },
+            )
+        )
 
         return dims
 
@@ -628,11 +669,11 @@ class ImpactAnalysisEngine:
     def _compute_temporal_propagation(
         status: str,
         confidence: float,
-        telemetry: Dict[str, Any],
-        recent: List[Dict[str, Any]],
+        telemetry: dict[str, Any],
+        recent: list[dict[str, Any]],
         camera_id: str,
-    ) -> List[TemporalImpactPoint]:
-        points: List[TemporalImpactPoint] = []
+    ) -> list[TemporalImpactPoint]:
+        points: list[TemporalImpactPoint] = []
 
         # Compute degradation rates based on severity
         base_coverage = max(30, confidence * 100)
@@ -644,7 +685,7 @@ class ImpactAnalysisEngine:
         vram = telemetry.get("vram_utilisation_pct", 50)
         if vram > 85:
             base_stability -= 20
-        latency = telemetry.get("pipeline_latency_ms", 500)
+        telemetry.get("pipeline_latency_ms", 500)
         fps = telemetry.get("target_fps", 15)
 
         # Decay function: exponential degradation over time
@@ -687,17 +728,19 @@ class ImpactAnalysisEngine:
             else:
                 desc = f"Severe degradation: {frames_lost} frames lost. Extended blind spot."
 
-            points.append(TemporalImpactPoint(
-                time_offset=label,
-                time_seconds=seconds,
-                cumulative_frames_lost=frames_lost,
-                surveillance_coverage_pct=round(coverage, 1),
-                data_quality_pct=round(quality, 1),
-                system_stability_pct=round(stability, 1),
-                detection_accuracy_pct=round(accuracy, 1),
-                operator_trust_pct=round(trust, 1),
-                description=desc,
-            ))
+            points.append(
+                TemporalImpactPoint(
+                    time_offset=label,
+                    time_seconds=seconds,
+                    cumulative_frames_lost=frames_lost,
+                    surveillance_coverage_pct=round(coverage, 1),
+                    data_quality_pct=round(quality, 1),
+                    system_stability_pct=round(stability, 1),
+                    detection_accuracy_pct=round(accuracy, 1),
+                    operator_trust_pct=round(trust, 1),
+                    description=desc,
+                )
+            )
 
         return points
 
@@ -707,87 +750,103 @@ class ImpactAnalysisEngine:
     def _compute_cascade_chain(
         status: str,
         confidence: float,
-        telemetry: Dict[str, Any],
-    ) -> List[CascadeNode]:
-        chain: List[CascadeNode] = []
+        telemetry: dict[str, Any],
+    ) -> list[CascadeNode]:
+        chain: list[CascadeNode] = []
         vram = telemetry.get("vram_utilisation_pct", 50)
 
         # Entry point: the flagged component
         if status in ("low_confidence", "unreadable"):
-            chain.append(CascadeNode(
-                component="OCR Engine",
-                failure_mode="Accuracy degradation" if status == "low_confidence" else "Complete failure",
-                time_to_failure="Immediate",
-                probability=0.95,
-                downstream=["Post-Processor", "Adjudicator"],
-                severity="severe" if status == "unreadable" else "moderate",
-            ))
+            chain.append(
+                CascadeNode(
+                    component="OCR Engine",
+                    failure_mode="Accuracy degradation" if status == "low_confidence" else "Complete failure",
+                    time_to_failure="Immediate",
+                    probability=0.95,
+                    downstream=["Post-Processor", "Adjudicator"],
+                    severity="severe" if status == "unreadable" else "moderate",
+                )
+            )
         elif status in ("regex_fail", "parse_fail"):
-            chain.append(CascadeNode(
-                component="Post-Processor",
-                failure_mode="Format validation failure",
-                time_to_failure="Immediate",
-                probability=0.9,
-                downstream=["Detection Log", "Analytics"],
-                severity="moderate",
-            ))
+            chain.append(
+                CascadeNode(
+                    component="Post-Processor",
+                    failure_mode="Format validation failure",
+                    time_to_failure="Immediate",
+                    probability=0.9,
+                    downstream=["Detection Log", "Analytics"],
+                    severity="moderate",
+                )
+            )
         elif status == "llm_error":
-            chain.append(CascadeNode(
-                component="LLM Adjudicator",
-                failure_mode="Model inference failure",
-                time_to_failure="Immediate",
-                probability=0.85,
-                downstream=["Consensus Validator", "Post-Processor"],
-                severity="moderate",
-            ))
+            chain.append(
+                CascadeNode(
+                    component="LLM Adjudicator",
+                    failure_mode="Model inference failure",
+                    time_to_failure="Immediate",
+                    probability=0.85,
+                    downstream=["Consensus Validator", "Post-Processor"],
+                    severity="moderate",
+                )
+            )
         elif status == "fallback":
-            chain.append(CascadeNode(
-                component="Consensus Validator",
-                failure_mode="Adjudicator bypass (fallback)",
-                time_to_failure="Immediate",
-                probability=0.7,
-                downstream=["Post-Processor"],
-                severity="minor",
-            ))
+            chain.append(
+                CascadeNode(
+                    component="Consensus Validator",
+                    failure_mode="Adjudicator bypass (fallback)",
+                    time_to_failure="Immediate",
+                    probability=0.7,
+                    downstream=["Post-Processor"],
+                    severity="minor",
+                )
+            )
 
         # Second tier: downstream effects
-        chain.append(CascadeNode(
-            component="Detection Log",
-            failure_mode="Corrupted / low-confidence entries written",
-            time_to_failure="0-30 seconds",
-            probability=0.8,
-            downstream=["Analytics", "Forensics", "Watch-List Matching"],
-            severity="moderate",
-        ))
+        chain.append(
+            CascadeNode(
+                component="Detection Log",
+                failure_mode="Corrupted / low-confidence entries written",
+                time_to_failure="0-30 seconds",
+                probability=0.8,
+                downstream=["Analytics", "Forensics", "Watch-List Matching"],
+                severity="moderate",
+            )
+        )
 
-        chain.append(CascadeNode(
-            component="Cross-Camera Tracker",
-            failure_mode="Vehicle identity mismatch / tracking break",
-            time_to_failure="30-60 seconds",
-            probability=0.6,
-            downstream=["Surveillance Network", "Alert System"],
-            severity="severe" if confidence < 0.4 else "moderate",
-        ))
+        chain.append(
+            CascadeNode(
+                component="Cross-Camera Tracker",
+                failure_mode="Vehicle identity mismatch / tracking break",
+                time_to_failure="30-60 seconds",
+                probability=0.6,
+                downstream=["Surveillance Network", "Alert System"],
+                severity="severe" if confidence < 0.4 else "moderate",
+            )
+        )
 
         # Third tier: system-wide impact
         if vram > 80:
-            chain.append(CascadeNode(
-                component="GPU / VRAM",
-                failure_mode="Memory pressure causing model eviction",
-                time_to_failure="1-5 minutes",
-                probability=0.5 if vram < 90 else 0.8,
-                downstream=["Vehicle Detector", "OCR Engine", "LLM Adjudicator"],
-                severity="catastrophic" if vram > 95 else "severe",
-            ))
+            chain.append(
+                CascadeNode(
+                    component="GPU / VRAM",
+                    failure_mode="Memory pressure causing model eviction",
+                    time_to_failure="1-5 minutes",
+                    probability=0.5 if vram < 90 else 0.8,
+                    downstream=["Vehicle Detector", "OCR Engine", "LLM Adjudicator"],
+                    severity="catastrophic" if vram > 95 else "severe",
+                )
+            )
 
-        chain.append(CascadeNode(
-            component="Alert System",
-            failure_mode="Alert fatigue / noise saturation",
-            time_to_failure="5-15 minutes",
-            probability=0.55,
-            downstream=["Operator Console", "Response Time"],
-            severity="moderate",
-        ))
+        chain.append(
+            CascadeNode(
+                component="Alert System",
+                failure_mode="Alert fatigue / noise saturation",
+                time_to_failure="5-15 minutes",
+                probability=0.55,
+                downstream=["Operator Console", "Response Time"],
+                severity="moderate",
+            )
+        )
 
         return chain
 
@@ -795,51 +854,59 @@ class ImpactAnalysisEngine:
 
     @staticmethod
     def _compute_resource_impacts(
-        telemetry: Dict[str, Any],
-    ) -> List[ResourceImpact]:
-        resources: List[ResourceImpact] = []
+        telemetry: dict[str, Any],
+    ) -> list[ResourceImpact]:
+        resources: list[ResourceImpact] = []
 
         vram = telemetry.get("vram_utilisation_pct", 50)
-        resources.append(ResourceImpact(
-            resource="GPU VRAM",
-            current_usage_pct=round(vram, 1),
-            projected_peak_pct=round(min(100, vram * 1.15), 1),
-            headroom_pct=round(max(0, 100 - vram), 1),
-            time_to_exhaustion="< 5 min" if vram > 90 else "15-30 min" if vram > 75 else "> 1 hour",
-            risk_level="critical" if vram > 90 else "high" if vram > 80 else "medium" if vram > 60 else "low",
-        ))
+        resources.append(
+            ResourceImpact(
+                resource="GPU VRAM",
+                current_usage_pct=round(vram, 1),
+                projected_peak_pct=round(min(100, vram * 1.15), 1),
+                headroom_pct=round(max(0, 100 - vram), 1),
+                time_to_exhaustion="< 5 min" if vram > 90 else "15-30 min" if vram > 75 else "> 1 hour",
+                risk_level="critical" if vram > 90 else "high" if vram > 80 else "medium" if vram > 60 else "low",
+            )
+        )
 
         cpu = telemetry.get("cpu_utilisation_pct", 40)
-        resources.append(ResourceImpact(
-            resource="CPU",
-            current_usage_pct=round(cpu, 1),
-            projected_peak_pct=round(min(100, cpu * 1.2), 1),
-            headroom_pct=round(max(0, 100 - cpu), 1),
-            time_to_exhaustion="> 1 hour" if cpu < 80 else "30 min",
-            risk_level="high" if cpu > 85 else "medium" if cpu > 60 else "low",
-        ))
+        resources.append(
+            ResourceImpact(
+                resource="CPU",
+                current_usage_pct=round(cpu, 1),
+                projected_peak_pct=round(min(100, cpu * 1.2), 1),
+                headroom_pct=round(max(0, 100 - cpu), 1),
+                time_to_exhaustion="> 1 hour" if cpu < 80 else "30 min",
+                risk_level="high" if cpu > 85 else "medium" if cpu > 60 else "low",
+            )
+        )
 
         mem = telemetry.get("memory_utilisation_pct", 45)
-        resources.append(ResourceImpact(
-            resource="System Memory",
-            current_usage_pct=round(mem, 1),
-            projected_peak_pct=round(min(100, mem * 1.1), 1),
-            headroom_pct=round(max(0, 100 - mem), 1),
-            time_to_exhaustion="> 1 hour",
-            risk_level="high" if mem > 85 else "medium" if mem > 70 else "low",
-        ))
+        resources.append(
+            ResourceImpact(
+                resource="System Memory",
+                current_usage_pct=round(mem, 1),
+                projected_peak_pct=round(min(100, mem * 1.1), 1),
+                headroom_pct=round(max(0, 100 - mem), 1),
+                time_to_exhaustion="> 1 hour",
+                risk_level="high" if mem > 85 else "medium" if mem > 70 else "low",
+            )
+        )
 
         queue_depth = telemetry.get("queue_depth", 0)
         queue_cap = telemetry.get("queue_capacity", 100)
         queue_pct = (queue_depth / max(queue_cap, 1)) * 100
-        resources.append(ResourceImpact(
-            resource="Processing Queue",
-            current_usage_pct=round(queue_pct, 1),
-            projected_peak_pct=round(min(100, queue_pct * 1.3), 1),
-            headroom_pct=round(max(0, 100 - queue_pct), 1),
-            time_to_exhaustion="< 2 min" if queue_pct > 80 else "10 min" if queue_pct > 50 else "> 30 min",
-            risk_level="critical" if queue_pct > 80 else "high" if queue_pct > 60 else "low",
-        ))
+        resources.append(
+            ResourceImpact(
+                resource="Processing Queue",
+                current_usage_pct=round(queue_pct, 1),
+                projected_peak_pct=round(min(100, queue_pct * 1.3), 1),
+                headroom_pct=round(max(0, 100 - queue_pct), 1),
+                time_to_exhaustion="< 2 min" if queue_pct > 80 else "10 min" if queue_pct > 50 else "> 30 min",
+                risk_level="critical" if queue_pct > 80 else "high" if queue_pct > 60 else "low",
+            )
+        )
 
         return resources
 
@@ -850,9 +917,9 @@ class ImpactAnalysisEngine:
         camera_id: str,
         status: str,
         confidence: float,
-        recent: List[Dict[str, Any]],
-    ) -> List[CoverageGap]:
-        gaps: List[CoverageGap] = []
+        recent: list[dict[str, Any]],
+    ) -> list[CoverageGap]:
+        gaps: list[CoverageGap] = []
 
         # Primary camera gap
         if status == "unreadable":
@@ -872,15 +939,21 @@ class ImpactAnalysisEngine:
             duration = "1-5 minutes"
             missed = 5
 
-        gaps.append(CoverageGap(
-            camera_id=camera_id,
-            gap_type=gap_type,
-            start_offset="0s (current frame)",
-            duration_estimate=duration,
-            vehicles_missed_estimate=missed,
-            zone_affected=f"Zone monitored by {camera_id}",
-            severity="catastrophic" if gap_type == "total_blind" else "severe" if gap_type == "degraded" else "moderate",
-        ))
+        gaps.append(
+            CoverageGap(
+                camera_id=camera_id,
+                gap_type=gap_type,
+                start_offset="0s (current frame)",
+                duration_estimate=duration,
+                vehicles_missed_estimate=missed,
+                zone_affected=f"Zone monitored by {camera_id}",
+                severity="catastrophic"
+                if gap_type == "total_blind"
+                else "severe"
+                if gap_type == "degraded"
+                else "moderate",
+            )
+        )
 
         # Check other cameras with flags
         other_flagged = {}
@@ -891,15 +964,17 @@ class ImpactAnalysisEngine:
 
         for cam, count in other_flagged.items():
             if count >= 2:
-                gaps.append(CoverageGap(
-                    camera_id=cam,
-                    gap_type="degraded" if count < 5 else "total_blind",
-                    start_offset="Recent window",
-                    duration_estimate="Ongoing",
-                    vehicles_missed_estimate=count * 3,
-                    zone_affected=f"Zone monitored by {cam}",
-                    severity="severe" if count >= 5 else "moderate",
-                ))
+                gaps.append(
+                    CoverageGap(
+                        camera_id=cam,
+                        gap_type="degraded" if count < 5 else "total_blind",
+                        start_offset="Recent window",
+                        duration_estimate="Ongoing",
+                        vehicles_missed_estimate=count * 3,
+                        zone_affected=f"Zone monitored by {cam}",
+                        severity="severe" if count >= 5 else "moderate",
+                    )
+                )
 
         return gaps
 
@@ -909,61 +984,67 @@ class ImpactAnalysisEngine:
     def _compute_data_corruption(
         status: str,
         confidence: float,
-        recent: List[Dict[str, Any]],
+        recent: list[dict[str, Any]],
         camera_id: str,
-    ) -> List[DataCorruptionVector]:
-        vectors: List[DataCorruptionVector] = []
+    ) -> list[DataCorruptionVector]:
+        vectors: list[DataCorruptionVector] = []
 
         # Plate read corruption
         if confidence < 0.5 or status in ("regex_fail", "parse_fail", "unreadable"):
             n_affected = sum(
-                1 for d in recent
-                if d.get("camera_id") == camera_id
-                and d.get("validation_status", "valid") != "valid"
+                1 for d in recent if d.get("camera_id") == camera_id and d.get("validation_status", "valid") != "valid"
             )
-            vectors.append(DataCorruptionVector(
-                source="OCR Engine",
-                destination="Detection Log",
-                data_type="plate_reads",
-                corruption_type="misidentification" if confidence < 0.5 else "garbled",
-                records_affected_estimate=max(1, n_affected),
-                forensic_impact="partial_loss" if confidence > 0.3 else "irrecoverable",
-                severity="severe" if confidence < 0.3 else "moderate",
-            ))
+            vectors.append(
+                DataCorruptionVector(
+                    source="OCR Engine",
+                    destination="Detection Log",
+                    data_type="plate_reads",
+                    corruption_type="misidentification" if confidence < 0.5 else "garbled",
+                    records_affected_estimate=max(1, n_affected),
+                    forensic_impact="partial_loss" if confidence > 0.3 else "irrecoverable",
+                    severity="severe" if confidence < 0.3 else "moderate",
+                )
+            )
 
         # Tracking corruption
-        vectors.append(DataCorruptionVector(
-            source="Detection Log",
-            destination="Cross-Camera Tracker",
-            data_type="tracking",
-            corruption_type="misidentification",
-            records_affected_estimate=max(1, int((1 - confidence) * 20)),
-            forensic_impact="partial_loss",
-            severity="severe" if confidence < 0.4 else "moderate",
-        ))
+        vectors.append(
+            DataCorruptionVector(
+                source="Detection Log",
+                destination="Cross-Camera Tracker",
+                data_type="tracking",
+                corruption_type="misidentification",
+                records_affected_estimate=max(1, int((1 - confidence) * 20)),
+                forensic_impact="partial_loss",
+                severity="severe" if confidence < 0.4 else "moderate",
+            )
+        )
 
         # Analytics corruption
-        vectors.append(DataCorruptionVector(
-            source="Detection Log",
-            destination="Analytics Engine",
-            data_type="analytics",
-            corruption_type="missing" if status == "unreadable" else "delayed",
-            records_affected_estimate=max(1, int((1 - confidence) * 15)),
-            forensic_impact="recoverable" if confidence > 0.5 else "partial_loss",
-            severity="moderate",
-        ))
+        vectors.append(
+            DataCorruptionVector(
+                source="Detection Log",
+                destination="Analytics Engine",
+                data_type="analytics",
+                corruption_type="missing" if status == "unreadable" else "delayed",
+                records_affected_estimate=max(1, int((1 - confidence) * 15)),
+                forensic_impact="recoverable" if confidence > 0.5 else "partial_loss",
+                severity="moderate",
+            )
+        )
 
         # Alert quality
         if status in ("unreadable", "llm_error"):
-            vectors.append(DataCorruptionVector(
-                source="Alert System",
-                destination="Operator Console",
-                data_type="alerts",
-                corruption_type="missing",
-                records_affected_estimate=max(1, int((1 - confidence) * 5)),
-                forensic_impact="recoverable",
-                severity="moderate",
-            ))
+            vectors.append(
+                DataCorruptionVector(
+                    source="Alert System",
+                    destination="Operator Console",
+                    data_type="alerts",
+                    corruption_type="missing",
+                    records_affected_estimate=max(1, int((1 - confidence) * 5)),
+                    forensic_impact="recoverable",
+                    severity="moderate",
+                )
+            )
 
         return vectors
 
@@ -973,60 +1054,74 @@ class ImpactAnalysisEngine:
     def _compute_compliance_impacts(
         status: str,
         overall_score: float,
-        recent: List[Dict[str, Any]],
+        recent: list[dict[str, Any]],
         camera_id: str,
-    ) -> List[ComplianceImpact]:
-        impacts: List[ComplianceImpact] = []
+    ) -> list[ComplianceImpact]:
+        impacts: list[ComplianceImpact] = []
 
         n_cam_flags = sum(
-            1 for d in recent
-            if d.get("camera_id") == camera_id
-            and d.get("validation_status", "valid") != "valid"
+            1 for d in recent if d.get("camera_id") == camera_id and d.get("validation_status", "valid") != "valid"
         )
 
         # Detection accuracy SLA
         acc_status = "violated" if overall_score > 70 else "at_risk" if overall_score > 40 else "compliant"
-        impacts.append(ComplianceImpact(
-            regulation="Detection Accuracy SLA",
-            requirement=">95% plate read accuracy per camera per hour",
-            current_status=acc_status,
-            time_to_violation="Immediate" if acc_status == "violated" else "15-30 min" if acc_status == "at_risk" else "> 1 hour",
-            liability_level="high" if acc_status == "violated" else "medium" if acc_status == "at_risk" else "none",
-            description=f"Camera {camera_id} with {n_cam_flags} flagged detections. Accuracy requirement at risk.",
-        ))
+        impacts.append(
+            ComplianceImpact(
+                regulation="Detection Accuracy SLA",
+                requirement=">95% plate read accuracy per camera per hour",
+                current_status=acc_status,
+                time_to_violation="Immediate"
+                if acc_status == "violated"
+                else "15-30 min"
+                if acc_status == "at_risk"
+                else "> 1 hour",
+                liability_level="high" if acc_status == "violated" else "medium" if acc_status == "at_risk" else "none",
+                description=f"Camera {camera_id} with {n_cam_flags} flagged detections. Accuracy requirement at risk.",
+            )
+        )
 
         # Coverage continuity SLA
         cov_status = "violated" if status == "unreadable" else "at_risk" if n_cam_flags > 3 else "compliant"
-        impacts.append(ComplianceImpact(
-            regulation="Coverage Continuity SLA",
-            requirement="No camera may have >5 minute continuous blind spot",
-            current_status=cov_status,
-            time_to_violation="Immediate" if cov_status == "violated" else "5 min" if cov_status == "at_risk" else "> 30 min",
-            liability_level="high" if cov_status == "violated" else "low",
-            description="Continuous flagging creates a surveillance gap that may breach coverage requirements.",
-        ))
+        impacts.append(
+            ComplianceImpact(
+                regulation="Coverage Continuity SLA",
+                requirement="No camera may have >5 minute continuous blind spot",
+                current_status=cov_status,
+                time_to_violation="Immediate"
+                if cov_status == "violated"
+                else "5 min"
+                if cov_status == "at_risk"
+                else "> 30 min",
+                liability_level="high" if cov_status == "violated" else "low",
+                description="Continuous flagging creates a surveillance gap that may breach coverage requirements.",
+            )
+        )
 
         # Data retention integrity
         data_status = "at_risk" if overall_score > 50 else "compliant"
-        impacts.append(ComplianceImpact(
-            regulation="Data Retention Integrity",
-            requirement="All captured plates must be stored with confidence metadata",
-            current_status=data_status,
-            time_to_violation="Ongoing" if data_status == "at_risk" else "N/A",
-            liability_level="medium" if data_status == "at_risk" else "none",
-            description="Flagged detections are stored but marked unreliable, affecting audit trail quality.",
-        ))
+        impacts.append(
+            ComplianceImpact(
+                regulation="Data Retention Integrity",
+                requirement="All captured plates must be stored with confidence metadata",
+                current_status=data_status,
+                time_to_violation="Ongoing" if data_status == "at_risk" else "N/A",
+                liability_level="medium" if data_status == "at_risk" else "none",
+                description="Flagged detections are stored but marked unreliable, affecting audit trail quality.",
+            )
+        )
 
         # Real-time processing SLA
         rt_status = "at_risk" if overall_score > 60 else "compliant"
-        impacts.append(ComplianceImpact(
-            regulation="Real-Time Processing SLA",
-            requirement="Detection-to-alert latency must be <3 seconds",
-            current_status=rt_status,
-            time_to_violation="< 5 min" if rt_status == "at_risk" else "N/A",
-            liability_level="medium" if rt_status == "at_risk" else "none",
-            description="Pipeline latency and reprocessing may push detection-to-alert time beyond SLA.",
-        ))
+        impacts.append(
+            ComplianceImpact(
+                regulation="Real-Time Processing SLA",
+                requirement="Detection-to-alert latency must be <3 seconds",
+                current_status=rt_status,
+                time_to_violation="< 5 min" if rt_status == "at_risk" else "N/A",
+                liability_level="medium" if rt_status == "at_risk" else "none",
+                description="Pipeline latency and reprocessing may push detection-to-alert time beyond SLA.",
+            )
+        )
 
         return impacts
 
@@ -1034,69 +1129,79 @@ class ImpactAnalysisEngine:
 
     @staticmethod
     def _compute_processing_funnel(
-        recent: List[Dict[str, Any]],
-    ) -> List[FunnelStage]:
+        recent: list[dict[str, Any]],
+    ) -> list[FunnelStage]:
         n = max(len(recent), 1)
-        stages: List[FunnelStage] = []
+        stages: list[FunnelStage] = []
 
         # Stage 1: Frame Ingestion
-        stages.append(FunnelStage(
-            stage="Frame Ingestion",
-            total_frames=n,
-            successful=n,
-            failed=0,
-            drop_rate_pct=0.0,
-            bottleneck=False,
-        ))
+        stages.append(
+            FunnelStage(
+                stage="Frame Ingestion",
+                total_frames=n,
+                successful=n,
+                failed=0,
+                drop_rate_pct=0.0,
+                bottleneck=False,
+            )
+        )
 
         # Stage 2: Vehicle Detection
         detected = sum(1 for d in recent if d.get("plate_number"))
         missed = n - detected
         det_drop = (missed / n) * 100 if n else 0
-        stages.append(FunnelStage(
-            stage="Vehicle Detection",
-            total_frames=n,
-            successful=detected,
-            failed=missed,
-            drop_rate_pct=round(det_drop, 1),
-            bottleneck=det_drop > 20,
-        ))
+        stages.append(
+            FunnelStage(
+                stage="Vehicle Detection",
+                total_frames=n,
+                successful=detected,
+                failed=missed,
+                drop_rate_pct=round(det_drop, 1),
+                bottleneck=det_drop > 20,
+            )
+        )
 
         # Stage 3: OCR Processing
         ocr_ok = sum(1 for d in recent if d.get("ocr_confidence", 0) > 0.5)
         ocr_fail = detected - ocr_ok
         ocr_drop = (max(0, ocr_fail) / max(detected, 1)) * 100
-        stages.append(FunnelStage(
-            stage="OCR Processing",
-            total_frames=detected,
-            successful=max(0, ocr_ok),
-            failed=max(0, ocr_fail),
-            drop_rate_pct=round(ocr_drop, 1),
-            bottleneck=ocr_drop > 15,
-        ))
+        stages.append(
+            FunnelStage(
+                stage="OCR Processing",
+                total_frames=detected,
+                successful=max(0, ocr_ok),
+                failed=max(0, ocr_fail),
+                drop_rate_pct=round(ocr_drop, 1),
+                bottleneck=ocr_drop > 15,
+            )
+        )
 
         # Stage 4: Validation
         valid = sum(1 for d in recent if d.get("validation_status") == "valid")
         invalid = ocr_ok - valid
         val_drop = (max(0, invalid) / max(ocr_ok, 1)) * 100
-        stages.append(FunnelStage(
-            stage="Validation",
-            total_frames=max(0, ocr_ok),
-            successful=max(0, valid),
-            failed=max(0, invalid),
-            drop_rate_pct=round(val_drop, 1),
-            bottleneck=val_drop > 10,
-        ))
+        stages.append(
+            FunnelStage(
+                stage="Validation",
+                total_frames=max(0, ocr_ok),
+                successful=max(0, valid),
+                failed=max(0, invalid),
+                drop_rate_pct=round(val_drop, 1),
+                bottleneck=val_drop > 10,
+            )
+        )
 
         # Stage 5: Final Output
-        stages.append(FunnelStage(
-            stage="Final Output",
-            total_frames=max(0, valid),
-            successful=max(0, valid),
-            failed=0,
-            drop_rate_pct=0.0,
-            bottleneck=False,
-        ))
+        stages.append(
+            FunnelStage(
+                stage="Final Output",
+                total_frames=max(0, valid),
+                successful=max(0, valid),
+                failed=0,
+                drop_rate_pct=0.0,
+                bottleneck=False,
+            )
+        )
 
         return stages
 
@@ -1104,10 +1209,9 @@ class ImpactAnalysisEngine:
 
     @staticmethod
     def _compute_heatmap(
-        recent: List[Dict[str, Any]],
-    ) -> List[HeatmapCell]:
-        cells: List[HeatmapCell] = []
-        components = ["Vehicle Detector", "OCR Engine", "Post-Processor", "LLM Adjudicator", "GPU / VRAM"]
+        recent: list[dict[str, Any]],
+    ) -> list[HeatmapCell]:
+        cells: list[HeatmapCell] = []
 
         # Build time buckets from detection timestamps
         time_buckets = ["T-5min", "T-4min", "T-3min", "T-2min", "T-1min", "T-0"]
@@ -1127,23 +1231,52 @@ class ImpactAnalysisEngine:
 
             # Vehicle Detector — based on detection count
             det_health = max(20, (1 - n_flags / n_bucket) * 100)
-            cells.append(HeatmapCell(component="Vehicle Detector", time_bucket=bucket, health_pct=round(det_health, 1), anomaly_count=n_flags))
+            cells.append(
+                HeatmapCell(
+                    component="Vehicle Detector",
+                    time_bucket=bucket,
+                    health_pct=round(det_health, 1),
+                    anomaly_count=n_flags,
+                )
+            )
 
             # OCR Engine — based on confidence
             ocr_health = max(10, avg_conf * 100)
-            cells.append(HeatmapCell(component="OCR Engine", time_bucket=bucket, health_pct=round(ocr_health, 1), anomaly_count=n_flags))
+            cells.append(
+                HeatmapCell(
+                    component="OCR Engine", time_bucket=bucket, health_pct=round(ocr_health, 1), anomaly_count=n_flags
+                )
+            )
 
             # Post-Processor — based on regex/parse failures
             pp_health = max(20, (1 - n_regex / n_bucket) * 100)
-            cells.append(HeatmapCell(component="Post-Processor", time_bucket=bucket, health_pct=round(pp_health, 1), anomaly_count=n_regex))
+            cells.append(
+                HeatmapCell(
+                    component="Post-Processor",
+                    time_bucket=bucket,
+                    health_pct=round(pp_health, 1),
+                    anomaly_count=n_regex,
+                )
+            )
 
             # LLM Adjudicator
             llm_health = max(15, (1 - n_llm_err / n_bucket) * 100)
-            cells.append(HeatmapCell(component="LLM Adjudicator", time_bucket=bucket, health_pct=round(llm_health, 1), anomaly_count=n_llm_err))
+            cells.append(
+                HeatmapCell(
+                    component="LLM Adjudicator",
+                    time_bucket=bucket,
+                    health_pct=round(llm_health, 1),
+                    anomaly_count=n_llm_err,
+                )
+            )
 
             # GPU/VRAM — fairly stable across buckets
             gpu_health = max(20, 80 - n_flags * 3)
-            cells.append(HeatmapCell(component="GPU / VRAM", time_bucket=bucket, health_pct=round(gpu_health, 1), anomaly_count=0))
+            cells.append(
+                HeatmapCell(
+                    component="GPU / VRAM", time_bucket=bucket, health_pct=round(gpu_health, 1), anomaly_count=0
+                )
+            )
 
         return cells
 
@@ -1151,10 +1284,10 @@ class ImpactAnalysisEngine:
 
     @staticmethod
     def _compute_correlations(
-        recent: List[Dict[str, Any]],
-        telemetry: Dict[str, Any],
-    ) -> List[CorrelationPair]:
-        correlations: List[CorrelationPair] = []
+        recent: list[dict[str, Any]],
+        telemetry: dict[str, Any],
+    ) -> list[CorrelationPair]:
+        correlations: list[CorrelationPair] = []
 
         # Pre-compute metrics for correlation
         if not recent:
@@ -1170,55 +1303,75 @@ class ImpactAnalysisEngine:
 
         # Confidence vs Flag Rate (strong negative — low confidence causes flags)
         conf_flag_corr = -0.85 if avg_conf < 0.5 else -0.6 if avg_conf < 0.7 else -0.3
-        correlations.append(CorrelationPair(
-            metric_a="OCR Confidence",
-            metric_b="Flag Rate",
-            correlation=round(conf_flag_corr, 2),
-            relationship="strong_negative" if conf_flag_corr < -0.7 else "moderate_negative",
-        ))
+        correlations.append(
+            CorrelationPair(
+                metric_a="OCR Confidence",
+                metric_b="Flag Rate",
+                correlation=round(conf_flag_corr, 2),
+                relationship="strong_negative" if conf_flag_corr < -0.7 else "moderate_negative",
+            )
+        )
 
         # VRAM vs Accuracy
         vram_acc_corr = -0.7 if vram > 85 else -0.3 if vram > 70 else -0.1
-        correlations.append(CorrelationPair(
-            metric_a="VRAM Utilisation",
-            metric_b="Detection Accuracy",
-            correlation=round(vram_acc_corr, 2),
-            relationship="strong_negative" if vram_acc_corr < -0.5 else "weak_negative",
-        ))
+        correlations.append(
+            CorrelationPair(
+                metric_a="VRAM Utilisation",
+                metric_b="Detection Accuracy",
+                correlation=round(vram_acc_corr, 2),
+                relationship="strong_negative" if vram_acc_corr < -0.5 else "weak_negative",
+            )
+        )
 
         # Latency vs Flag Rate
         lat_flag_corr = 0.6 if latency > 2000 else 0.3 if latency > 1000 else 0.1
-        correlations.append(CorrelationPair(
-            metric_a="Pipeline Latency",
-            metric_b="Flag Rate",
-            correlation=round(lat_flag_corr, 2),
-            relationship="strong_positive" if lat_flag_corr > 0.5 else "moderate_positive" if lat_flag_corr > 0.25 else "weak_positive",
-        ))
+        correlations.append(
+            CorrelationPair(
+                metric_a="Pipeline Latency",
+                metric_b="Flag Rate",
+                correlation=round(lat_flag_corr, 2),
+                relationship="strong_positive"
+                if lat_flag_corr > 0.5
+                else "moderate_positive"
+                if lat_flag_corr > 0.25
+                else "weak_positive",
+            )
+        )
 
         # Flag Rate vs Data Quality
-        correlations.append(CorrelationPair(
-            metric_a="Flag Rate",
-            metric_b="Data Quality",
-            correlation=round(-0.9 if flag_rate > 0.3 else -0.5, 2),
-            relationship="strong_negative" if flag_rate > 0.3 else "moderate_negative",
-        ))
+        correlations.append(
+            CorrelationPair(
+                metric_a="Flag Rate",
+                metric_b="Data Quality",
+                correlation=round(-0.9 if flag_rate > 0.3 else -0.5, 2),
+                relationship="strong_negative" if flag_rate > 0.3 else "moderate_negative",
+            )
+        )
 
         # VRAM vs Latency
         vram_lat_corr = 0.75 if vram > 85 else 0.4 if vram > 70 else 0.15
-        correlations.append(CorrelationPair(
-            metric_a="VRAM Utilisation",
-            metric_b="Pipeline Latency",
-            correlation=round(vram_lat_corr, 2),
-            relationship="strong_positive" if vram_lat_corr > 0.6 else "moderate_positive" if vram_lat_corr > 0.3 else "weak_positive",
-        ))
+        correlations.append(
+            CorrelationPair(
+                metric_a="VRAM Utilisation",
+                metric_b="Pipeline Latency",
+                correlation=round(vram_lat_corr, 2),
+                relationship="strong_positive"
+                if vram_lat_corr > 0.6
+                else "moderate_positive"
+                if vram_lat_corr > 0.3
+                else "weak_positive",
+            )
+        )
 
         # Coverage vs Compliance
-        correlations.append(CorrelationPair(
-            metric_a="Surveillance Coverage",
-            metric_b="SLA Compliance",
-            correlation=0.92,
-            relationship="strong_positive",
-        ))
+        correlations.append(
+            CorrelationPair(
+                metric_a="Surveillance Coverage",
+                metric_b="SLA Compliance",
+                correlation=0.92,
+                relationship="strong_positive",
+            )
+        )
 
         return correlations
 
@@ -1237,7 +1390,7 @@ class ImpactAnalysisEngine:
         return SeverityTier.NEGLIGIBLE.value
 
     @staticmethod
-    def _flag_trend(camera_id: str, recent: List[Dict[str, Any]]) -> str:
+    def _flag_trend(camera_id: str, recent: list[dict[str, Any]]) -> str:
         cam_dets = [d for d in recent if d.get("camera_id") == camera_id]
         if len(cam_dets) < 4:
             return "stable"

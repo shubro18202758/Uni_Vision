@@ -23,9 +23,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
-from uni_vision.common.config import ValidationConfig
+if TYPE_CHECKING:
+    from uni_vision.common.config import ValidationConfig
 
 
 class Verdict(str, Enum):
@@ -44,8 +45,8 @@ class ValidationVerdict:
     verdict: Verdict
     corrected_text: str
     original_text: str
-    corrections_applied: Dict[str, str]
-    matched_locale: Optional[str]
+    corrections_applied: dict[str, str]
+    matched_locale: str | None
 
 
 # ── Position-category masks for common Indian plate format ────────
@@ -55,14 +56,14 @@ class ValidationVerdict:
 # direction.  'A' = must be alpha, 'D' = must be digit.
 
 
-def _infer_position_mask(pattern: str) -> Optional[str]:
+def _infer_position_mask(pattern: str) -> str | None:
     """Derive an A/D position mask from a simple regex pattern.
 
     Only supports patterns built from ``[A-Z]``, ``[0-9]``, and the
     quantifiers ``{n}`` and ``{n,m}``.  Returns ``None`` for patterns
     too complex to decompose.
     """
-    mask: List[str] = []
+    mask: list[str] = []
     i = 0
     while i < len(pattern):
         # Match [A-Z], [A-Z0-9], [0-9]
@@ -99,7 +100,7 @@ def _infer_position_mask(pattern: str) -> Optional[str]:
 # ── Alpha↔Digit confusion maps ───────────────────────────────────
 
 # When a position expects a DIGIT but we have an ALPHA
-_ALPHA_TO_DIGIT: Dict[str, str] = {
+_ALPHA_TO_DIGIT: dict[str, str] = {
     "O": "0",
     "I": "1",
     "L": "1",
@@ -113,7 +114,7 @@ _ALPHA_TO_DIGIT: Dict[str, str] = {
 }
 
 # When a position expects an ALPHA but we have a DIGIT
-_DIGIT_TO_ALPHA: Dict[str, str] = {
+_DIGIT_TO_ALPHA: dict[str, str] = {
     "0": "O",
     "1": "I",
     "5": "S",
@@ -138,15 +139,13 @@ class DeterministicValidator:
         self._config = config
 
         # Compile locale regex patterns
-        self._patterns: Dict[str, re.Pattern[str]] = {
-            locale: re.compile(pattern)
-            for locale, pattern in config.locale_patterns.items()
+        self._patterns: dict[str, re.Pattern[str]] = {
+            locale: re.compile(pattern) for locale, pattern in config.locale_patterns.items()
         }
 
         # Pre-compute position masks for each locale pattern
-        self._masks: Dict[str, Optional[str]] = {
-            locale: _infer_position_mask(pattern)
-            for locale, pattern in config.locale_patterns.items()
+        self._masks: dict[str, str | None] = {
+            locale: _infer_position_mask(pattern) for locale, pattern in config.locale_patterns.items()
         }
 
     def validate(
@@ -214,7 +213,7 @@ class DeterministicValidator:
 
     # ── Internal helpers ──────────────────────────────────────────
 
-    def _match_any_locale(self, text: str) -> Optional[str]:
+    def _match_any_locale(self, text: str) -> str | None:
         """Return the first locale whose pattern matches ``text``."""
         # Try default locale first for efficiency
         default = self._config.default_locale
@@ -231,7 +230,7 @@ class DeterministicValidator:
     def _apply_corrections(
         self,
         text: str,
-    ) -> Tuple[str, Dict[str, str]]:
+    ) -> tuple[str, dict[str, str]]:
         """Apply positional character confusion corrections.
 
         Uses the position mask from the default locale pattern to
@@ -246,7 +245,7 @@ class DeterministicValidator:
             return self._global_correction(text)
 
         corrected = list(text)
-        corrections: Dict[str, str] = {}
+        corrections: dict[str, str] = {}
 
         for i, ch in enumerate(corrected):
             if i >= len(mask):
@@ -269,10 +268,10 @@ class DeterministicValidator:
     def _global_correction(
         self,
         text: str,
-    ) -> Tuple[str, Dict[str, str]]:
+    ) -> tuple[str, dict[str, str]]:
         """Fallback: apply generic confusion map from config."""
         corrected = list(text)
-        corrections: Dict[str, str] = {}
+        corrections: dict[str, str] = {}
 
         for i, ch in enumerate(corrected):
             replacement = self._config.char_corrections.get(ch)

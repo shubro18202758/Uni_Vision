@@ -19,12 +19,14 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from uni_vision.agent.llm_client import AgentLLMClient
 from uni_vision.agent.memory import WorkingMemory
 from uni_vision.agent.prompts import build_agent_system_prompt, build_observation_message
-from uni_vision.agent.tools import ToolRegistry, ToolResult
+
+if TYPE_CHECKING:
+    from uni_vision.agent.llm_client import AgentLLMClient
+    from uni_vision.agent.tools import ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +37,10 @@ class AgentStep:
 
     step_number: int
     thought: str
-    action: Optional[Dict[str, Any]] = None
-    observation: Optional[str] = None
-    answer: Optional[str] = None
-    tool_result: Optional[ToolResult] = None
+    action: dict[str, Any] | None = None
+    observation: str | None = None
+    answer: str | None = None
+    tool_result: ToolResult | None = None
     elapsed_ms: float = 0.0
 
 
@@ -47,11 +49,11 @@ class AgentResponse:
     """Complete response from an agent run."""
 
     answer: str
-    steps: List[AgentStep] = field(default_factory=list)
+    steps: list[AgentStep] = field(default_factory=list)
     total_steps: int = 0
     total_elapsed_ms: float = 0.0
     success: bool = True
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class AgentLoop:
@@ -108,7 +110,7 @@ class AgentLoop:
         )
         memory.add_user_message(user_message)
 
-        steps: List[AgentStep] = []
+        steps: list[AgentStep] = []
 
         for iteration in range(self._max_iterations):
             step_t0 = time.perf_counter()
@@ -170,7 +172,9 @@ class AgentLoop:
                 )
 
                 tool_result = await self._registry.invoke(
-                    tool_name, arguments, context=context,
+                    tool_name,
+                    arguments,
+                    context=context,
                 )
                 step.tool_result = tool_result
 
@@ -204,19 +208,16 @@ class AgentLoop:
             )
 
         # Max iterations reached
-        logger.warning(
-            "agent_max_iterations_reached max=%d", self._max_iterations
-        )
+        logger.warning("agent_max_iterations_reached max=%d", self._max_iterations)
         return AgentResponse(
             answer="I reached the maximum number of reasoning steps. "
-            "Here's what I found so far: "
-            + (steps[-1].thought if steps else "No progress made."),
+            "Here's what I found so far: " + (steps[-1].thought if steps else "No progress made."),
             steps=steps,
             total_steps=self._max_iterations,
             total_elapsed_ms=(time.perf_counter() - t0) * 1000,
         )
 
-    def _parse_response(self, raw: str) -> Dict[str, Any]:
+    def _parse_response(self, raw: str) -> dict[str, Any]:
         """Parse the LLM response, extracting JSON from potential markdown."""
         # Strip markdown code fences if present
         content = raw.strip()

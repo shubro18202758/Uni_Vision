@@ -78,10 +78,7 @@ class VRAMBudgetExceeded(VRAMError):
         self.region = region
         self.budget_mb = budget_mb
         self.used_mb = used_mb
-        super().__init__(
-            f"VRAM region '{region}' exceeded budget: "
-            f"{used_mb:.1f} MB used / {budget_mb:.1f} MB budget"
-        )
+        super().__init__(f"VRAM region '{region}' exceeded budget: {used_mb:.1f} MB used / {budget_mb:.1f} MB budget")
 
 
 # ── F06  Ollama timeout ──────────────────────────────────────────

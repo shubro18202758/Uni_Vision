@@ -17,12 +17,13 @@ when clear thresholds are breached, and logs everything it does.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,11 @@ class HealthAlert:
     severity: AlertSeverity
     source: str  # e.g., "circuit_breaker", "queue_pressure"
     message: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     auto_remediated: bool = False
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "type": "agent_health_alert",
             "severity": self.severity.value,
@@ -85,9 +86,9 @@ class AutonomousMonitor:
         self._interval = interval_seconds
         self._broadcast = broadcast_fn
 
-        self._task: Optional[asyncio.Task[None]] = None
+        self._task: asyncio.Task[None] | None = None
         self._running = False
-        self._alerts: List[HealthAlert] = []
+        self._alerts: list[HealthAlert] = []
         self._check_count = 0
         self._last_check: float = 0.0
 
@@ -99,19 +100,15 @@ class AutonomousMonitor:
             return
         self._running = True
         self._task = asyncio.create_task(self._loop(), name="agent_monitor")
-        logger.info(
-            "autonomous_monitor_started interval=%.0fs", self._interval
-        )
+        logger.info("autonomous_monitor_started interval=%.0fs", self._interval)
 
     async def stop(self) -> None:
         """Gracefully stop the monitoring loop."""
         self._running = False
         if self._task and not self._task.done():
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         logger.info("autonomous_monitor_stopped checks=%d", self._check_count)
 
     @property
@@ -119,11 +116,11 @@ class AutonomousMonitor:
         return self._running
 
     @property
-    def recent_alerts(self) -> List[Dict[str, Any]]:
+    def recent_alerts(self) -> list[dict[str, Any]]:
         """Return the last 50 alerts as dicts."""
         return [a.to_dict() for a in self._alerts[-50:]]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "running": self._running,
             "check_count": self._check_count,
@@ -157,7 +154,7 @@ class AutonomousMonitor:
         self._check_count += 1
         self._last_check = time.time()
 
-        alerts: List[HealthAlert] = []
+        alerts: list[HealthAlert] = []
 
         # 1. Check system health
         alerts.extend(await self._check_system_health())
@@ -191,12 +188,14 @@ class AutonomousMonitor:
 
     # ── Individual health checks ─────────────────────────────────
 
-    async def _check_system_health(self) -> List[HealthAlert]:
+    async def _check_system_health(self) -> list[HealthAlert]:
         """Check pipeline and VRAM health."""
-        alerts: List[HealthAlert] = []
+        alerts: list[HealthAlert] = []
 
         result = await self._registry.invoke(
-            "get_system_health", {}, context=self._context,
+            "get_system_health",
+            {},
+            context=self._context,
         )
         if not result.success:
             return alerts
@@ -207,54 +206,66 @@ class AutonomousMonitor:
         vram = data.get("vram", {})
         used_pct = vram.get("used_percent", 0)
         if used_pct > 90:
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.CRITICAL,
-                source="vram",
-                message=f"VRAM usage critical: {used_pct:.1f}%",
-                details=vram,
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.CRITICAL,
+                    source="vram",
+                    message=f"VRAM usage critical: {used_pct:.1f}%",
+                    details=vram,
+                )
+            )
         elif used_pct > 75:
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.WARNING,
-                source="vram",
-                message=f"VRAM usage high: {used_pct:.1f}%",
-                details=vram,
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.WARNING,
+                    source="vram",
+                    message=f"VRAM usage high: {used_pct:.1f}%",
+                    details=vram,
+                )
+            )
 
         # Check pipeline state
         pipeline_state = data.get("pipeline_state", "unknown")
         if pipeline_state not in ("running", "unknown"):
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.CRITICAL,
-                source="pipeline",
-                message=f"Pipeline state: {pipeline_state}",
-                details={"state": pipeline_state},
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.CRITICAL,
+                    source="pipeline",
+                    message=f"Pipeline state: {pipeline_state}",
+                    details={"state": pipeline_state},
+                )
+            )
 
         # Check circuit breaker
         cb_state = data.get("circuit_breaker_state", "closed")
         if cb_state == "open":
             # Attempt auto-remediation
             heal_result = await self._registry.invoke(
-                "self_heal_pipeline", {}, context=self._context,
+                "self_heal_pipeline",
+                {},
+                context=self._context,
             )
             remediated = heal_result.success and (heal_result.data or {}).get("actions_taken", [])
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.WARNING,
-                source="circuit_breaker",
-                message="Circuit breaker is OPEN — LLM OCR unavailable",
-                details={"cb_state": cb_state, "heal_result": str(heal_result.data)[:200]},
-                auto_remediated=bool(remediated),
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.WARNING,
+                    source="circuit_breaker",
+                    message="Circuit breaker is OPEN — LLM OCR unavailable",
+                    details={"cb_state": cb_state, "heal_result": str(heal_result.data)[:200]},
+                    auto_remediated=bool(remediated),
+                )
+            )
 
         return alerts
 
-    async def _check_queue_pressure(self) -> List[HealthAlert]:
+    async def _check_queue_pressure(self) -> list[HealthAlert]:
         """Check inference queue for backpressure."""
-        alerts: List[HealthAlert] = []
+        alerts: list[HealthAlert] = []
 
         result = await self._registry.invoke(
-            "get_queue_pressure", {}, context=self._context,
+            "get_queue_pressure",
+            {},
+            context=self._context,
         )
         if not result.success:
             return alerts
@@ -267,32 +278,40 @@ class AutonomousMonitor:
         if fill_pct > 80:
             # Attempt to flush stale entries
             flush_result = await self._registry.invoke(
-                "flush_inference_queue", {}, context=self._context,
+                "flush_inference_queue",
+                {},
+                context=self._context,
             )
             flushed = (flush_result.data or {}).get("flushed", 0) if flush_result.success else 0
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.WARNING,
-                source="queue_pressure",
-                message=f"Queue fill at {fill_pct:.0f}% ({depth}/{maxsize})",
-                details={"depth": depth, "maxsize": maxsize, "flushed": flushed},
-                auto_remediated=flushed > 0,
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.WARNING,
+                    source="queue_pressure",
+                    message=f"Queue fill at {fill_pct:.0f}% ({depth}/{maxsize})",
+                    details={"depth": depth, "maxsize": maxsize, "flushed": flushed},
+                    auto_remediated=flushed > 0,
+                )
+            )
         elif fill_pct > 50:
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.INFO,
-                source="queue_pressure",
-                message=f"Queue fill at {fill_pct:.0f}%",
-                details={"depth": depth, "maxsize": maxsize},
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.INFO,
+                    source="queue_pressure",
+                    message=f"Queue fill at {fill_pct:.0f}%",
+                    details={"depth": depth, "maxsize": maxsize},
+                )
+            )
 
         return alerts
 
-    async def _check_ocr_health(self) -> List[HealthAlert]:
+    async def _check_ocr_health(self) -> list[HealthAlert]:
         """Check OCR strategy balance and error rates."""
-        alerts: List[HealthAlert] = []
+        alerts: list[HealthAlert] = []
 
         result = await self._registry.invoke(
-            "get_ocr_strategy_stats", {}, context=self._context,
+            "get_ocr_strategy_stats",
+            {},
+            context=self._context,
         )
         if not result.success:
             return alerts
@@ -302,19 +321,23 @@ class AutonomousMonitor:
         fallback_pct = data.get("fallback_usage_percent", 0)
 
         if primary < 0.5:
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.WARNING,
-                source="ocr_primary",
-                message=f"Primary OCR success rate low: {primary:.1%}",
-                details=data,
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.WARNING,
+                    source="ocr_primary",
+                    message=f"Primary OCR success rate low: {primary:.1%}",
+                    details=data,
+                )
+            )
 
         if fallback_pct > 40:
-            alerts.append(HealthAlert(
-                severity=AlertSeverity.WARNING,
-                source="ocr_fallback",
-                message=f"Fallback OCR usage high: {fallback_pct:.0f}%",
-                details=data,
-            ))
+            alerts.append(
+                HealthAlert(
+                    severity=AlertSeverity.WARNING,
+                    source="ocr_fallback",
+                    message=f"Fallback OCR usage high: {fallback_pct:.0f}%",
+                    details=data,
+                )
+            )
 
         return alerts

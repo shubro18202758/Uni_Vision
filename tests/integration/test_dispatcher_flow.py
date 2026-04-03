@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
-from unittest.mock import AsyncMock
 
 import numpy as np
 import pytest
@@ -22,7 +21,6 @@ from uni_vision.common.config import (
 )
 from uni_vision.contracts.dtos import DetectionRecord, ValidationStatus
 from uni_vision.postprocessing.dispatcher import MultiDispatcher
-
 
 # ── Fake storage backends ─────────────────────────────────────────
 
@@ -117,9 +115,7 @@ def plate_image():
 class TestDispatcherConsumerFlow:
     """Full dispatch pipeline: dedup → upload → DB write."""
 
-    def test_single_record_written(
-        self, dispatcher, fake_db, fake_store, valid_record, plate_image
-    ):
+    def test_single_record_written(self, dispatcher, fake_db, fake_store, valid_record, plate_image):
         """A valid record should be uploaded and written to DB."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(dispatcher.start())
@@ -132,9 +128,7 @@ class TestDispatcherConsumerFlow:
         assert fake_db.detections[0].camera_id == "cam-01"
         assert len(fake_store.uploads) == 1
 
-    def test_dispatch_without_plate_image(
-        self, dispatcher, fake_db, fake_store, valid_record
-    ):
+    def test_dispatch_without_plate_image(self, dispatcher, fake_db, fake_store, valid_record):
         """Dispatch without plate_image should skip upload but still write DB."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(dispatcher.start())
@@ -149,9 +143,7 @@ class TestDispatcherConsumerFlow:
 class TestDispatcherDeduplication:
     """Verify temporal deduplication suppresses repeated detections."""
 
-    def test_duplicate_suppressed(
-        self, dispatcher, fake_db, fake_store, valid_record, plate_image
-    ):
+    def test_duplicate_suppressed(self, dispatcher, fake_db, fake_store, valid_record, plate_image):
         """Same plate+camera within the dedup window should be suppressed."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(dispatcher.start())
@@ -166,9 +158,7 @@ class TestDispatcherDeduplication:
         # Only one should have been written
         assert len(fake_db.detections) == 1
 
-    def test_different_plates_not_deduplicated(
-        self, dispatcher, fake_db, fake_store, valid_record, plate_image
-    ):
+    def test_different_plates_not_deduplicated(self, dispatcher, fake_db, fake_store, valid_record, plate_image):
         """Different plate numbers should not be suppressed."""
         loop = asyncio.get_event_loop()
         loop.run_until_complete(dispatcher.start())
@@ -191,9 +181,7 @@ class TestDispatcherDeduplication:
 class TestDispatcherAuditRouting:
     """Verify low-confidence / failed records go to audit log."""
 
-    def test_low_confidence_goes_to_audit(
-        self, dispatcher, fake_db, fake_store, valid_record, plate_image
-    ):
+    def test_low_confidence_goes_to_audit(self, dispatcher, fake_db, fake_store, valid_record, plate_image):
         """Record with low_confidence status should hit audit log, not detections."""
         audit_record = replace(
             valid_record,
@@ -210,9 +198,7 @@ class TestDispatcherAuditRouting:
         assert len(fake_db.audit_logs) == 1
         assert fake_db.audit_logs[0]["record_id"] == "rec-001"
 
-    def test_regex_fail_goes_to_audit(
-        self, dispatcher, fake_db, valid_record, plate_image
-    ):
+    def test_regex_fail_goes_to_audit(self, dispatcher, fake_db, valid_record, plate_image):
         """Record with regex_fail status goes to audit log."""
         bad_record = replace(
             valid_record,

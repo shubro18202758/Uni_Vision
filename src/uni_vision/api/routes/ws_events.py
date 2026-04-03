@@ -14,7 +14,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -25,12 +24,12 @@ logger = logging.getLogger(__name__)
 REDIS_CHANNEL = "uv:events"
 
 # Connected WebSocket clients (managed per-process)
-_clients: Set[WebSocket] = set()
+_clients: set[WebSocket] = set()
 
 
 async def _broadcast(message: str) -> None:
     """Send a message to all connected WebSocket clients."""
-    dead: Set[WebSocket] = set()
+    dead: set[WebSocket] = set()
     for ws in _clients:
         try:
             await ws.send_text(message)

@@ -27,11 +27,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING
 
-from uni_vision.common.config import DeduplicationConfig
-from uni_vision.contracts.dtos import DetectionRecord
 from uni_vision.monitoring.metrics import DETECTIONS_DEDUPLICATED
+
+if TYPE_CHECKING:
+    from uni_vision.common.config import DeduplicationConfig
+    from uni_vision.contracts.dtos import DetectionRecord
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ logger = logging.getLogger(__name__)
 class _WindowEntry:
     """Mutable entry tracking the best detection in the current window."""
 
-    __slots__ = ("plate_text", "confidence", "first_seen", "last_seen", "count")
+    __slots__ = ("confidence", "count", "first_seen", "last_seen", "plate_text")
 
     def __init__(
         self,
@@ -57,7 +59,7 @@ class _WindowEntry:
 
 
 # Key type: (camera_id, normalised_plate_text)
-_Key = Tuple[str, str]
+_Key = tuple[str, str]
 
 
 class SlidingWindowDeduplicator:
@@ -72,8 +74,8 @@ class SlidingWindowDeduplicator:
     def __init__(self, config: DeduplicationConfig) -> None:
         self._window_s = config.window_seconds
         self._purge_interval = config.purge_interval_seconds
-        self._entries: Dict[_Key, _WindowEntry] = {}
-        self._purge_task: Optional[asyncio.Task[None]] = None
+        self._entries: dict[_Key, _WindowEntry] = {}
+        self._purge_task: asyncio.Task[None] | None = None
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -134,11 +136,7 @@ class SlidingWindowDeduplicator:
 
     def _purge_expired(self) -> None:
         now = time.monotonic()
-        expired = [
-            k
-            for k, v in self._entries.items()
-            if (now - v.first_seen) >= self._window_s
-        ]
+        expired = [k for k, v in self._entries.items() if (now - v.first_seen) >= self._window_s]
         for k in expired:
             del self._entries[k]
 

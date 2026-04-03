@@ -14,7 +14,7 @@ import asyncio
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -27,10 +27,11 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 logger = logging.getLogger(__name__)
 
 # Active processing jobs (in-memory; fine for single-process server)
-_active_jobs: Dict[str, Dict[str, Any]] = {}
+_active_jobs: dict[str, dict[str, Any]] = {}
 
 
 # ── Request / response schemas ────────────────────────────────────
+
 
 class ProcessRequest(BaseModel):
     source_url: str
@@ -41,11 +42,12 @@ class ProcessRequest(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────
 
+
 @router.post("/process", status_code=202)
 async def start_processing(
     request: Request,
     body: ProcessRequest,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Start processing a video file through the vision pipeline.
 
     Creates an ``RTSPFrameSource`` for the video file and feeds frames
@@ -132,7 +134,7 @@ async def start_processing(
 
 
 @router.get("/process/status")
-async def list_jobs() -> List[Dict[str, Any]]:
+async def list_jobs() -> list[dict[str, Any]]:
     """List all active and recently completed processing jobs."""
     return [
         {
@@ -146,7 +148,7 @@ async def list_jobs() -> List[Dict[str, Any]]:
 
 
 @router.delete("/process/{job_id}")
-async def stop_job(job_id: str) -> Dict[str, str]:
+async def stop_job(job_id: str) -> dict[str, str]:
     """Stop an active processing job."""
     job = _active_jobs.get(job_id)
     if job is None:
@@ -157,7 +159,7 @@ async def stop_job(job_id: str) -> Dict[str, str]:
 
 
 @router.delete("/process")
-async def stop_all_jobs() -> Dict[str, Any]:
+async def stop_all_jobs() -> dict[str, Any]:
     """Stop all active processing jobs."""
     stopped = []
     for job_id, job in list(_active_jobs.items()):
@@ -168,7 +170,7 @@ async def stop_all_jobs() -> Dict[str, Any]:
 
 
 @router.get("/jobs/lifecycle")
-async def get_job_lifecycle_status(request: Request) -> Dict[str, Any]:
+async def get_job_lifecycle_status(request: Request) -> dict[str, Any]:
     """Return Manager Agent job lifecycle state for all tracked jobs."""
     pipeline = getattr(request.app.state, "pipeline", None)
     if pipeline is None:
@@ -181,7 +183,8 @@ async def get_job_lifecycle_status(request: Request) -> Dict[str, Any]:
 
 # ── Internal helpers ──────────────────────────────────────────────
 
-def _cleanup_job(job: Dict[str, Any]) -> None:
+
+def _cleanup_job(job: dict[str, Any]) -> None:
     """Stop source and sampler for a single job."""
     sampler = job.get("sampler")
     source = job.get("source")
@@ -195,6 +198,7 @@ def _cleanup_job(job: Dict[str, Any]) -> None:
 def _get_processing_phase():
     """Import lazily to avoid circular import."""
     from uni_vision.manager.job_lifecycle import JobPhase
+
     return JobPhase.PROCESSING
 
 
@@ -249,7 +253,9 @@ async def _wait_for_completion(
                     )
                 except Exception:
                     logger.warning(
-                        "job_flush_failed job_id=%s", job_id, exc_info=True,
+                        "job_flush_failed job_id=%s",
+                        job_id,
+                        exc_info=True,
                     )
 
         logger.info("video_processing_completed job_id=%s elapsed=%.0fs", job_id, elapsed)

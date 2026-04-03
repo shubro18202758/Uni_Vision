@@ -34,10 +34,18 @@ class TestDetectionEventsSQL:
         from uni_vision.storage.models import CREATE_TABLE_SQL
 
         required_columns = [
-            "id", "camera_id", "plate_number", "raw_ocr_text",
-            "ocr_confidence", "ocr_engine", "vehicle_class",
-            "vehicle_image_path", "plate_image_path",
-            "detected_at_utc", "validation_status", "location_tag",
+            "id",
+            "camera_id",
+            "plate_number",
+            "raw_ocr_text",
+            "ocr_confidence",
+            "ocr_engine",
+            "vehicle_class",
+            "vehicle_image_path",
+            "plate_image_path",
+            "detected_at_utc",
+            "validation_status",
+            "location_tag",
             "created_at",
         ]
         for col in required_columns:

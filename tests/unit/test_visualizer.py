@@ -8,9 +8,7 @@ import pathlib
 import pytest
 
 _streamlit_available = importlib.util.find_spec("streamlit") is not None
-_skip_no_streamlit = pytest.mark.skipif(
-    not _streamlit_available, reason="streamlit not installed"
-)
+_skip_no_streamlit = pytest.mark.skipif(not _streamlit_available, reason="streamlit not installed")
 
 # All 8 visualizer modules + helpers + app.
 _MODULES = [

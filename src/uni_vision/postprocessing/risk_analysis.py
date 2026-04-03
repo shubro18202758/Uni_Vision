@@ -14,11 +14,10 @@ Spec references: §4 S8 post-processing, §8 agentic orchestration.
 from __future__ import annotations
 
 import logging
-import math
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +69,7 @@ class TimelineEvent:
     title: str
     description: str
     severity: str = "medium"
-    metric_value: Optional[float] = None
+    metric_value: float | None = None
 
 
 @dataclass
@@ -82,8 +81,8 @@ class AlertItem:
     title: str
     description: str
     source_component: str
-    metric_value: Optional[float] = None
-    threshold: Optional[float] = None
+    metric_value: float | None = None
+    threshold: float | None = None
 
 
 @dataclass
@@ -96,7 +95,7 @@ class ConsequenceStep:
     description: str
     severity: str  # low / medium / high / critical
     probability: float  # 0-1
-    affected_components: List[str] = field(default_factory=list)
+    affected_components: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -105,7 +104,7 @@ class IgnoredAlertConsequence:
 
     alert_id: str
     alert_title: str
-    consequence_chain: List[ConsequenceStep]
+    consequence_chain: list[ConsequenceStep]
     terminal_state: str  # final system state if fully ignored
     total_propagation_time: str  # e.g. "5-15 minutes"
     cascading_failure_risk: float  # 0-1
@@ -121,7 +120,7 @@ class ScenarioProjection:
     probability: float  # 0-1
     impact_score: float  # 0-100
     time_to_resolution: str
-    consequences_if_ignored: List[str]
+    consequences_if_ignored: list[str]
     escalation_severity: str  # how bad does it get if ignored
 
 
@@ -131,9 +130,9 @@ class AnomalyPattern:
 
     pattern_name: str
     frequency: int
-    affected_cameras: List[str]
-    time_distribution: Dict[str, int]
-    severity_distribution: Dict[str, int]
+    affected_cameras: list[str]
+    time_distribution: dict[str, int]
+    severity_distribution: dict[str, int]
 
 
 @dataclass
@@ -155,17 +154,17 @@ class RiskAnalysis:
     detection_id: str
     overall_risk_level: str
     overall_risk_score: float
-    risk_dimensions: List[RiskDimension]
-    timeline: List[TimelineEvent]
-    scenarios: List[ScenarioProjection]
-    alerts: List[AlertItem]
-    ignored_consequences: List[IgnoredAlertConsequence]
-    anomaly_patterns: List[AnomalyPattern]
-    component_health: List[ComponentHealthScore]
+    risk_dimensions: list[RiskDimension]
+    timeline: list[TimelineEvent]
+    scenarios: list[ScenarioProjection]
+    alerts: list[AlertItem]
+    ignored_consequences: list[IgnoredAlertConsequence]
+    anomaly_patterns: list[AnomalyPattern]
+    component_health: list[ComponentHealthScore]
     summary: str
     generated_at_ms: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "detection_id": self.detection_id,
             "overall_risk_level": self.overall_risk_level,
@@ -286,9 +285,9 @@ class RiskAnalysisEngine:
         raw_ocr_text: str,
         vehicle_class: str,
         detected_at: str,
-        char_corrections: Optional[Dict[str, str]] = None,
-        recent_detections: Optional[List[Dict[str, Any]]] = None,
-        pipeline_telemetry: Optional[Dict[str, Any]] = None,
+        char_corrections: dict[str, str] | None = None,
+        recent_detections: list[dict[str, Any]] | None = None,
+        pipeline_telemetry: dict[str, Any] | None = None,
         anomaly_type: str = "",
         anomaly_severity: str = "",
         anomaly_description: str = "",
@@ -300,9 +299,15 @@ class RiskAnalysisEngine:
 
         # 1. Risk dimensions (radar chart)
         dimensions = self._compute_risk_dimensions(
-            ocr_confidence, validation_status, camera_id,
-            recent, telemetry, char_corrections,
-            anomaly_type, anomaly_severity, anomaly_description,
+            ocr_confidence,
+            validation_status,
+            camera_id,
+            recent,
+            telemetry,
+            char_corrections,
+            anomaly_type,
+            anomaly_severity,
+            anomaly_description,
         )
 
         # 2. Overall risk
@@ -311,23 +316,39 @@ class RiskAnalysisEngine:
 
         # 3. Anomaly timeline
         timeline = self._build_timeline(
-            detection_id, validation_status, ocr_confidence,
-            detected_at, camera_id, recent,
+            detection_id,
+            validation_status,
+            ocr_confidence,
+            detected_at,
+            camera_id,
+            recent,
         )
 
         # 4. Scenario projections (with consequences, NOT recommendations)
         scenarios = self._generate_scenarios(
-            validation_status, ocr_confidence, overall_score, recent,
+            validation_status,
+            ocr_confidence,
+            overall_score,
+            recent,
         )
 
         # 5. Raise alerts
         alerts = self._raise_alerts(
-            validation_status, ocr_confidence, telemetry, recent, camera_id,
+            validation_status,
+            ocr_confidence,
+            telemetry,
+            recent,
+            camera_id,
         )
 
         # 6. "What if ignored" consequence chains
         ignored_consequences = self._compute_ignored_consequences(
-            alerts, validation_status, ocr_confidence, recent, camera_id, telemetry,
+            alerts,
+            validation_status,
+            ocr_confidence,
+            recent,
+            camera_id,
+            telemetry,
         )
 
         # 7. Pattern analysis
@@ -338,8 +359,13 @@ class RiskAnalysisEngine:
 
         # 9. Summary
         summary = self._build_summary(
-            overall_level, overall_score, validation_status,
-            camera_id, plate_number, len(dimensions), len(alerts),
+            overall_level,
+            overall_score,
+            validation_status,
+            camera_id,
+            plate_number,
+            len(dimensions),
+            len(alerts),
         )
 
         elapsed = (time.perf_counter() - t0) * 1000
@@ -366,18 +392,19 @@ class RiskAnalysisEngine:
         ocr_confidence: float,
         validation_status: str,
         camera_id: str,
-        recent: List[Dict[str, Any]],
-        telemetry: Dict[str, Any],
-        char_corrections: Optional[Dict[str, str]],
+        recent: list[dict[str, Any]],
+        telemetry: dict[str, Any],
+        char_corrections: dict[str, str] | None,
         anomaly_type: str = "",
         anomaly_severity: str = "",
         anomaly_description: str = "",
-    ) -> List[RiskDimension]:
-        dims: List[RiskDimension] = []
+    ) -> list[RiskDimension]:
+        dims: list[RiskDimension] = []
 
         # ── Anomaly-type severity multiplier ──
         sev_mult = {"low": 0.6, "medium": 1.0, "high": 1.4, "critical": 1.8}.get(
-            anomaly_severity.lower(), 1.0,
+            anomaly_severity.lower(),
+            1.0,
         )
         atype = anomaly_type.lower() if anomaly_type else ""
 
@@ -386,31 +413,35 @@ class RiskAnalysisEngine:
         # Anomaly-specific: structural/physical anomalies have higher confidence risk
         if atype in ("structural_damage", "physical_intrusion", "equipment_failure"):
             conf_risk = min(100, conf_risk * 1.3)
-        dims.append(RiskDimension(
-            axis="Detection Confidence",
-            score=round(min(100, conf_risk * sev_mult), 1),
-            label=f"{ocr_confidence:.0%} confidence",
-            description=(
-                f"Detection confidence risk for {anomaly_type or 'general anomaly'}: "
-                f"lower confidence = higher risk"
-            ),
-            trend=self._confidence_trend(camera_id, recent),
-        ))
+        dims.append(
+            RiskDimension(
+                axis="Detection Confidence",
+                score=round(min(100, conf_risk * sev_mult), 1),
+                label=f"{ocr_confidence:.0%} confidence",
+                description=(
+                    f"Detection confidence risk for {anomaly_type or 'general anomaly'}: lower confidence = higher risk"
+                ),
+                trend=self._confidence_trend(camera_id, recent),
+            )
+        )
 
         # Axis 2: Anomaly Severity Risk
         sev_score = {"low": 20, "medium": 45, "high": 70, "critical": 95}.get(
-            anomaly_severity.lower(), 40,
+            anomaly_severity.lower(),
+            40,
         )
-        dims.append(RiskDimension(
-            axis="Anomaly Severity",
-            score=round(float(sev_score), 1),
-            label=anomaly_severity.capitalize() if anomaly_severity else "Unknown",
-            description=(
-                f"Inherent severity of '{anomaly_type or 'detected anomaly'}' — "
-                f"{'immediate response required' if sev_score > 60 else 'monitoring recommended'}"
-            ),
-            trend="degrading" if sev_score > 60 else "stable",
-        ))
+        dims.append(
+            RiskDimension(
+                axis="Anomaly Severity",
+                score=round(float(sev_score), 1),
+                label=anomaly_severity.capitalize() if anomaly_severity else "Unknown",
+                description=(
+                    f"Inherent severity of '{anomaly_type or 'detected anomaly'}' — "
+                    f"{'immediate response required' if sev_score > 60 else 'monitoring recommended'}"
+                ),
+                trend="degrading" if sev_score > 60 else "stable",
+            )
+        )
 
         # Axis 3: Scene Context Risk
         format_risk = 85.0 if validation_status in ("regex_fail", "parse_fail", "unreadable") else 15.0
@@ -419,87 +450,88 @@ class RiskAnalysisEngine:
             format_risk = min(100, format_risk + 30)
         elif atype in ("unusual_activity", "loitering", "crowd_anomaly"):
             format_risk = min(100, format_risk + 15)
-        dims.append(RiskDimension(
-            axis="Scene Context",
-            score=round(min(100, format_risk * sev_mult), 1),
-            label="Elevated" if format_risk > 50 else "Normal",
-            description=(
-                f"Environmental and scene context risk for {anomaly_type or 'anomaly'}"
-            ),
-            trend="stable",
-        ))
+        dims.append(
+            RiskDimension(
+                axis="Scene Context",
+                score=round(min(100, format_risk * sev_mult), 1),
+                label="Elevated" if format_risk > 50 else "Normal",
+                description=(f"Environmental and scene context risk for {anomaly_type or 'anomaly'}"),
+                trend="stable",
+            )
+        )
 
         # Axis 4: Temporal Consistency
         temporal_risk = self._compute_temporal_risk(camera_id, recent)
         # Recurring anomalies of same type increase temporal risk
         if atype:
-            same_type_count = sum(
-                1 for d in recent
-                if d.get("anomaly_type", "").lower() == atype
-            )
+            same_type_count = sum(1 for d in recent if d.get("anomaly_type", "").lower() == atype)
             temporal_risk = min(100, temporal_risk + same_type_count * 8)
-        dims.append(RiskDimension(
-            axis="Temporal Consistency",
-            score=round(min(100, temporal_risk * sev_mult), 1),
-            label="Anomalous" if temporal_risk > 60 else "Consistent",
-            description=(
-                f"Temporal pattern deviation for {anomaly_type or 'anomaly'} on camera {camera_id}"
-            ),
-            trend="degrading" if temporal_risk > 60 else "stable",
-        ))
+        dims.append(
+            RiskDimension(
+                axis="Temporal Consistency",
+                score=round(min(100, temporal_risk * sev_mult), 1),
+                label="Anomalous" if temporal_risk > 60 else "Consistent",
+                description=(f"Temporal pattern deviation for {anomaly_type or 'anomaly'} on camera {camera_id}"),
+                trend="degrading" if temporal_risk > 60 else "stable",
+            )
+        )
 
         # Axis 5: System Health
         sys_risk = self._compute_system_risk(telemetry)
-        dims.append(RiskDimension(
-            axis="System Health",
-            score=round(sys_risk, 1),
-            label="Stressed" if sys_risk > 50 else "Healthy",
-            description="Pipeline and GPU resource health risk factor",
-            trend="degrading" if sys_risk > 50 else "stable",
-        ))
+        dims.append(
+            RiskDimension(
+                axis="System Health",
+                score=round(sys_risk, 1),
+                label="Stressed" if sys_risk > 50 else "Healthy",
+                description="Pipeline and GPU resource health risk factor",
+                trend="degrading" if sys_risk > 50 else "stable",
+            )
+        )
 
         # Axis 6: Detection Reliability
         det_risk = self._compute_detection_reliability(recent, camera_id)
-        dims.append(RiskDimension(
-            axis="Detection Reliability",
-            score=round(det_risk, 1),
-            label=f"{100 - det_risk:.0f}% reliable",
-            description="Overall detection pipeline reliability for this camera",
-            trend=self._reliability_trend(camera_id, recent),
-        ))
+        dims.append(
+            RiskDimension(
+                axis="Detection Reliability",
+                score=round(det_risk, 1),
+                label=f"{100 - det_risk:.0f}% reliable",
+                description="Overall detection pipeline reliability for this camera",
+                trend=self._reliability_trend(camera_id, recent),
+            )
+        )
 
         # Axis 7: Escalation Potential
         esc_base = 70.0 if anomaly_severity in ("high", "critical") else 30.0
         if atype in ("fire", "structural_damage", "gas_leak", "flooding"):
             esc_base = min(100, esc_base + 25)
-        dims.append(RiskDimension(
-            axis="Escalation Potential",
-            score=round(esc_base, 1),
-            label="High" if esc_base > 50 else "Low",
-            description=(
-                f"Likelihood that '{anomaly_type or 'anomaly'}' escalates if unattended"
-            ),
-        ))
+        dims.append(
+            RiskDimension(
+                axis="Escalation Potential",
+                score=round(esc_base, 1),
+                label="High" if esc_base > 50 else "Low",
+                description=(f"Likelihood that '{anomaly_type or 'anomaly'}' escalates if unattended"),
+            )
+        )
 
         # Axis 8: Environmental Factor
         env_risk = 50.0 if validation_status == "unreadable" else 20.0
         if atype in ("environmental_hazard", "weather_event", "lighting_anomaly"):
             env_risk = min(100, env_risk + 35)
-        dims.append(RiskDimension(
-            axis="Environmental Factor",
-            score=round(min(100, env_risk * sev_mult), 1),
-            label="Poor" if env_risk > 40 else "Good",
-            description=(
-                f"Environmental conditions impact for {anomaly_type or 'anomaly'} detection"
-            ),
-        ))
+        dims.append(
+            RiskDimension(
+                axis="Environmental Factor",
+                score=round(min(100, env_risk * sev_mult), 1),
+                label="Poor" if env_risk > 40 else "Good",
+                description=(f"Environmental conditions impact for {anomaly_type or 'anomaly'} detection"),
+            )
+        )
 
         return dims
 
     # ── Overall Risk Computation ──────────────────────────────────
 
     @staticmethod
-    def _compute_overall_risk(dimensions: List[RiskDimension]) -> float:
+    def _compute_overall_risk(dimensions: list[RiskDimension]) -> float:
         """Weighted geometric mean of all risk dimensions."""
         if not dimensions:
             return 0.0
@@ -543,72 +575,80 @@ class RiskAnalysisEngine:
         confidence: float,
         detected_at: str,
         camera_id: str,
-        recent: List[Dict[str, Any]],
-    ) -> List[TimelineEvent]:
-        events: List[TimelineEvent] = []
+        recent: list[dict[str, Any]],
+    ) -> list[TimelineEvent]:
+        events: list[TimelineEvent] = []
 
         # Find earliest flag in recent history for this camera
         camera_flags = [
-            d for d in recent
-            if d.get("camera_id") == camera_id
-            and d.get("validation_status", "valid") != "valid"
+            d for d in recent if d.get("camera_id") == camera_id and d.get("validation_status", "valid") != "valid"
         ]
 
         if camera_flags:
             earliest = camera_flags[-1] if camera_flags else None
             if earliest:
-                events.append(TimelineEvent(
-                    timestamp=earliest.get("detected_at_utc", detected_at),
-                    event_type="anomaly_start",
-                    title="First Anomaly Detected",
-                    description=f"Initial flag: {earliest.get('validation_status', 'unknown')} "
-                    f"on camera {camera_id}",
-                    severity="medium",
-                    metric_value=earliest.get("ocr_confidence", 0.0),
-                ))
+                events.append(
+                    TimelineEvent(
+                        timestamp=earliest.get("detected_at_utc", detected_at),
+                        event_type="anomaly_start",
+                        title="First Anomaly Detected",
+                        description=f"Initial flag: {earliest.get('validation_status', 'unknown')} "
+                        f"on camera {camera_id}",
+                        severity="medium",
+                        metric_value=earliest.get("ocr_confidence", 0.0),
+                    )
+                )
 
             # Track degradation progression
             for i, flag_det in enumerate(camera_flags[:-1] if len(camera_flags) > 1 else []):
-                events.append(TimelineEvent(
-                    timestamp=flag_det.get("detected_at_utc", ""),
-                    event_type="degradation",
-                    title=f"Continued Anomaly #{i + 2}",
-                    description=f"Status: {flag_det.get('validation_status')} — "
-                    f"confidence {flag_det.get('ocr_confidence', 0):.1%}",
-                    severity="medium",
-                    metric_value=flag_det.get("ocr_confidence"),
-                ))
+                events.append(
+                    TimelineEvent(
+                        timestamp=flag_det.get("detected_at_utc", ""),
+                        event_type="degradation",
+                        title=f"Continued Anomaly #{i + 2}",
+                        description=f"Status: {flag_det.get('validation_status')} — "
+                        f"confidence {flag_det.get('ocr_confidence', 0):.1%}",
+                        severity="medium",
+                        metric_value=flag_det.get("ocr_confidence"),
+                    )
+                )
 
         # Current flag event
-        events.append(TimelineEvent(
-            timestamp=detected_at,
-            event_type="flag_raised",
-            title="Current Detection Flagged",
-            description=f"Flag '{validation_status}' raised — confidence {confidence:.1%}",
-            severity="high",
-            metric_value=confidence,
-        ))
+        events.append(
+            TimelineEvent(
+                timestamp=detected_at,
+                event_type="flag_raised",
+                title="Current Detection Flagged",
+                description=f"Flag '{validation_status}' raised — confidence {confidence:.1%}",
+                severity="high",
+                metric_value=confidence,
+            )
+        )
 
         # Predictive events
         if len(camera_flags) >= 3:
-            events.append(TimelineEvent(
-                timestamp="",
-                event_type="prediction",
-                title="Pattern Escalation Predicted",
-                description=f"Camera {camera_id} shows a recurring anomaly pattern. "
-                f"Without intervention, expect continued degradation.",
-                severity="high",
-            ))
+            events.append(
+                TimelineEvent(
+                    timestamp="",
+                    event_type="prediction",
+                    title="Pattern Escalation Predicted",
+                    description=f"Camera {camera_id} shows a recurring anomaly pattern. "
+                    f"Without intervention, expect continued degradation.",
+                    severity="high",
+                )
+            )
 
         if confidence < 0.3 and validation_status == "unreadable":
-            events.append(TimelineEvent(
-                timestamp="",
-                event_type="prediction",
-                title="Full Detection Loss Imminent",
-                description="Current trajectory suggests complete loss of plate recognition "
-                "capability for this camera if conditions persist.",
-                severity="critical",
-            ))
+            events.append(
+                TimelineEvent(
+                    timestamp="",
+                    event_type="prediction",
+                    title="Full Detection Loss Imminent",
+                    description="Current trajectory suggests complete loss of plate recognition "
+                    "capability for this camera if conditions persist.",
+                    severity="critical",
+                )
+            )
 
         return events
 
@@ -619,27 +659,29 @@ class RiskAnalysisEngine:
         status: str,
         confidence: float,
         overall_risk: float,
-        recent: List[Dict[str, Any]],
-    ) -> List[ScenarioProjection]:
+        recent: list[dict[str, Any]],
+    ) -> list[ScenarioProjection]:
         scenarios = []
 
         # Best case
-        scenarios.append(ScenarioProjection(
-            scenario=ScenarioOutcome.BEST_CASE.value,
-            title="Transient Anomaly — Self-Recovery",
-            description="The flag is caused by a temporary condition (e.g. glare, momentary "
-            "occlusion) that resolves without intervention. Pipeline returns to normal "
-            "operation within the next few frames.",
-            probability=round(max(0.1, confidence * 0.7), 2),
-            impact_score=round(max(5, overall_risk * 0.3), 1),
-            time_to_resolution="Immediate (next 1-5 frames)",
-            consequences_if_ignored=[
-                "No lasting impact — transient condition self-corrects",
-                "A few frames may carry invalid reads but the live feed recovers",
-                "Minimal data loss in the surveillance record",
-            ],
-            escalation_severity="low",
-        ))
+        scenarios.append(
+            ScenarioProjection(
+                scenario=ScenarioOutcome.BEST_CASE.value,
+                title="Transient Anomaly — Self-Recovery",
+                description="The flag is caused by a temporary condition (e.g. glare, momentary "
+                "occlusion) that resolves without intervention. Pipeline returns to normal "
+                "operation within the next few frames.",
+                probability=round(max(0.1, confidence * 0.7), 2),
+                impact_score=round(max(5, overall_risk * 0.3), 1),
+                time_to_resolution="Immediate (next 1-5 frames)",
+                consequences_if_ignored=[
+                    "No lasting impact — transient condition self-corrects",
+                    "A few frames may carry invalid reads but the live feed recovers",
+                    "Minimal data loss in the surveillance record",
+                ],
+                escalation_severity="low",
+            )
+        )
 
         # Likely case
         likely_prob = 0.5
@@ -695,44 +737,46 @@ class RiskAnalysisEngine:
                 "Downstream integrations receive low-quality data",
             ]
 
-        scenarios.append(ScenarioProjection(
-            scenario=ScenarioOutcome.LIKELY.value,
-            title="Persistent Issue — Alert Escalation",
-            description=likely_desc,
-            probability=round(likely_prob, 2),
-            impact_score=round(overall_risk * 0.7, 1),
-            time_to_resolution=likely_resolution,
-            consequences_if_ignored=likely_consequences,
-            escalation_severity="high",
-        ))
+        scenarios.append(
+            ScenarioProjection(
+                scenario=ScenarioOutcome.LIKELY.value,
+                title="Persistent Issue — Alert Escalation",
+                description=likely_desc,
+                probability=round(likely_prob, 2),
+                impact_score=round(overall_risk * 0.7, 1),
+                time_to_resolution=likely_resolution,
+                consequences_if_ignored=likely_consequences,
+                escalation_severity="high",
+            )
+        )
 
         # Worst case
         worst_prob = round(max(0.05, (1.0 - confidence) * 0.4), 2)
-        n_recent_flags = sum(
-            1 for d in recent if d.get("validation_status", "valid") != "valid"
-        )
+        n_recent_flags = sum(1 for d in recent if d.get("validation_status", "valid") != "valid")
         if n_recent_flags > 5:
             worst_prob = min(0.6, worst_prob + 0.15)
 
-        scenarios.append(ScenarioProjection(
-            scenario=ScenarioOutcome.WORST_CASE.value,
-            title="Cascading Failure — Complete Detection Loss",
-            description="The anomaly escalates on the live feed: camera feed degrades further, "
-            "VRAM pressure causes model fallback, and the pipeline enters a failure "
-            "spiral. All detections from this camera become unreliable.",
-            probability=round(worst_prob, 2),
-            impact_score=round(min(100, overall_risk * 1.5), 1),
-            time_to_resolution="Extended — requires maintenance window",
-            consequences_if_ignored=[
-                "TOTAL surveillance blind spot — camera produces zero valid detections",
-                "VRAM exhaustion cascades to ALL cameras sharing the GPU",
-                "Pipeline enters failure spiral: detection → OCR → adjudication all degrade",
-                "Live feed data becomes forensically useless for this time window",
-                "Cross-camera tracking breaks: vehicles disappear from the surveillance net",
-                "Recovery requires full system restart and potential hardware intervention",
-            ],
-            escalation_severity="critical",
-        ))
+        scenarios.append(
+            ScenarioProjection(
+                scenario=ScenarioOutcome.WORST_CASE.value,
+                title="Cascading Failure — Complete Detection Loss",
+                description="The anomaly escalates on the live feed: camera feed degrades further, "
+                "VRAM pressure causes model fallback, and the pipeline enters a failure "
+                "spiral. All detections from this camera become unreliable.",
+                probability=round(worst_prob, 2),
+                impact_score=round(min(100, overall_risk * 1.5), 1),
+                time_to_resolution="Extended — requires maintenance window",
+                consequences_if_ignored=[
+                    "TOTAL surveillance blind spot — camera produces zero valid detections",
+                    "VRAM exhaustion cascades to ALL cameras sharing the GPU",
+                    "Pipeline enters failure spiral: detection → OCR → adjudication all degrade",
+                    "Live feed data becomes forensically useless for this time window",
+                    "Cross-camera tracking breaks: vehicles disappear from the surveillance net",
+                    "Recovery requires full system restart and potential hardware intervention",
+                ],
+                escalation_severity="critical",
+            )
+        )
 
         return scenarios
 
@@ -742,11 +786,11 @@ class RiskAnalysisEngine:
     def _raise_alerts(
         status: str,
         confidence: float,
-        telemetry: Dict[str, Any],
-        recent: List[Dict[str, Any]],
+        telemetry: dict[str, Any],
+        recent: list[dict[str, Any]],
         camera_id: str,
-    ) -> List[AlertItem]:
-        alerts: List[AlertItem] = []
+    ) -> list[AlertItem]:
+        alerts: list[AlertItem] = []
         alert_idx = 0
 
         # Alert: Primary flag
@@ -759,81 +803,95 @@ class RiskAnalysisEngine:
             "fallback": AlertPriority.INFO.value,
         }
         alert_idx += 1
-        alerts.append(AlertItem(
-            alert_id=f"ALR-{alert_idx:03d}",
-            priority=flag_priority.get(status, AlertPriority.WARNING.value),
-            title=f"Detection Flag: {status.replace('_', ' ').title()}",
-            description=f"Live feed frame flagged with status '{status}' on camera {camera_id}",
-            source_component="Validation Pipeline",
-        ))
+        alerts.append(
+            AlertItem(
+                alert_id=f"ALR-{alert_idx:03d}",
+                priority=flag_priority.get(status, AlertPriority.WARNING.value),
+                title=f"Detection Flag: {status.replace('_', ' ').title()}",
+                description=f"Live feed frame flagged with status '{status}' on camera {camera_id}",
+                source_component="Validation Pipeline",
+            )
+        )
 
         # Alert: Low confidence
         if confidence < 0.5:
             alert_idx += 1
-            alerts.append(AlertItem(
-                alert_id=f"ALR-{alert_idx:03d}",
-                priority=AlertPriority.URGENT.value if confidence < 0.3 else AlertPriority.WARNING.value,
-                title="OCR Confidence Below Threshold",
-                description=f"OCR confidence at {confidence:.1%} — below minimum reliable threshold",
-                source_component="OCR Engine",
-                metric_value=round(confidence, 4),
-                threshold=0.5,
-            ))
+            alerts.append(
+                AlertItem(
+                    alert_id=f"ALR-{alert_idx:03d}",
+                    priority=AlertPriority.URGENT.value if confidence < 0.3 else AlertPriority.WARNING.value,
+                    title="OCR Confidence Below Threshold",
+                    description=f"OCR confidence at {confidence:.1%} — below minimum reliable threshold",
+                    source_component="OCR Engine",
+                    metric_value=round(confidence, 4),
+                    threshold=0.5,
+                )
+            )
 
         # Alert: VRAM pressure
         vram = telemetry.get("vram_utilisation_pct", 50)
         if vram > 85:
             alert_idx += 1
-            alerts.append(AlertItem(
-                alert_id=f"ALR-{alert_idx:03d}",
-                priority=AlertPriority.CRITICAL.value if vram > 95 else AlertPriority.URGENT.value,
-                title="GPU VRAM Pressure",
-                description=f"VRAM utilisation at {vram:.1f}% — model inference quality at risk",
-                source_component="GPU / VRAM",
-                metric_value=round(vram, 1),
-                threshold=85.0,
-            ))
+            alerts.append(
+                AlertItem(
+                    alert_id=f"ALR-{alert_idx:03d}",
+                    priority=AlertPriority.CRITICAL.value if vram > 95 else AlertPriority.URGENT.value,
+                    title="GPU VRAM Pressure",
+                    description=f"VRAM utilisation at {vram:.1f}% — model inference quality at risk",
+                    source_component="GPU / VRAM",
+                    metric_value=round(vram, 1),
+                    threshold=85.0,
+                )
+            )
 
         # Alert: Pipeline latency
         latency = telemetry.get("pipeline_latency_ms", 500)
         if latency > 2000:
             alert_idx += 1
-            alerts.append(AlertItem(
-                alert_id=f"ALR-{alert_idx:03d}",
-                priority=AlertPriority.URGENT.value if latency > 3000 else AlertPriority.WARNING.value,
-                title="Pipeline Latency Elevated",
-                description=f"Pipeline latency at {latency:.0f}ms — live feed processing falling behind",
-                source_component="Pipeline Orchestrator",
-                metric_value=round(latency, 1),
-                threshold=2000.0,
-            ))
+            alerts.append(
+                AlertItem(
+                    alert_id=f"ALR-{alert_idx:03d}",
+                    priority=AlertPriority.URGENT.value if latency > 3000 else AlertPriority.WARNING.value,
+                    title="Pipeline Latency Elevated",
+                    description=f"Pipeline latency at {latency:.0f}ms — live feed processing falling behind",
+                    source_component="Pipeline Orchestrator",
+                    metric_value=round(latency, 1),
+                    threshold=2000.0,
+                )
+            )
 
         # Alert: Recurring anomalies on this camera
-        cam_flags = [d for d in recent if d.get("camera_id") == camera_id and d.get("validation_status", "valid") != "valid"]
+        cam_flags = [
+            d for d in recent if d.get("camera_id") == camera_id and d.get("validation_status", "valid") != "valid"
+        ]
         if len(cam_flags) >= 3:
             alert_idx += 1
-            alerts.append(AlertItem(
-                alert_id=f"ALR-{alert_idx:03d}",
-                priority=AlertPriority.URGENT.value if len(cam_flags) >= 5 else AlertPriority.WARNING.value,
-                title="Recurring Anomaly Pattern",
-                description=f"{len(cam_flags)} flagged detections from camera {camera_id} in recent window",
-                source_component="Pattern Detector",
-                metric_value=float(len(cam_flags)),
-            ))
+            alerts.append(
+                AlertItem(
+                    alert_id=f"ALR-{alert_idx:03d}",
+                    priority=AlertPriority.URGENT.value if len(cam_flags) >= 5 else AlertPriority.WARNING.value,
+                    title="Recurring Anomaly Pattern",
+                    description=f"{len(cam_flags)} flagged detections from camera {camera_id} in recent window",
+                    source_component="Pattern Detector",
+                    metric_value=float(len(cam_flags)),
+                )
+            )
 
         # Alert: Error rate
         err_rate = telemetry.get("component_error_rate", 0.0)
         if err_rate > 0.05:
             alert_idx += 1
-            alerts.append(AlertItem(
-                alert_id=f"ALR-{alert_idx:03d}",
-                priority=AlertPriority.CRITICAL.value if err_rate > 0.15 else AlertPriority.WARNING.value,
-                title="Component Error Rate Elevated",
-                description=f"Error rate at {err_rate:.1%} — pipeline stability compromised",
-                source_component="Pipeline Health Monitor",
-                metric_value=round(err_rate, 4),
-                threshold=0.05,
-            ))
+            alerts.append(
+                AlertItem(
+                    alert_id=f"ALR-{alert_idx:03d}",
+                    priority=AlertPriority.CRITICAL.value if err_rate > 0.15 else AlertPriority.WARNING.value,
+                    title="Component Error Rate Elevated",
+                    description=f"Error rate at {err_rate:.1%} — pipeline stability compromised",
+                    source_component="Pipeline Health Monitor",
+                    metric_value=round(err_rate, 4),
+                    threshold=0.05,
+                )
+            )
 
         return alerts
 
@@ -841,55 +899,67 @@ class RiskAnalysisEngine:
 
     @staticmethod
     def _compute_ignored_consequences(
-        alerts: List[AlertItem],
+        alerts: list[AlertItem],
         status: str,
         confidence: float,
-        recent: List[Dict[str, Any]],
+        recent: list[dict[str, Any]],
         camera_id: str,
-        telemetry: Dict[str, Any],
-    ) -> List[IgnoredAlertConsequence]:
-        consequences: List[IgnoredAlertConsequence] = []
+        telemetry: dict[str, Any],
+    ) -> list[IgnoredAlertConsequence]:
+        consequences: list[IgnoredAlertConsequence] = []
 
-        n_cam_flags = sum(1 for d in recent if d.get("camera_id") == camera_id and d.get("validation_status", "valid") != "valid")
+        n_cam_flags = sum(
+            1 for d in recent if d.get("camera_id") == camera_id and d.get("validation_status", "valid") != "valid"
+        )
 
         for alert in alerts:
-            chain: List[ConsequenceStep] = []
+            chain: list[ConsequenceStep] = []
 
             if "Detection Flag" in alert.title:
                 chain = [
                     ConsequenceStep(
-                        step=1, timeframe="0-30 seconds",
+                        step=1,
+                        timeframe="0-30 seconds",
                         event="Anomaly persists on live feed",
                         description="The flagged condition continues — every incoming frame from this camera carries the same defect.",
-                        severity="medium", probability=0.9,
+                        severity="medium",
+                        probability=0.9,
                         affected_components=["OCR Engine", "Validation Pipeline"],
                     ),
                     ConsequenceStep(
-                        step=2, timeframe="30 seconds - 2 minutes",
+                        step=2,
+                        timeframe="30 seconds - 2 minutes",
                         event="Invalid data accumulates in detection log",
                         description="Each frame writes a flagged record. The detection database fills with unreliable entries, polluting analytics.",
-                        severity="high", probability=0.85,
+                        severity="high",
+                        probability=0.85,
                         affected_components=["Storage", "Analytics"],
                     ),
                     ConsequenceStep(
-                        step=3, timeframe="2-5 minutes",
+                        step=3,
+                        timeframe="2-5 minutes",
                         event="Surveillance coverage gap widens",
                         description="Every vehicle passing this camera during this window goes effectively unrecorded — a growing blind spot in the surveillance net.",
-                        severity="high", probability=0.8,
+                        severity="high",
+                        probability=0.8,
                         affected_components=["Surveillance Coverage", "Cross-Camera Tracking"],
                     ),
                     ConsequenceStep(
-                        step=4, timeframe="5-15 minutes",
+                        step=4,
+                        timeframe="5-15 minutes",
                         event="Alert fatigue sets in for operators",
                         description="Repeated flags from this camera flood the alert queue, causing operators to start ignoring alerts — including critical ones from other cameras.",
-                        severity="critical", probability=0.7,
+                        severity="critical",
+                        probability=0.7,
                         affected_components=["Operator Console", "Alert System"],
                     ),
                     ConsequenceStep(
-                        step=5, timeframe="15-30 minutes",
+                        step=5,
+                        timeframe="15-30 minutes",
                         event="Cascading data quality degradation",
                         description="Cross-camera correlation algorithms receive corrupted input from this feed, degrading tracking accuracy across the entire surveillance zone.",
-                        severity="critical", probability=0.6,
+                        severity="critical",
+                        probability=0.6,
                         affected_components=["Cross-Camera Tracking", "Analytics", "Forensics"],
                     ),
                 ]
@@ -900,28 +970,36 @@ class RiskAnalysisEngine:
             elif "OCR Confidence" in alert.title:
                 chain = [
                     ConsequenceStep(
-                        step=1, timeframe="Immediate",
+                        step=1,
+                        timeframe="Immediate",
                         event="Plate misreads continue",
-                        description=f"At {confidence:.0%} confidence, approximately {(1-confidence)*100:.0f}% of characters may be wrong on every frame.",
-                        severity="high", probability=0.95,
+                        description=f"At {confidence:.0%} confidence, approximately {(1 - confidence) * 100:.0f}% of characters may be wrong on every frame.",
+                        severity="high",
+                        probability=0.95,
                         affected_components=["OCR Engine"],
                     ),
                     ConsequenceStep(
-                        step=2, timeframe="1-3 minutes",
+                        step=2,
+                        timeframe="1-3 minutes",
                         event="False identifications enter the system",
                         description="Misread plates create phantom vehicle records — real vehicles mapped to wrong identities.",
-                        severity="high", probability=0.8,
+                        severity="high",
+                        probability=0.8,
                         affected_components=["Detection Log", "Vehicle Tracking"],
                     ),
                     ConsequenceStep(
-                        step=3, timeframe="3-10 minutes",
+                        step=3,
+                        timeframe="3-10 minutes",
                         event="Cross-reference integrity breaks",
                         description="Plate lookups against watch-lists produce false matches or miss real matches, undermining the purpose of the surveillance.",
-                        severity="critical", probability=0.65,
+                        severity="critical",
+                        probability=0.65,
                         affected_components=["Watch-List Matching", "Alert System"],
                     ),
                 ]
-                terminal = "Detection pipeline output is untrustworthy; manual review required for all reads from this camera"
+                terminal = (
+                    "Detection pipeline output is untrustworthy; manual review required for all reads from this camera"
+                )
                 prop_time = "3-10 minutes"
                 cascade_risk = 0.55
 
@@ -929,24 +1007,30 @@ class RiskAnalysisEngine:
                 vram = telemetry.get("vram_utilisation_pct", 90)
                 chain = [
                     ConsequenceStep(
-                        step=1, timeframe="0-60 seconds",
+                        step=1,
+                        timeframe="0-60 seconds",
                         event="Model inference quality degrades",
                         description=f"At {vram:.0f}% VRAM, models compete for memory — inference latency increases and accuracy drops.",
-                        severity="high", probability=0.9,
+                        severity="high",
+                        probability=0.9,
                         affected_components=["Vehicle Detector", "OCR Engine", "LLM Adjudicator"],
                     ),
                     ConsequenceStep(
-                        step=2, timeframe="1-3 minutes",
+                        step=2,
+                        timeframe="1-3 minutes",
                         event="Model eviction or OOM crash",
                         description="GPU runs out of memory — either models get evicted from VRAM or the CUDA process crashes entirely.",
-                        severity="critical", probability=0.7,
+                        severity="critical",
+                        probability=0.7,
                         affected_components=["GPU / VRAM", "All Models"],
                     ),
                     ConsequenceStep(
-                        step=3, timeframe="3-10 minutes",
+                        step=3,
+                        timeframe="3-10 minutes",
                         event="Full pipeline halt",
                         description="With no models loaded, the entire detection pipeline stops. ALL cameras go dark simultaneously — not just the flagged one.",
-                        severity="critical", probability=0.6,
+                        severity="critical",
+                        probability=0.6,
                         affected_components=["Entire Pipeline", "All Cameras"],
                     ),
                 ]
@@ -957,24 +1041,30 @@ class RiskAnalysisEngine:
             elif "Pipeline Latency" in alert.title:
                 chain = [
                     ConsequenceStep(
-                        step=1, timeframe="0-30 seconds",
+                        step=1,
+                        timeframe="0-30 seconds",
                         event="Frame processing falls behind live feed",
                         description="The pipeline can't keep up with incoming frames — a growing backlog forms.",
-                        severity="medium", probability=0.9,
+                        severity="medium",
+                        probability=0.9,
                         affected_components=["Pipeline Orchestrator"],
                     ),
                     ConsequenceStep(
-                        step=2, timeframe="30 seconds - 2 minutes",
+                        step=2,
+                        timeframe="30 seconds - 2 minutes",
                         event="Frame dropping begins",
                         description="To prevent memory overflow, the pipeline starts dropping frames — vehicles pass undetected.",
-                        severity="high", probability=0.8,
+                        severity="high",
+                        probability=0.8,
                         affected_components=["Frame Ingestion", "Detection Coverage"],
                     ),
                     ConsequenceStep(
-                        step=3, timeframe="2-5 minutes",
+                        step=3,
+                        timeframe="2-5 minutes",
                         event="Real-time guarantee violated",
                         description="Detections arrive minutes after the vehicle has already passed — surveillance becomes historical, not real-time.",
-                        severity="critical", probability=0.7,
+                        severity="critical",
+                        probability=0.7,
                         affected_components=["Real-Time Processing", "Alert Timeliness"],
                     ),
                 ]
@@ -985,17 +1075,21 @@ class RiskAnalysisEngine:
             elif "Recurring Anomaly" in alert.title:
                 chain = [
                     ConsequenceStep(
-                        step=1, timeframe="Already in progress",
+                        step=1,
+                        timeframe="Already in progress",
                         event="Pattern is established and worsening",
                         description=f"{n_cam_flags} anomalies detected — this is not transient, it's a systematic issue.",
-                        severity="high", probability=0.95,
+                        severity="high",
+                        probability=0.95,
                         affected_components=["Camera Feed", "Detection Pipeline"],
                     ),
                     ConsequenceStep(
-                        step=2, timeframe="5-15 minutes",
+                        step=2,
+                        timeframe="5-15 minutes",
                         event="Permanent degradation of this camera's output",
                         description="Without addressing the root cause, this camera becomes a permanent liability in the surveillance network.",
-                        severity="critical", probability=0.8,
+                        severity="critical",
+                        probability=0.8,
                         affected_components=["Camera Feed", "Surveillance Zone"],
                     ),
                 ]
@@ -1006,17 +1100,21 @@ class RiskAnalysisEngine:
             elif "Error Rate" in alert.title:
                 chain = [
                     ConsequenceStep(
-                        step=1, timeframe="0-60 seconds",
+                        step=1,
+                        timeframe="0-60 seconds",
                         event="Errors compound across components",
                         description="When one component errors frequently, downstream components receive garbage input and produce garbage output.",
-                        severity="high", probability=0.85,
+                        severity="high",
+                        probability=0.85,
                         affected_components=["All Pipeline Components"],
                     ),
                     ConsequenceStep(
-                        step=2, timeframe="1-5 minutes",
+                        step=2,
+                        timeframe="1-5 minutes",
                         event="Error cascades trigger circuit breakers",
                         description="Safety mechanisms start disabling failing components, reducing pipeline capability.",
-                        severity="critical", probability=0.65,
+                        severity="critical",
+                        probability=0.65,
                         affected_components=["Pipeline Orchestrator", "Health Monitor"],
                     ),
                 ]
@@ -1027,14 +1125,16 @@ class RiskAnalysisEngine:
             else:
                 continue
 
-            consequences.append(IgnoredAlertConsequence(
-                alert_id=alert.alert_id,
-                alert_title=alert.title,
-                consequence_chain=chain,
-                terminal_state=terminal,
-                total_propagation_time=prop_time,
-                cascading_failure_risk=cascade_risk,
-            ))
+            consequences.append(
+                IgnoredAlertConsequence(
+                    alert_id=alert.alert_id,
+                    alert_title=alert.title,
+                    consequence_chain=chain,
+                    terminal_state=terminal,
+                    total_propagation_time=prop_time,
+                    cascading_failure_risk=cascade_risk,
+                )
+            )
 
         return consequences
 
@@ -1043,19 +1143,19 @@ class RiskAnalysisEngine:
     @staticmethod
     def _analyze_patterns(
         camera_id: str,
-        recent: List[Dict[str, Any]],
-    ) -> List[AnomalyPattern]:
-        patterns: List[AnomalyPattern] = []
+        recent: list[dict[str, Any]],
+    ) -> list[AnomalyPattern]:
+        patterns: list[AnomalyPattern] = []
 
         # Group flags by status
-        status_groups: Dict[str, List[Dict[str, Any]]] = {}
+        status_groups: dict[str, list[dict[str, Any]]] = {}
         for d in recent:
             st = d.get("validation_status", "valid")
             if st != "valid":
                 status_groups.setdefault(st, []).append(d)
 
         # Group by camera
-        camera_groups: Dict[str, int] = {}
+        camera_groups: dict[str, int] = {}
         for d in recent:
             if d.get("validation_status", "valid") != "valid":
                 cam = d.get("camera_id", "unknown")
@@ -1063,7 +1163,7 @@ class RiskAnalysisEngine:
 
         for status, dets in status_groups.items():
             # Time distribution (by hour bucket)
-            time_dist: Dict[str, int] = {}
+            time_dist: dict[str, int] = {}
             for d in dets:
                 ts = d.get("detected_at_utc", "")
                 if ts and len(ts) >= 13:
@@ -1071,7 +1171,7 @@ class RiskAnalysisEngine:
                     time_dist[hour] = time_dist.get(hour, 0) + 1
 
             # Severity distribution
-            sev_dist: Dict[str, int] = {}
+            sev_dist: dict[str, int] = {}
             for d in dets:
                 conf = d.get("ocr_confidence", 0.5)
                 if conf < 0.3:
@@ -1086,13 +1186,15 @@ class RiskAnalysisEngine:
 
             affected = list({d.get("camera_id", "unknown") for d in dets})
 
-            patterns.append(AnomalyPattern(
-                pattern_name=f"{status} anomalies",
-                frequency=len(dets),
-                affected_cameras=affected,
-                time_distribution=time_dist,
-                severity_distribution=sev_dist,
-            ))
+            patterns.append(
+                AnomalyPattern(
+                    pattern_name=f"{status} anomalies",
+                    frequency=len(dets),
+                    affected_cameras=affected,
+                    time_distribution=time_dist,
+                    severity_distribution=sev_dist,
+                )
+            )
 
         return patterns
 
@@ -1100,10 +1202,10 @@ class RiskAnalysisEngine:
 
     @staticmethod
     def _assess_component_health(
-        telemetry: Dict[str, Any],
-        recent: List[Dict[str, Any]],
-    ) -> List[ComponentHealthScore]:
-        components: List[ComponentHealthScore] = []
+        telemetry: dict[str, Any],
+        recent: list[dict[str, Any]],
+    ) -> list[ComponentHealthScore]:
+        components: list[ComponentHealthScore] = []
 
         # Vehicle Detector
         det_reliability = 95.0
@@ -1111,14 +1213,16 @@ class RiskAnalysisEngine:
         n_flags = sum(1 for d in recent if d.get("validation_status", "valid") != "valid")
         if n_total > 0:
             det_reliability = max(20.0, (1.0 - n_flags / n_total) * 100)
-        components.append(ComponentHealthScore(
-            component="Vehicle Detector",
-            health_pct=round(det_reliability, 1),
-            latency_score=round(min(100, telemetry.get("detection_latency_ms", 50) / 200 * 100), 1),
-            reliability_score=round(det_reliability, 1),
-            accuracy_score=round(det_reliability * 0.95, 1),
-            status="healthy" if det_reliability > 80 else "degraded" if det_reliability > 50 else "failing",
-        ))
+        components.append(
+            ComponentHealthScore(
+                component="Vehicle Detector",
+                health_pct=round(det_reliability, 1),
+                latency_score=round(min(100, telemetry.get("detection_latency_ms", 50) / 200 * 100), 1),
+                reliability_score=round(det_reliability, 1),
+                accuracy_score=round(det_reliability * 0.95, 1),
+                status="healthy" if det_reliability > 80 else "degraded" if det_reliability > 50 else "failing",
+            )
+        )
 
         # OCR Engine
         avg_conf = 0.7
@@ -1126,28 +1230,32 @@ class RiskAnalysisEngine:
             confs = [d.get("ocr_confidence", 0.7) for d in recent]
             avg_conf = sum(confs) / len(confs) if confs else 0.7
         ocr_health = avg_conf * 100
-        components.append(ComponentHealthScore(
-            component="OCR Engine",
-            health_pct=round(ocr_health, 1),
-            latency_score=round(min(100, telemetry.get("ocr_latency_ms", 100) / 500 * 100), 1),
-            reliability_score=round(ocr_health * 0.9, 1),
-            accuracy_score=round(avg_conf * 100, 1),
-            status="healthy" if ocr_health > 70 else "degraded" if ocr_health > 40 else "failing",
-        ))
+        components.append(
+            ComponentHealthScore(
+                component="OCR Engine",
+                health_pct=round(ocr_health, 1),
+                latency_score=round(min(100, telemetry.get("ocr_latency_ms", 100) / 500 * 100), 1),
+                reliability_score=round(ocr_health * 0.9, 1),
+                accuracy_score=round(avg_conf * 100, 1),
+                status="healthy" if ocr_health > 70 else "degraded" if ocr_health > 40 else "failing",
+            )
+        )
 
         # Post-processor
         pp_health = 90.0
         n_regex_fail = sum(1 for d in recent if d.get("validation_status") == "regex_fail")
         if n_total > 0:
             pp_health = max(30.0, (1.0 - n_regex_fail / n_total) * 100)
-        components.append(ComponentHealthScore(
-            component="Post-Processor",
-            health_pct=round(pp_health, 1),
-            latency_score=round(min(100, telemetry.get("postprocess_latency_ms", 20) / 100 * 100), 1),
-            reliability_score=round(pp_health, 1),
-            accuracy_score=round(pp_health * 0.95, 1),
-            status="healthy" if pp_health > 80 else "degraded" if pp_health > 50 else "failing",
-        ))
+        components.append(
+            ComponentHealthScore(
+                component="Post-Processor",
+                health_pct=round(pp_health, 1),
+                latency_score=round(min(100, telemetry.get("postprocess_latency_ms", 20) / 100 * 100), 1),
+                reliability_score=round(pp_health, 1),
+                accuracy_score=round(pp_health * 0.95, 1),
+                status="healthy" if pp_health > 80 else "degraded" if pp_health > 50 else "failing",
+            )
+        )
 
         # LLM Adjudicator
         n_llm_err = sum(1 for d in recent if d.get("validation_status") == "llm_error")
@@ -1155,32 +1263,36 @@ class RiskAnalysisEngine:
         vram_pct = telemetry.get("vram_utilisation_pct", 50)
         if vram_pct > 90:
             llm_health = min(llm_health, 40.0)
-        components.append(ComponentHealthScore(
-            component="LLM Adjudicator",
-            health_pct=round(llm_health, 1),
-            latency_score=round(min(100, telemetry.get("adjudication_latency_ms", 500) / 3000 * 100), 1),
-            reliability_score=round(llm_health * 0.85, 1),
-            accuracy_score=round(llm_health * 0.9, 1),
-            status="healthy" if llm_health > 70 else "degraded" if llm_health > 40 else "failing",
-        ))
+        components.append(
+            ComponentHealthScore(
+                component="LLM Adjudicator",
+                health_pct=round(llm_health, 1),
+                latency_score=round(min(100, telemetry.get("adjudication_latency_ms", 500) / 3000 * 100), 1),
+                reliability_score=round(llm_health * 0.85, 1),
+                accuracy_score=round(llm_health * 0.9, 1),
+                status="healthy" if llm_health > 70 else "degraded" if llm_health > 40 else "failing",
+            )
+        )
 
         # GPU / VRAM
         gpu_health = max(10.0, 100.0 - vram_pct)
-        components.append(ComponentHealthScore(
-            component="GPU / VRAM",
-            health_pct=round(gpu_health, 1),
-            latency_score=0.0,
-            reliability_score=round(gpu_health, 1),
-            accuracy_score=0.0,
-            status="healthy" if gpu_health > 40 else "degraded" if gpu_health > 15 else "failing",
-        ))
+        components.append(
+            ComponentHealthScore(
+                component="GPU / VRAM",
+                health_pct=round(gpu_health, 1),
+                latency_score=0.0,
+                reliability_score=round(gpu_health, 1),
+                accuracy_score=0.0,
+                status="healthy" if gpu_health > 40 else "degraded" if gpu_health > 15 else "failing",
+            )
+        )
 
         return components
 
     # ── Helper methods ────────────────────────────────────────────
 
     @staticmethod
-    def _confidence_trend(camera_id: str, recent: List[Dict[str, Any]]) -> str:
+    def _confidence_trend(camera_id: str, recent: list[dict[str, Any]]) -> str:
         """Determine if confidence is improving, stable, or degrading."""
         cam_dets = [d for d in recent if d.get("camera_id") == camera_id]
         if len(cam_dets) < 3:
@@ -1198,7 +1310,7 @@ class RiskAnalysisEngine:
         return "stable"
 
     @staticmethod
-    def _reliability_trend(camera_id: str, recent: List[Dict[str, Any]]) -> str:
+    def _reliability_trend(camera_id: str, recent: list[dict[str, Any]]) -> str:
         cam_dets = [d for d in recent if d.get("camera_id") == camera_id]
         if len(cam_dets) < 4:
             return "stable"
@@ -1214,7 +1326,7 @@ class RiskAnalysisEngine:
         return "stable"
 
     @staticmethod
-    def _compute_temporal_risk(camera_id: str, recent: List[Dict[str, Any]]) -> float:
+    def _compute_temporal_risk(camera_id: str, recent: list[dict[str, Any]]) -> float:
         """Higher risk if this camera has many recent flags."""
         cam_dets = [d for d in recent if d.get("camera_id") == camera_id]
         if not cam_dets:
@@ -1224,7 +1336,7 @@ class RiskAnalysisEngine:
         return min(100.0, ratio * 120)  # Scale to emphasize high ratios
 
     @staticmethod
-    def _compute_system_risk(telemetry: Dict[str, Any]) -> float:
+    def _compute_system_risk(telemetry: dict[str, Any]) -> float:
         """Compute system health risk from telemetry."""
         risk = 10.0  # baseline
         vram = telemetry.get("vram_utilisation_pct", 50)
@@ -1245,7 +1357,7 @@ class RiskAnalysisEngine:
         return min(100.0, risk)
 
     @staticmethod
-    def _compute_detection_reliability(recent: List[Dict[str, Any]], camera_id: str) -> float:
+    def _compute_detection_reliability(recent: list[dict[str, Any]], camera_id: str) -> float:
         """Risk score for detection reliability (inverted reliability %)."""
         cam = [d for d in recent if d.get("camera_id") == camera_id]
         if not cam:
@@ -1256,8 +1368,12 @@ class RiskAnalysisEngine:
 
     @staticmethod
     def _build_summary(
-        level: str, score: float, status: str,
-        camera_id: str, plate: str, n_dims: int,
+        level: str,
+        score: float,
+        status: str,
+        camera_id: str,
+        plate: str,
+        n_dims: int,
         n_alerts: int = 0,
     ) -> str:
         alert_text = f" {n_alerts} alert(s) raised." if n_alerts else ""

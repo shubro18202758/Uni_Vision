@@ -9,7 +9,7 @@ return 503 when the integration is disabled.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -27,7 +27,7 @@ class VectorSearchRequest(BaseModel):
     query: str
     top_k: int = 20
     threshold: float = 0.65
-    camera_id: Optional[str] = None
+    camera_id: str | None = None
 
 
 class VectorTimeRangeRequest(BaseModel):
@@ -68,7 +68,7 @@ def _require_databricks(request: Request, component: str) -> Any:
 @router.get("/overview")
 async def databricks_overview(request: Request) -> JSONResponse:
     """Return a combined status overview of all Databricks integrations."""
-    result: Dict[str, Any] = {"enabled": True}
+    result: dict[str, Any] = {"enabled": True}
 
     delta = getattr(request.app.state, "databricks_delta", None)
     if delta:
@@ -198,17 +198,18 @@ async def spark_analytics(request: Request, body: AnalyticsRequest) -> JSONRespo
     if handler is None:
         raise HTTPException(
             400,
-            detail=f"Unknown query_type: {body.query_type}. "
-            f"Valid: {', '.join(query_map.keys())}",
+            detail=f"Unknown query_type: {body.query_type}. Valid: {', '.join(query_map.keys())}",
         )
 
     try:
         results = handler()
-        return JSONResponse({
-            "query_type": body.query_type,
-            "results": results,
-            "count": len(results),
-        })
+        return JSONResponse(
+            {
+                "query_type": body.query_type,
+                "results": results,
+                "count": len(results),
+            }
+        )
     except Exception as exc:
         logger.error("spark_analytics_error query=%s err=%s", body.query_type, exc, exc_info=True)
         raise HTTPException(500, detail=str(exc)) from exc
@@ -245,11 +246,13 @@ async def vector_search(request: Request, body: VectorSearchRequest) -> JSONResp
                 top_k=body.top_k,
                 threshold=body.threshold,
             )
-        return JSONResponse({
-            "query": body.query,
-            "results": results,
-            "count": len(results),
-        })
+        return JSONResponse(
+            {
+                "query": body.query,
+                "results": results,
+                "count": len(results),
+            }
+        )
     except Exception as exc:
         logger.error("vector_search_error query=%s err=%s", body.query, exc, exc_info=True)
         raise HTTPException(500, detail=str(exc)) from exc
@@ -281,9 +284,7 @@ async def vector_duplicates(
 
 
 @router.post("/vector/search/time-range")
-async def vector_time_range_search(
-    request: Request, body: VectorTimeRangeRequest
-) -> JSONResponse:
+async def vector_time_range_search(request: Request, body: VectorTimeRangeRequest) -> JSONResponse:
     """Search for similar plates within a time window."""
     vector = _require_databricks(request, "vector")
     try:
@@ -294,12 +295,14 @@ async def vector_time_range_search(
             top_k=body.top_k,
             threshold=body.threshold,
         )
-        return JSONResponse({
-            "query": body.query,
-            "time_range": {"start": body.start_ts, "end": body.end_ts},
-            "results": results,
-            "count": len(results),
-        })
+        return JSONResponse(
+            {
+                "query": body.query,
+                "time_range": {"start": body.start_ts, "end": body.end_ts},
+                "results": results,
+                "count": len(results),
+            }
+        )
     except Exception as exc:
         logger.error("vector_time_range_error err=%s", exc, exc_info=True)
         raise HTTPException(500, detail=str(exc)) from exc
@@ -341,7 +344,7 @@ async def delta_compact(request: Request) -> JSONResponse:
 @router.get("/health")
 async def databricks_health(request: Request) -> JSONResponse:
     """Return health status for all Databricks components."""
-    health: Dict[str, Any] = {"overall": "ok"}
+    health: dict[str, Any] = {"overall": "ok"}
 
     for name in ("delta", "mlflow", "vector"):
         svc = getattr(request.app.state, f"databricks_{name}", None)

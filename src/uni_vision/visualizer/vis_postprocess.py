@@ -66,9 +66,7 @@ def render() -> None:
     st.subheader("Validation Status Breakdown")
     import pandas as pd
 
-    df_status = pd.DataFrame(
-        list(status_counts.items()), columns=["Status", "Count"]
-    )
+    df_status = pd.DataFrame(list(status_counts.items()), columns=["Status", "Count"])
     st.bar_chart(df_status.set_index("Status"))
 
     st.caption(f"Based on {len(items)} of {total:,} total records")
@@ -86,7 +84,7 @@ def render() -> None:
         for corr in corrections:
             raw = corr["raw"]
             fixed = corr["corrected"]
-            for a, b in zip(raw.ljust(len(fixed)), fixed):
+            for a, b in zip(raw.ljust(len(fixed)), fixed, strict=False):
                 if a != b:
                     key = f"`{a}` → `{b}`"
                     sub_counts[key] = sub_counts.get(key, 0) + 1

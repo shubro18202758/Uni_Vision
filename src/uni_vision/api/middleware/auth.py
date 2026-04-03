@@ -11,16 +11,18 @@ import hashlib
 import hmac
 import logging
 import secrets
-from typing import FrozenSet, Optional, Set
+from typing import TYPE_CHECKING
 
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
 
 logger = logging.getLogger(__name__)
 
 # Paths that never require authentication
-_PUBLIC_PATHS: FrozenSet[str] = frozenset({"/health", "/metrics", "/openapi.json", "/docs", "/redoc"})
+_PUBLIC_PATHS: frozenset[str] = frozenset({"/health", "/metrics", "/openapi.json", "/docs", "/redoc"})
 
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
@@ -35,11 +37,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         **disabled** (all requests pass through) — suitable for local dev.
     """
 
-    def __init__(self, app: object, api_keys: Optional[Set[str]] = None) -> None:
+    def __init__(self, app: object, api_keys: set[str] | None = None) -> None:
         super().__init__(app)  # type: ignore[arg-type]
         self._enabled = bool(api_keys)
         # Store SHA-256 hashes to avoid holding plain keys in memory
-        self._key_hashes: FrozenSet[str] = frozenset(
+        self._key_hashes: frozenset[str] = frozenset(
             hashlib.sha256(k.encode()).hexdigest() for k in (api_keys or set())
         )
 

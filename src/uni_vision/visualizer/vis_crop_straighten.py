@@ -48,9 +48,7 @@ def render() -> None:
         plate_path = item.get("plate_image_path", "")
         vehicle_path = item.get("vehicle_image_path", "")
 
-        with st.expander(
-            f"🔖 {item['plate_number']} — Camera {item['camera_id']}", expanded=False
-        ):
+        with st.expander(f"🔖 {item['plate_number']} — Camera {item['camera_id']}", expanded=False):
             col1, col2 = st.columns(2)
 
             with col1:

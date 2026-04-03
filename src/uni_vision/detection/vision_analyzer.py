@@ -24,14 +24,16 @@ import base64
 import json
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING
 
 import cv2
 import httpx
-import numpy as np
-from numpy.typing import NDArray
 
 from uni_vision.contracts.dtos import AnalysisResult
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +125,8 @@ class VisionAnalyzer:
         if w > max_width:
             scale = max_width / w
             image = cv2.resize(
-                image, (max_width, int(h * scale)),
+                image,
+                (max_width, int(h * scale)),
                 interpolation=cv2.INTER_AREA,
             )
         success, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -200,8 +203,12 @@ class VisionAnalyzer:
         total_ms = (time.perf_counter() - t0) * 1000
         logger.info(
             "vision_analysis_complete camera=%s frame=%s anomaly=%s risk=%s confidence=%.2f total=%.0fms",
-            camera_id, frame_id, result.anomaly_detected, result.risk_level,
-            result.confidence, total_ms,
+            camera_id,
+            frame_id,
+            result.anomaly_detected,
+            result.risk_level,
+            result.confidence,
+            total_ms,
         )
         return result
 

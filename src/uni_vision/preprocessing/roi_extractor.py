@@ -11,10 +11,14 @@ Spec reference: §4 stage S4 — <1 ms latency target.
 
 from __future__ import annotations
 
-import numpy as np
-from numpy.typing import NDArray
+from typing import TYPE_CHECKING
 
-from uni_vision.contracts.dtos import BoundingBox
+import numpy as np
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+    from uni_vision.contracts.dtos import BoundingBox
 
 
 def extract_plate_roi(

@@ -18,10 +18,7 @@ from __future__ import annotations
 import abc
 import enum
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
-
-import numpy as np
-
+from typing import Any
 
 # ── Enumerations ──────────────────────────────────────────────────
 
@@ -29,9 +26,9 @@ import numpy as np
 class ComponentType(str, enum.Enum):
     """Broad classification of a pipeline component."""
 
-    MODEL = "model"              # ML model (YOLO, transformer, etc.)
-    LIBRARY = "library"          # Algorithmic library (EasyOCR, PaddleOCR)
-    ALGORITHM = "algorithm"      # Pure-code algorithm (NMS, deskew, regex)
+    MODEL = "model"  # ML model (YOLO, transformer, etc.)
+    LIBRARY = "library"  # Algorithmic library (EasyOCR, PaddleOCR)
+    ALGORITHM = "algorithm"  # Pure-code algorithm (NMS, deskew, regex)
     PREPROCESSOR = "preprocessor"
     POSTPROCESSOR = "postprocessor"
 
@@ -40,13 +37,13 @@ class ComponentState(str, enum.Enum):
     """Runtime lifecycle state."""
 
     UNREGISTERED = "unregistered"
-    REGISTERED = "registered"    # Known to registry but not loaded
+    REGISTERED = "registered"  # Known to registry but not loaded
     DOWNLOADING = "downloading"
     LOADING = "loading"
-    READY = "ready"              # Loaded and executable
+    READY = "ready"  # Loaded and executable
     UNLOADING = "unloading"
     FAILED = "failed"
-    SUSPENDED = "suspended"      # Offloaded to CPU / disk to free VRAM
+    SUSPENDED = "suspended"  # Offloaded to CPU / disk to free VRAM
 
 
 class ComponentCapability(str, enum.Enum):
@@ -80,7 +77,7 @@ class ComponentCapability(str, enum.Enum):
     IMAGE_DESKEW = "image_deskew"
     IMAGE_ENHANCE = "image_enhance"
     IMAGE_DENOISE = "image_denoise"
-    IMAGE_DENOISING = "image_denoising"      # Alias for pipeline_composer
+    IMAGE_DENOISING = "image_denoising"  # Alias for pipeline_composer
     GEOMETRIC_CORRECTION = "geometric_correction"
     ROI_EXTRACTION = "roi_extraction"
     SUPER_RESOLUTION = "super_resolution"
@@ -124,19 +121,19 @@ class ResourceEstimate:
 class ComponentMetadata:
     """Descriptive metadata attached to every component."""
 
-    component_id: str                          # Unique identifier
-    name: str                                  # Human-readable name
+    component_id: str  # Unique identifier
+    name: str  # Human-readable name
     version: str = "0.0.0"
     component_type: ComponentType = ComponentType.MODEL
-    capabilities: Set[ComponentCapability] = field(default_factory=set)
-    source: str = "builtin"                    # builtin | huggingface | pypi | github
-    source_id: str = ""                        # e.g. "ultralytics/yolov8n"
+    capabilities: set[ComponentCapability] = field(default_factory=set)
+    source: str = "builtin"  # builtin | huggingface | pypi | github
+    source_id: str = ""  # e.g. "ultralytics/yolov8n"
     description: str = ""
     license: str = ""
-    python_requirements: List[str] = field(default_factory=list)
+    python_requirements: list[str] = field(default_factory=list)
     resource_estimate: ResourceEstimate = field(default_factory=ResourceEstimate)
-    tags: Dict[str, str] = field(default_factory=dict)
-    trusted: bool = False                      # Only trusted sources are auto-loaded
+    tags: dict[str, str] = field(default_factory=dict)
+    trusted: bool = False  # Only trusted sources are auto-loaded
 
 
 # ── Abstract Component ────────────────────────────────────────────
@@ -169,7 +166,7 @@ class CVComponent(abc.ABC):
 
     def __init__(self) -> None:
         self._state: ComponentState = ComponentState.REGISTERED
-        self._load_error: Optional[str] = None
+        self._load_error: str | None = None
 
     # ── Lifecycle ─────────────────────────────────────────────────
 
@@ -193,7 +190,7 @@ class CVComponent(abc.ABC):
         self,
         data: Any,
         *,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> Any:
         """Run the component on input data.
 
@@ -219,7 +216,7 @@ class CVComponent(abc.ABC):
         """Return True if the component is healthy and operational."""
         return self._state == ComponentState.READY
 
-    def get_runtime_info(self) -> Dict[str, Any]:
+    def get_runtime_info(self) -> dict[str, Any]:
         """Return live telemetry / debug information."""
         return {
             "component_id": self.metadata.component_id,
@@ -234,7 +231,4 @@ class CVComponent(abc.ABC):
         self._state = new_state
 
     def __repr__(self) -> str:
-        return (
-            f"<{self.__class__.__name__} id={self.metadata.component_id!r} "
-            f"state={self._state.value}>"
-        )
+        return f"<{self.__class__.__name__} id={self.metadata.component_id!r} state={self._state.value}>"

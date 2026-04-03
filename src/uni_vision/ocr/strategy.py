@@ -20,10 +20,7 @@ Spec reference: §9.1 OCR strategy.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
-
-import numpy as np
-from numpy.typing import NDArray
+from typing import TYPE_CHECKING
 
 from uni_vision.contracts.dtos import (
     DetectionContext,
@@ -34,8 +31,11 @@ from uni_vision.monitoring.metrics import (
     OCR_FALLBACK,
     OCR_REQUESTS,
     OCR_SUCCESS,
-    STAGE_LATENCY,
 )
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -50,24 +50,24 @@ class OCRStrategy:
         At minimum, one engine must be provided (typically EasyOCR).
     """
 
-    def __init__(self, engines: List[object]) -> None:
+    def __init__(self, engines: list[object]) -> None:
         if not engines:
             raise ValueError("OCRStrategy requires at least one engine")
-        self._engines: List[object] = list(engines)
+        self._engines: list[object] = list(engines)
 
     @property
     def engine_name(self) -> str:
         return "ocr_strategy"
 
     @property
-    def engines(self) -> List[object]:
+    def engines(self) -> list[object]:
         """Return a copy of the current engine list."""
         return list(self._engines)
 
     def add_engine(
         self,
         engine: object,
-        priority: Optional[int] = None,
+        priority: int | None = None,
     ) -> None:
         """Add an engine at the given priority position.
 
@@ -105,7 +105,7 @@ class OCRStrategy:
         context: DetectionContext,
     ) -> OCRResult:
         """Try engines in priority order; return first valid result."""
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for idx, engine in enumerate(self._engines):
             eng_name = getattr(engine, "engine_name", f"engine_{idx}")

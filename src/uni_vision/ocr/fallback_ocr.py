@@ -15,13 +15,15 @@ from __future__ import annotations
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING
 
-import numpy as np
-from numpy.typing import NDArray
-
-from uni_vision.common.config import FallbackOCRConfig
 from uni_vision.contracts.dtos import DetectionContext, OCRResult, ValidationStatus
+
+if TYPE_CHECKING:
+    import numpy as np
+    from numpy.typing import NDArray
+
+    from uni_vision.common.config import FallbackOCRConfig
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ class EasyOCRFallback:
 
     def __init__(self, config: FallbackOCRConfig) -> None:
         self._config = config
-        self._reader: Optional[object] = None  # lazily initialised
+        self._reader: object | None = None  # lazily initialised
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr_fb")
 
     @property
@@ -86,9 +88,9 @@ class EasyOCRFallback:
             )
 
         # Aggregate text and character bounding boxes
-        texts: List[str] = []
-        confidences: List[float] = []
-        bbox_strs: List[str] = []
+        texts: list[str] = []
+        confidences: list[float] = []
+        bbox_strs: list[str] = []
 
         for bbox, text, conf in results:
             texts.append(text.upper())
@@ -97,9 +99,7 @@ class EasyOCRFallback:
             # Convert to axis-aligned x1,y1,x2,y2
             xs = [pt[0] for pt in bbox]
             ys = [pt[1] for pt in bbox]
-            bbox_strs.append(
-                f"{int(min(xs))},{int(min(ys))},{int(max(xs))},{int(max(ys))}"
-            )
+            bbox_strs.append(f"{int(min(xs))},{int(min(ys))},{int(max(xs))},{int(max(ys))}")
 
         plate_text = "".join(texts)
         avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0

@@ -13,14 +13,10 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
-import time
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
-
 
 # ═══════════════════════════════════════════════════════════════════
 # ──  ToolRegistry tests  ─────────────────────────────────────────
@@ -170,49 +166,49 @@ class TestIntentClassifier:
     """Test zero-cost keyword-based intent classification."""
 
     def test_status_intent(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("What's the system health?")
         assert result.primary_intent == QueryIntent.STATUS
 
     def test_detection_intent(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("Find plate MH12AB1234")
         assert result.primary_intent == QueryIntent.DETECTION
 
     def test_analytics_intent(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("Show me hourly trend counts")
         assert result.primary_intent == QueryIntent.ANALYTICS
 
     def test_camera_intent(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("Diagnose camera cam_03")
         assert result.primary_intent == QueryIntent.CAMERA
 
     def test_config_intent(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("Adjust the confidence threshold")
         assert result.primary_intent == QueryIntent.CONFIG
 
     def test_knowledge_intent(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("What are the common confusion error patterns?")
         assert result.primary_intent == QueryIntent.KNOWLEDGE
 
     def test_diagnostics_intent(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("The circuit breaker is open, help")
         assert result.primary_intent == QueryIntent.DIAGNOSTICS
 
     def test_general_fallback(self):
-        from uni_vision.agent.intent import classify_intent, QueryIntent
+        from uni_vision.agent.intent import QueryIntent, classify_intent
 
         result = classify_intent("Tell me a joke")
         assert result.primary_intent == QueryIntent.GENERAL
@@ -314,25 +310,25 @@ class TestSubAgentRouting:
 
     def test_route_status_to_operations(self):
         from uni_vision.agent.intent import QueryIntent
-        from uni_vision.agent.sub_agents import route_to_role, AgentRole
+        from uni_vision.agent.sub_agents import AgentRole, route_to_role
 
         assert route_to_role(QueryIntent.STATUS) == AgentRole.OPERATIONS
 
     def test_route_detection_to_analytics(self):
         from uni_vision.agent.intent import QueryIntent
-        from uni_vision.agent.sub_agents import route_to_role, AgentRole
+        from uni_vision.agent.sub_agents import AgentRole, route_to_role
 
         assert route_to_role(QueryIntent.DETECTION) == AgentRole.ANALYTICS
 
     def test_route_camera_to_ocr_quality(self):
         from uni_vision.agent.intent import QueryIntent
-        from uni_vision.agent.sub_agents import route_to_role, AgentRole
+        from uni_vision.agent.sub_agents import AgentRole, route_to_role
 
         assert route_to_role(QueryIntent.CAMERA) == AgentRole.OCR_QUALITY
 
     def test_route_general_fallback(self):
         from uni_vision.agent.intent import QueryIntent
-        from uni_vision.agent.sub_agents import route_to_role, AgentRole
+        from uni_vision.agent.sub_agents import AgentRole, route_to_role
 
         assert route_to_role(QueryIntent.GENERAL) == AgentRole.GENERAL
 
@@ -345,8 +341,8 @@ class TestSubAgentRouting:
             assert role is not None
 
     def test_filtered_registry_subset(self):
-        from uni_vision.agent.tools import ToolRegistry, tool
         from uni_vision.agent.sub_agents import build_filtered_registry
+        from uni_vision.agent.tools import ToolRegistry, tool
 
         reg = ToolRegistry()
 
@@ -371,8 +367,8 @@ class TestSubAgentRouting:
         assert names == {"tool_a", "tool_c"}
 
     def test_filtered_registry_empty_fallback(self):
-        from uni_vision.agent.tools import ToolRegistry, tool
         from uni_vision.agent.sub_agents import build_filtered_registry
+        from uni_vision.agent.tools import ToolRegistry, tool
 
         reg = ToolRegistry()
 
@@ -389,7 +385,7 @@ class TestSubAgentRouting:
     def test_profiles_have_tools(self):
         from uni_vision.agent.sub_agents import PROFILES
 
-        for role, profile in PROFILES.items():
+        for _role, profile in PROFILES.items():
             assert len(profile.tool_whitelist) > 0
             assert profile.display_name
 
@@ -403,23 +399,25 @@ class TestAuditTrail:
     """Test audit entry buffering and retrieval."""
 
     def test_record_and_pending(self):
-        from uni_vision.agent.audit import AuditTrail, AuditEntry
+        from uni_vision.agent.audit import AuditEntry, AuditTrail
 
         audit = AuditTrail()
         audit.record(AuditEntry(action="test_tool", success=True))
         assert audit.pending_count == 1
 
     def test_get_recent(self):
-        from uni_vision.agent.audit import AuditTrail, AuditEntry
+        from uni_vision.agent.audit import AuditEntry, AuditTrail
 
         audit = AuditTrail()
         for i in range(5):
-            audit.record(AuditEntry(
-                action=f"tool_{i}",
-                intent="status",
-                agent_role="operations",
-                success=True,
-            ))
+            audit.record(
+                AuditEntry(
+                    action=f"tool_{i}",
+                    intent="status",
+                    agent_role="operations",
+                    success=True,
+                )
+            )
 
         recent = audit.get_recent(limit=3)
         assert len(recent) == 3
@@ -428,7 +426,7 @@ class TestAuditTrail:
 
     @pytest.mark.asyncio
     async def test_flush_with_no_client(self):
-        from uni_vision.agent.audit import AuditTrail, AuditEntry
+        from uni_vision.agent.audit import AuditEntry, AuditTrail
 
         audit = AuditTrail()
         audit.record(AuditEntry(action="test"))
@@ -489,7 +487,7 @@ class TestKnowledgeBase:
         assert len(cross) >= 1
 
     def test_record_feedback(self):
-        from uni_vision.agent.knowledge import KnowledgeBase, FeedbackEntry
+        from uni_vision.agent.knowledge import FeedbackEntry, KnowledgeBase
 
         kb = KnowledgeBase()
         fb = FeedbackEntry(
@@ -571,7 +569,7 @@ class TestMonitorAlerts:
     """Test autonomous monitor alert structures."""
 
     def test_alert_to_dict(self):
-        from uni_vision.agent.monitor import HealthAlert, AlertSeverity
+        from uni_vision.agent.monitor import AlertSeverity, HealthAlert
 
         alert = HealthAlert(
             severity=AlertSeverity.WARNING,
@@ -658,6 +656,7 @@ class TestAgentAPIEndpoints:
     @pytest.fixture
     def test_client(self):
         from fastapi.testclient import TestClient
+
         from uni_vision.api import create_app
         from uni_vision.common.config import AppConfig
 

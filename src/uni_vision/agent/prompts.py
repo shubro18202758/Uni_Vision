@@ -14,11 +14,11 @@ The prompt includes:
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List
+from typing import Any
 
 
 def build_agent_system_prompt(
-    tool_schemas: List[Dict[str, Any]],
+    tool_schemas: list[dict[str, Any]],
     *,
     agent_role: str = "pipeline_manager",
 ) -> str:
@@ -109,7 +109,7 @@ def build_observation_message(
     result: Any,
     *,
     success: bool = True,
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> str:
     """Format a tool result as an observation for the agent.
 
@@ -133,7 +133,7 @@ def build_observation_message(
         return f"[Observation from {tool_name}] ERROR: {error}"
 
     # Serialise the result to a compact string
-    if isinstance(result, dict) or isinstance(result, list):
+    if isinstance(result, (dict, list)):
         try:
             result_str = json.dumps(result, indent=2, default=str)
         except (TypeError, ValueError):
@@ -149,8 +149,6 @@ def build_observation_message(
 
 
 # Type stub for Optional import
-from typing import Optional  # noqa: E402
-
 
 # ── Navarasa 2.0 7B — Translation prompt ─────────────────────────
 

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 router = APIRouter(prefix="/detections", tags=["detections"])
 
@@ -24,13 +26,13 @@ class DetectionOut(BaseModel):
     vehicle_class: str
     vehicle_image_path: str
     plate_image_path: str
-    detected_at_utc: Optional[str] = None
+    detected_at_utc: str | None = None
     validation_status: str
     location_tag: str
 
 
 class DetectionPage(BaseModel):
-    items: List[DetectionOut]
+    items: list[DetectionOut]
     total: int
     page: int
     page_size: int
@@ -50,11 +52,11 @@ _COUNT_QUERY = "SELECT count(*) FROM detection_events"
 
 
 def _build_where(
-    camera_id: Optional[str],
-    plate_number: Optional[str],
-    status: Optional[str],
-    since: Optional[datetime],
-    until: Optional[datetime],
+    camera_id: str | None,
+    plate_number: str | None,
+    status: str | None,
+    since: datetime | None,
+    until: datetime | None,
 ) -> tuple[str, list[Any]]:
     """Return a WHERE clause fragment and matching positional params."""
     clauses: list[str] = []
@@ -89,14 +91,14 @@ def _build_where(
 @router.get("", response_model=DetectionPage)
 async def list_detections(
     request: Request,
-    camera_id: Optional[str] = Query(None),
-    plate_number: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    since: Optional[datetime] = Query(None),
-    until: Optional[datetime] = Query(None),
+    camera_id: str | None = Query(None),
+    plate_number: str | None = Query(None),
+    status: str | None = Query(None),
+    since: datetime | None = Query(None),
+    until: datetime | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return a paginated list of detection events with optional filters."""
     pg = getattr(request.app.state, "pg_client", None)
     if pg is None:
@@ -107,7 +109,7 @@ async def list_detections(
         await pg.connect()
         request.app.state.pg_client = pg
 
-    pool = pg._pool  # noqa: SLF001
+    pool = pg._pool
     assert pool is not None
 
     where, params = _build_where(camera_id, plate_number, status, since, until)
@@ -121,9 +123,7 @@ async def list_detections(
     order_clause = " ORDER BY detected_at_utc DESC"
     limit_idx = len(params) + 1
     offset_idx = limit_idx + 1
-    paginated_sql = (
-        _BASE_QUERY + where + order_clause + f" LIMIT ${limit_idx} OFFSET ${offset_idx}"
-    )
+    paginated_sql = _BASE_QUERY + where + order_clause + f" LIMIT ${limit_idx} OFFSET ${offset_idx}"
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(paginated_sql, *params, page_size, offset)
@@ -139,9 +139,7 @@ async def list_detections(
             "vehicle_class": r["vehicle_class"],
             "vehicle_image_path": r["vehicle_image_path"],
             "plate_image_path": r["plate_image_path"],
-            "detected_at_utc": (
-                r["detected_at_utc"].isoformat() if r["detected_at_utc"] else None
-            ),
+            "detected_at_utc": (r["detected_at_utc"].isoformat() if r["detected_at_utc"] else None),
             "validation_status": r["validation_status"],
             "location_tag": r["location_tag"],
         }

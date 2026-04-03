@@ -17,9 +17,9 @@ The coordinator delegates to the right sub-agent based on the
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from uni_vision.agent.intent import QueryIntent
 from uni_vision.agent.loop import AgentLoop, AgentResponse
@@ -46,12 +46,12 @@ class SubAgentProfile:
     role: AgentRole
     display_name: str
     system_suffix: str  # appended to the base system prompt
-    tool_whitelist: Set[str]  # tools this sub-agent may use
+    tool_whitelist: set[str]  # tools this sub-agent may use
 
 
 # ── Role → Tool mapping ─────────────────────────────────────────
 
-_OCR_TOOLS: Set[str] = {
+_OCR_TOOLS: set[str] = {
     "diagnose_camera",
     "get_camera_error_profile",
     "get_all_camera_profiles",
@@ -66,7 +66,7 @@ _OCR_TOOLS: Set[str] = {
     "query_detections",
 }
 
-_ANALYTICS_TOOLS: Set[str] = {
+_ANALYTICS_TOOLS: set[str] = {
     "query_detections",
     "get_detection_summary",
     "run_analytics_query",
@@ -79,7 +79,7 @@ _ANALYTICS_TOOLS: Set[str] = {
     "list_cameras",
 }
 
-_OPERATIONS_TOOLS: Set[str] = {
+_OPERATIONS_TOOLS: set[str] = {
     "get_system_health",
     "get_pipeline_stats",
     "get_queue_pressure",
@@ -95,7 +95,7 @@ _OPERATIONS_TOOLS: Set[str] = {
     "save_knowledge",
 }
 
-_WORKFLOW_TOOLS: Set[str] = {
+_WORKFLOW_TOOLS: set[str] = {
     "design_workflow_from_nl",
     "list_available_blocks",
     "get_block_details",
@@ -105,7 +105,7 @@ _WORKFLOW_TOOLS: Set[str] = {
     "get_deployed_graph",
 }
 
-PROFILES: Dict[AgentRole, SubAgentProfile] = {
+PROFILES: dict[AgentRole, SubAgentProfile] = {
     AgentRole.OCR_QUALITY: SubAgentProfile(
         role=AgentRole.OCR_QUALITY,
         display_name="OCR Quality Agent",
@@ -157,7 +157,7 @@ PROFILES: Dict[AgentRole, SubAgentProfile] = {
 
 # ── Intent → Role routing ───────────────────────────────────────
 
-_INTENT_TO_ROLE: Dict[QueryIntent, AgentRole] = {
+_INTENT_TO_ROLE: dict[QueryIntent, AgentRole] = {
     QueryIntent.STATUS: AgentRole.OPERATIONS,
     QueryIntent.DETECTION: AgentRole.ANALYTICS,
     QueryIntent.ANALYTICS: AgentRole.ANALYTICS,
@@ -180,7 +180,7 @@ def route_to_role(intent: QueryIntent) -> AgentRole:
 
 def build_filtered_registry(
     full_registry: ToolRegistry,
-    allowed_tools: Set[str],
+    allowed_tools: set[str],
 ) -> ToolRegistry:
     """Create a new ToolRegistry containing only the whitelisted tools.
 
@@ -230,10 +230,11 @@ class MultiAgentRouter:
         self._max_iterations = max_iterations
 
         # Pre-build per-role loops
-        self._loops: Dict[AgentRole, AgentLoop] = {}
+        self._loops: dict[AgentRole, AgentLoop] = {}
         for role, profile in PROFILES.items():
             filtered = build_filtered_registry(
-                full_registry, profile.tool_whitelist,
+                full_registry,
+                profile.tool_whitelist,
             )
             self._loops[role] = AgentLoop(
                 llm_client=llm_client,
@@ -289,5 +290,5 @@ class MultiAgentRouter:
         return response
 
     @property
-    def available_roles(self) -> List[str]:
+    def available_roles(self) -> list[str]:
         return [r.value for r in self._loops]

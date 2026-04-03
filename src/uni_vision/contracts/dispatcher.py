@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from uni_vision.contracts.dtos import DetectionRecord
+if TYPE_CHECKING:
+    from uni_vision.contracts.dtos import DetectionRecord
 
 
 @runtime_checkable

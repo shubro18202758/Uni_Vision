@@ -8,11 +8,14 @@ batches to avoid holding long-lived DB locks.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from uni_vision.common.config import RetentionConfig
 from uni_vision.storage.models import AUDIT_LOG_TABLE, TABLE_NAME
+
+if TYPE_CHECKING:
+    from uni_vision.common.config import RetentionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,7 @@ class RetentionTask:
     def __init__(self, config: RetentionConfig, pg_client: object) -> None:
         self._config = config
         self._pg = pg_client
-        self._task: Optional[asyncio.Task[None]] = None
+        self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         if not self._config.enabled:
@@ -67,10 +70,8 @@ class RetentionTask:
     async def stop(self) -> None:
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             logger.info("retention_stopped")
 
     async def _loop(self) -> None:

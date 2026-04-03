@@ -23,16 +23,17 @@ orchestrator controls Region C time-slicing between S2 and S3.
 from __future__ import annotations
 
 import time
-from typing import List, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
-
 import structlog
 
 from uni_vision.contracts.dtos import BoundingBox
-from uni_vision.monitoring.metrics import STAGE_LATENCY, DETECTIONS_TOTAL
 from uni_vision.detection.engine import EngineConfig, InferenceEngine
+from uni_vision.monitoring.metrics import DETECTIONS_TOTAL, STAGE_LATENCY
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 log = structlog.get_logger()
 
@@ -111,7 +112,7 @@ class PlateDetector:
         self._engine.predict(dummy)
         log.info("plate_detector_warmed_up", device=self._device)
 
-    def detect(self, image: NDArray[np.uint8]) -> List[BoundingBox]:
+    def detect(self, image: NDArray[np.uint8]) -> list[BoundingBox]:
         """Detect plates in *image* (full frame or pre-cropped ROI).
 
         When called directly the detector treats the entire image as the
@@ -136,7 +137,7 @@ class PlateDetector:
         self,
         frame: NDArray[np.uint8],
         vehicle_bbox: BoundingBox,
-    ) -> List[BoundingBox]:
+    ) -> list[BoundingBox]:
         """Detect plates strictly within *vehicle_bbox* of *frame*.
 
         Steps:
@@ -181,7 +182,7 @@ class PlateDetector:
         detections = self._engine.predict(roi)
 
         # 3. Remap coordinates back to full-frame space
-        remapped: List[BoundingBox] = []
+        remapped: list[BoundingBox] = []
         for det in detections:
             remapped.append(
                 BoundingBox(
@@ -216,9 +217,7 @@ class PlateDetector:
 
     # ── Multi-plate policy ────────────────────────────────────────
 
-    def _apply_multi_plate_policy(
-        self, detections: List[BoundingBox]
-    ) -> List[BoundingBox]:
+    def _apply_multi_plate_policy(self, detections: list[BoundingBox]) -> list[BoundingBox]:
         """Reduce detections according to the configured policy."""
         if not detections:
             return detections

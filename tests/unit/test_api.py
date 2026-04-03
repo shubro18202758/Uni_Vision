@@ -8,17 +8,15 @@ These tests exercise the route handlers in isolation using FastAPI's
 from __future__ import annotations
 
 import sys
-from types import ModuleType
 from unittest.mock import MagicMock
-
-import pytest
 
 # ── Ensure real httpx is available for TestClient ─────────────────
 # The main conftest.py stubs httpx as MagicMock for unit tests that
 # don't need it.  API tests *do* need it, so we force-import the real
 # httpx before conftest runs.  If httpx was already stubbed, replace
 # it with the real module.
-import httpx as _real_httpx  # noqa: E402
+import httpx as _real_httpx
+import pytest
 
 if isinstance(sys.modules.get("httpx"), MagicMock):
     sys.modules["httpx"] = _real_httpx
@@ -27,12 +25,15 @@ if isinstance(sys.modules.get("httpx"), MagicMock):
         if key.startswith("httpx."):
             sys.modules.pop(key, None)
 
-from fastapi import FastAPI
+from typing import TYPE_CHECKING
+
 from fastapi.testclient import TestClient
 
 from uni_vision.api import create_app
 from uni_vision.common.config import AppConfig
 
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 # ── Fixtures ──────────────────────────────────────────────────────
 
@@ -53,7 +54,6 @@ def client(app: FastAPI) -> TestClient:
 
 
 class TestHealthEndpoint:
-
     def test_health_returns_200(self, client: TestClient) -> None:
         resp = client.get("/health")
         assert resp.status_code == 200
@@ -68,7 +68,6 @@ class TestHealthEndpoint:
 
     def test_health_with_service(self, app: FastAPI) -> None:
         """When HealthService is wired, returns full health payload."""
-        from dataclasses import asdict
         from uni_vision.contracts.dtos import HealthStatus, OffloadMode
 
         mock_status = HealthStatus(
@@ -125,7 +124,6 @@ class TestHealthEndpoint:
 
 
 class TestMetricsEndpoint:
-
     def test_metrics_returns_200(self, client: TestClient) -> None:
         resp = client.get("/metrics")
         assert resp.status_code == 200
@@ -141,7 +139,6 @@ class TestMetricsEndpoint:
 
 
 class TestStatsEndpoint:
-
     def test_stats_returns_200(self, client: TestClient) -> None:
         resp = client.get("/stats")
         assert resp.status_code == 200
@@ -191,7 +188,7 @@ class _FakePool:
     def __init__(self, conn: _FakeConn | None = None) -> None:
         self._conn = conn or _FakeConn()
 
-    def acquire(self, **kw: object) -> _AcquireCtx:  # noqa: ARG002
+    def acquire(self, **kw: object) -> _AcquireCtx:
         return _AcquireCtx(self._conn)
 
 
@@ -210,7 +207,6 @@ class _FakePG:
 
 
 class TestSourcesEndpoint:
-
     def test_sources_list_returns_empty_when_no_db(self, app: FastAPI) -> None:
         with TestClient(app) as tc:
             app.state.pg_client = _FakePG()
@@ -258,7 +254,6 @@ class TestSourcesEndpoint:
 
 
 class TestDetectionsEndpoint:
-
     def test_detections_empty_page(self, app: FastAPI) -> None:
         with TestClient(app) as tc:
             app.state.pg_client = _FakePG()
@@ -287,7 +282,6 @@ class TestDetectionsEndpoint:
 
 
 class TestMiddleware:
-
     def test_cors_headers_present(self, client: TestClient) -> None:
         resp = client.options(
             "/health",

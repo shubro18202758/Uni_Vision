@@ -16,11 +16,12 @@ import json
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -53,34 +54,65 @@ class PipelineEventType(str, Enum):
 
 # Ordered stage definitions for the generic CV analysis pipeline
 PIPELINE_STAGES = [
-    {"index": 0, "id": "S0_ingest", "name": "Frame Ingestion", "description": "Accept frame from video source into inference queue"},
-    {"index": 1, "id": "S1_preprocess", "name": "Preprocessing", "description": "Frame quality enhancement, denoising, and normalisation"},
-    {"index": 2, "id": "S2_scene_analysis", "name": "Scene Analysis", "description": "LLM vision analysis — object inventory and scene understanding"},
-    {"index": 3, "id": "S3_anomaly_detection", "name": "Anomaly Detection", "description": "Identify anomalies, deviations, and risk indicators"},
-    {"index": 4, "id": "S4_deep_analysis", "name": "Deep Analysis", "description": "Chain-of-thought reasoning, risk & impact assessment"},
-    {"index": 5, "id": "S5_results", "name": "Results & Dispatch", "description": "Aggregate findings, persist results, and notify"},
+    {
+        "index": 0,
+        "id": "S0_ingest",
+        "name": "Frame Ingestion",
+        "description": "Accept frame from video source into inference queue",
+    },
+    {
+        "index": 1,
+        "id": "S1_preprocess",
+        "name": "Preprocessing",
+        "description": "Frame quality enhancement, denoising, and normalisation",
+    },
+    {
+        "index": 2,
+        "id": "S2_scene_analysis",
+        "name": "Scene Analysis",
+        "description": "LLM vision analysis — object inventory and scene understanding",
+    },
+    {
+        "index": 3,
+        "id": "S3_anomaly_detection",
+        "name": "Anomaly Detection",
+        "description": "Identify anomalies, deviations, and risk indicators",
+    },
+    {
+        "index": 4,
+        "id": "S4_deep_analysis",
+        "name": "Deep Analysis",
+        "description": "Chain-of-thought reasoning, risk & impact assessment",
+    },
+    {
+        "index": 5,
+        "id": "S5_results",
+        "name": "Results & Dispatch",
+        "description": "Aggregate findings, persist results, and notify",
+    },
 ]
 
 
 @dataclass
 class PipelineEvent:
     """Single pipeline event for WebSocket broadcast."""
+
     type: str
     frame_id: str
     camera_id: str
     timestamp: float
-    stage_id: Optional[str] = None
-    stage_index: Optional[int] = None
-    stage_name: Optional[str] = None
-    stage_description: Optional[str] = None
-    status: Optional[str] = None
-    latency_ms: Optional[float] = None
+    stage_id: str | None = None
+    stage_index: int | None = None
+    stage_name: str | None = None
+    stage_description: str | None = None
+    status: str | None = None
+    latency_ms: float | None = None
     total_stages: int = len(PIPELINE_STAGES)
-    details: Dict[str, Any] = field(default_factory=dict)
-    thumbnail_b64: Optional[str] = None
-    stages_definition: Optional[List[Dict]] = None
-    queue_depth: Optional[int] = None
-    detection: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] = field(default_factory=dict)
+    thumbnail_b64: str | None = None
+    stages_definition: list[dict] | None = None
+    queue_depth: int | None = None
+    detection: dict[str, Any] | None = None
 
     def to_json(self) -> str:
         d = {k: v for k, v in asdict(self).items() if v is not None}
@@ -91,6 +123,7 @@ def _encode_thumbnail(image: np.ndarray, max_width: int = 320, quality: int = 70
     """Encode a CV2 image as a base64 JPEG thumbnail."""
     try:
         import cv2
+
         h, w = image.shape[:2]
         if w > max_width:
             scale = max_width / w
@@ -106,10 +139,10 @@ class PipelineEventBroadcaster:
     """Manages WebSocket clients and broadcasts pipeline stage events."""
 
     def __init__(self) -> None:
-        self._clients: Set[Any] = set()  # WebSocket instances
+        self._clients: set[Any] = set()  # WebSocket instances
         self._lock = asyncio.Lock()
         self._frames_processed: int = 0
-        self._current_frame_id: Optional[str] = None
+        self._current_frame_id: str | None = None
 
     @property
     def client_count(self) -> int:
@@ -129,7 +162,7 @@ class PipelineEventBroadcaster:
         if not self._clients:
             return
         payload = event.to_json()
-        dead: Set[Any] = set()
+        dead: set[Any] = set()
         for ws in list(self._clients):
             try:
                 await ws.send_text(payload)
@@ -153,7 +186,7 @@ class PipelineEventBroadcaster:
         camera_id: str,
         frame_index: int,
         queue_depth: int,
-        image: Optional[np.ndarray] = None,
+        image: np.ndarray | None = None,
     ) -> None:
         thumbnail = ""
         if image is not None and self._clients:
@@ -205,8 +238,8 @@ class PipelineEventBroadcaster:
         camera_id: str,
         stage_id: str,
         latency_ms: float,
-        details: Optional[Dict[str, Any]] = None,
-        image: Optional[np.ndarray] = None,
+        details: dict[str, Any] | None = None,
+        image: np.ndarray | None = None,
     ) -> None:
         thumbnail = None
         if image is not None and self._clients:
@@ -277,7 +310,7 @@ class PipelineEventBroadcaster:
         self,
         frame_id: str,
         camera_id: str,
-        detection: Dict[str, Any],
+        detection: dict[str, Any],
         validation_status: str,
     ) -> None:
         event = PipelineEvent(
@@ -319,8 +352,8 @@ class PipelineEventBroadcaster:
         self,
         frame_id: str,
         camera_id: str,
-        analysis: Dict[str, Any],
-        image: Optional[np.ndarray] = None,
+        analysis: dict[str, Any],
+        image: np.ndarray | None = None,
     ) -> None:
         """Broadcast a structured anomaly analysis result for a frame."""
         thumbnail = None
@@ -341,7 +374,7 @@ class PipelineEventBroadcaster:
     async def emit_custom(
         self,
         event_type: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
     ) -> None:
         """Broadcast a custom event (job lifecycle, component status, etc.)."""
         event = PipelineEvent(
