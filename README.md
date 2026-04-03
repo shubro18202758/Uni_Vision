@@ -53,8 +53,8 @@
 |---|---|
 | 🧠 **Gemma 4 E2B (MoE)** | Migrated entire stack to Google's **Gemma 4 E2B** — a Mixture-of-Experts model (5.1B total / 2.3B effective params, 128K context, natively multimodal). Replaces all prior models (Qwen 3.5 9B → Gemma 3 4B → Gemma 3N E4B → Gemma 4 E4B → **Gemma 4 E2B**). |
 | 🎨 **Autonomous Workflow Designer** | Describe your surveillance task in natural language → the LLM autonomously designs a complete pipeline DAG with block selection, wiring, and layout. 6-phase process: Translate → Analyse → Select Blocks → Wire Connections → Validate → Return Graph. |
-| 🧱 **38 Pipeline Blocks** | Expanded block registry across 10 categories: Input, Ingestion, Preprocessing, Detection, Analysis, OCR, Tracking, Postprocessing, Visualization, and Output. Every block has an "instruction" field for user-specified LLM guidance. |
-| 🤖 **39 Agent Tools** | Full agentic toolkit: pipeline control, graph manipulation, knowledge base, model management, diagnostics, and autonomous design. |
+| 🧧 **38 Pipeline Blocks** | Expanded block registry across 8 categories: Input, Ingestion, Preprocessing, Detection, OCR, PostProcessing, Output, and Utility. Every block has an "instruction" field for user-specified LLM guidance. |
+| 🤖 **39 Agent Tools** | Full agentic toolkit across 4 modules: graph & design, pipeline & system, knowledge & feedback, and control & self-healing. |
 | 🎬 **Pipeline Vision Theater** | Real-time visual processing preview with per-stage streaming — watch your pipeline execute frame by frame with live stage-by-stage progress, latency metrics, and anomaly overlays. |
 | 📊 **Technical Metrics Dashboard** | Per-detection performance breakdown: stage latencies, VRAM usage, model confidence, bottleneck identification, and throughput analysis. |
 | ⚡ **Performance Optimizations** | Avg overhead: **27.3s → 8.2s** (70% reduction). Pipeline latency: **60.7s → 42.2s** (30% reduction). Compact LLM prompts: **16K → 3.6K chars** with JSON structured output. |
@@ -94,10 +94,9 @@
 │                  └──────────┬───────────────────────────┘                     │
 │                             │                                                │
 │    ┌────────────────────────┼──────────────────────────────┐                  │
-│    │  🧱 38-Block Pipeline Engine (10 Categories)          │                  │
+│    │  🧧 38-Block Pipeline Engine (8 Categories)          │                  │
 │    │  Input · Ingestion · Preprocessing · Detection        │                  │
-│    │  Analysis · OCR · Tracking · Postprocessing           │                  │
-│    │  Visualization · Output                               │                  │
+│    │  OCR · PostProcessing · Output · Utility              │                  │
 │    └────────────────────────┬──────────────────────────────┘                  │
 │                             │                                                │
 │    ┌────────────────────────┼──────────────────────────────┐                  │
@@ -131,7 +130,7 @@
 
 <div align="center">
 
-Every vision pipeline is assembled from **38 specialized blocks** across **10 categories**. Drag them onto the canvas, wire them together, or let the **Workflow Designer** do it for you.
+Every vision pipeline is assembled from **38 specialized blocks** across **8 categories**. Drag them onto the canvas, wire them together, or let the **Workflow Designer** do it for you.
 
 </div>
 
@@ -140,13 +139,10 @@ Every vision pipeline is assembled from **38 specialized blocks** across **10 ca
 | 📥 **Input** (3) | `image-input` · `rtsp-stream` · `video-file` | Feed frames into the pipeline from cameras, files, or streams |
 | 🎞️ **Ingestion** (2) | `frame-sampler` · `roi-crop` | Down-sample rates and focus on regions of interest |
 | 🖼️ **Preprocessing** (5) | `grayscale` · `contrast-enhance` · `denoise` · `resize` · `plate-preprocessor` | Clean, enhance, and prepare frames for detection |
-| 🎯 **Detection** (7) | `yolo-detector` · `motion-detector` · `fire-smoke-detector` · `crowd-density` · `vehicle-detector` · `plate-detector` · `scene-classifier` | Core detection engines — YOLO, motion, fire/smoke, crowds, vehicles, plates, scene classification |
-| 🔬 **Analysis** (4) | `anomaly-scorer` · `pose-estimator` · `ppe-detector` · `zone-intrusion` | Score anomalies, estimate poses, detect PPE, monitor restricted zones |
-| 👁️ **OCR** (4) | `llm-vision` · `easy-ocr` · `paddleocr` · `text-reader` | Multimodal Gemma 4 vision analysis, EasyOCR, PaddleOCR, and text extraction |
-| 🔄 **Tracking** (2) | `object-tracker` · `optical-flow` | Multi-object tracking with DeepSORT and optical flow analysis |
-| 🔧 **Postprocessing** (4) | `regex-validator` · `deduplicator` · `threshold-gate` · `face-anonymizer` | Validate, deduplicate, gate by confidence, and anonymize faces for privacy |
-| 📊 **Visualization** (3) | `adjudicator` · `heatmap-generator` · `annotator` | LLM-powered adjudication, spatial heatmaps, and bounding box annotations |
-| 📤 **Output** (4) | `dispatcher` · `alert-trigger` · `console-logger` · `video-recorder` | Push events via WebSocket, trigger alerts, log results, record video clips |
+| 🎯 **Detection** (12) | `yolo-detector` · `motion-detector` · `fire-smoke-detector` · `crowd-density` · `vehicle-detector` · `plate-detector` · `scene-classifier` · `anomaly-scorer` · `pose-estimator` · `ppe-detector` · `zone-intrusion` · `llm-vision` | Core detection engines — YOLO, motion, fire/smoke, crowds, vehicles, plates, scene classification, anomaly scoring, pose estimation, PPE compliance, zone intrusion monitoring, and multimodal Gemma 4 vision analysis |
+| 👁️ **OCR** (3) | `easy-ocr` · `paddleocr` · `text-reader` | EasyOCR, PaddleOCR, and general-purpose text extraction |
+| 🔧 **PostProcessing** (7) | `object-tracker` · `optical-flow` · `regex-validator` · `deduplicator` · `threshold-gate` · `face-anonymizer` · `adjudicator` | Multi-object tracking (DeepSORT), optical flow, regex validation, perceptual-hash deduplication, confidence gating, face anonymization for privacy, and multi-engine OCR adjudication |
+| 📤 **Output** (6) | `heatmap-generator` · `annotator` · `dispatcher` · `alert-trigger` · `console-logger` · `video-recorder` | Activity heatmaps, bounding-box annotations, event dispatch via WebSocket, webhook/email alerts, console logging, and video recording |
 
 > 💡 Every block exposes an **"instruction" field** — write plain-English guidance for the LLM (e.g., *"Focus on people near the emergency exit after 10 PM"*), and the model customizes its behaviour per-block.
 
@@ -163,20 +159,68 @@ Every vision pipeline is assembled from **38 specialized blocks** across **10 ca
 
 ---
 
+## 💻 Frontend Architecture — React + TypeScript + Vite
+
+The React 18 frontend is a full-featured IDE-like dashboard built with **TypeScript**, **Vite 6**, **Zustand** for state, **ReactFlow** for the node canvas, **Recharts** for charts, **Monaco Editor** for code views, and **Framer Motion** for animations.
+
+### 📦 14 Component Modules
+
+| Module | Purpose |
+|:---:|---|
+| 🎨 **canvas/** | Workbench — drag-and-drop block canvas (ReactFlow-powered) |
+| 💬 **chat/** | AI Chat overlay + Navarasa multilingual conversation |
+| 🎬 **pipeline/** | Pipeline Monitor + Pipeline Vision Theater (real-time stage streaming) |
+| 🚨 **detections/** | Detection modals + Risk/Impact analysis + Technical Metrics Dashboard |
+| 📊 **analytics/** | Stats dashboard + Databricks insights + anomaly trends |
+| 🧱 **blocks/** | Block configuration panels and block type renderers |
+| 🎨 **palette/** | Block palette sidebar — drag blocks onto canvas by category |
+| 📷 **cameras/** | Camera management, stream preview, camera stats |
+| 🔍 **inspector/** | Node/edge inspector — configure selected block properties |
+| 💻 **code/** | Monaco-based code viewer for pipeline serialization |
+| 🔗 **edges/** | Custom edge renderers for pipeline wiring |
+| 💬 **feedback/** | User feedback widgets for detection corrections |
+| 📊 **status/** | System status indicators and health monitors |
+| 🏗️ **layout/** | StatusBar, Topbar, Sidebars, AppShell |
+
+### 🗂️ 12 Zustand Stores
+
+| Store | Manages |
+|:---:|---|
+| `graphStore` | Pipeline DAG state — nodes, edges, selection |
+| `pipelineStore` | Pipeline execution lifecycle + results |
+| `pipelineMonitorStore` | Real-time processing metrics and stage progress |
+| `detectionStore` | Detection results, filtering, detail views |
+| `chatStore` | AI chat messages, streaming state, Navarasa lang |
+| `modelStore` | Ollama model state (primary_loaded, VRAM) |
+| `cameraStore` | Camera configs, stream URLs, health |
+| `agenticStore` | Manager Agent state, tool invocations |
+| `codeStore` | Code view state (serialized pipeline JSON) |
+| `historyStore` | Undo/redo history for canvas operations |
+| `uiStore` | Sidebar visibility, panel layout, theme |
+| `toastStore` | Notification toasts and alerts |
+
+### 🔧 Utilities & Type System
+
+| Layer | Files | Purpose |
+|:---:|:---:|---|
+| `lib/` | 8 modules | `autoLayout` · `blockRegistry` · `blockRegistryDefaults` · `cycleDetection` · `graphSerializer` · `graphValidator` · `mockCodeGenerator` · `pipelineIO` |
+| `types/` | 7 files | `api` · `block` · `configSchema` · `connection` · `graph` · `port` · `dagre.d` |
+| `constants/` | 4 files | `categories` · `keyboardShortcuts` · `portTypes` · `templates` |
+| `hooks/` | 1 hook | `useKeyboardShortcuts` — global keyboard shortcut system |
+| `services/` | 2 clients | `api.ts` (REST) · `websocket.ts` (WebSocket real-time stream) |
+
+---
+
 ## 🤖 Agentic AI Manager — 39 Tools
 
-The **Manager Agent** is an autonomous LLM-driven orchestrator that controls the entire pipeline lifecycle with **39 registered tools**:
+The **Manager Agent** is an autonomous LLM-driven orchestrator that controls the entire pipeline lifecycle with **39 registered tools** across **4 modules**:
 
 | Tool Group | Tools | Capabilities |
 |:---:|:---:|---|
-| 🎨 **Design** | 5 | `design_workflow` · `design_workflow_streaming` · `get_design_status` · `list_block_catalog` · `validate_design` |
-| 🔀 **Graph** | 6 | `add_block` · `remove_block` · `connect_blocks` · `get_graph_state` · `auto_layout` · `clear_canvas` |
-| ▶️ **Pipeline** | 5 | `start_pipeline` · `stop_pipeline` · `get_pipeline_status` · `get_processing_preview` · `get_stage_metrics` |
-| 🧠 **Knowledge** | 4 | `search_knowledge` · `add_knowledge` · `get_knowledge_stats` · `clear_knowledge` |
-| ⚙️ **Control** | 6 | `get_model_state` · `activate_model` · `get_vram_budget` · `get_system_health` · `list_cameras` · `get_config` |
-| 🔍 **Analysis** | 5 | `get_detection_details` · `get_risk_analysis` · `get_impact_analysis` · `get_technical_metrics` · `search_similar` |
-| 📊 **Stats** | 4 | `get_camera_stats` · `get_anomaly_trends` · `get_confidence_distribution` · `get_throughput_metrics` |
-| 🔧 **Utility** | 4 | `get_audit_log` · `export_pipeline` · `import_pipeline` · `reset_agent_state` |
+| 🎨 **Graph & Design** | 9 | `describe_pipeline_graph` · `list_available_blocks` · `get_block_details` · `get_deployed_graph` · `validate_pipeline_graph` · `deploy_pipeline_graph` · `clear_pipeline_graph` · `register_custom_block` · `design_workflow_from_nl` |
+| ▶️ **Pipeline & System** | 13 | `query_detections` · `get_detection_summary` · `get_pipeline_stats` · `get_system_health` · `list_cameras` · `manage_camera` · `adjust_threshold` · `get_current_config` · `search_audit_log` · `analyze_detection_patterns` · `diagnose_camera` · `reset_circuit_breaker` · `run_analytics_query` |
+| 🧠 **Knowledge & Feedback** | 11 | `get_knowledge_stats` · `get_frequent_detections` · `get_camera_error_profile` · `get_all_camera_profiles` · `get_cross_camera_detections` · `get_ocr_error_patterns` · `detect_detection_anomalies` · `record_detection_feedback` · `get_recent_feedback` · `get_camera_hints` · `save_knowledge` |
+| ⚙️ **Control & Self-Healing** | 6 | `auto_tune_confidence` · `get_stage_analytics` · `get_ocr_strategy_stats` · `self_heal_pipeline` · `get_queue_pressure` · `flush_inference_queue` |
 
 ### Manager Agent Pipeline
 
@@ -346,7 +390,7 @@ docker compose up -d
 
 2. � **Design a pipeline with words** — open the **AI Chat**, type something like *"detect people loitering in the parking lot"* or *"fire detection in warehouse"*, and watch the **Workflow Designer** autonomously build a pipeline DAG from the 38-block catalog. The 6-phase design streams progress in real time.
 
-3. 🧱 **Or build manually** — drag blocks from the **Block Palette** (organized in 10 categories) onto the **Workbench Canvas**, wire ports together, and configure each block's instruction field.
+3. 🧱 **Or build manually** — drag blocks from the **Block Palette** (organized in 8 categories) onto the **Workbench Canvas**, wire ports together, and configure each block's instruction field.
 
 4. 📤 **Upload a video** — click **"Upload"** in the sidebar, select any video file (MP4/AVI), and click **"Start Processing"**.
 
@@ -408,10 +452,21 @@ pytest -x
 ```
 Uni_Vision/
 ├── src/uni_vision/
-│   ├── 🤖 agent/           # Agentic AI — 39 tools, workflow designer, model router,
-│   │                        #   knowledge base, coordinator, sub-agents, audit
+│   ├── 🤖 agent/           # 39 tools across 4 modules + workflow designer, model router,
+│   │   ├── graph_tools.py       # 9 tools — design, graph ops, block catalog
+│   │   ├── pipeline_tools.py    # 13 tools — detections, cameras, diagnostics, analytics
+│   │   ├── knowledge_tools.py   # 11 tools — knowledge base, feedback, camera profiling
+│   │   ├── control_tools.py     # 6 tools — self-healing, tuning, queue management
+│   │   ├── workflow_designer.py # NL → Pipeline DAG (6-phase autonomous design)
+│   │   ├── model_router.py      # VRAM-exclusive model activation
+│   │   ├── coordinator.py       # Agent orchestration loop
+│   │   ├── knowledge.py         # FAISS-backed knowledge store
+│   │   ├── navarasa_client.py   # 16-language multilingual chat bridge
+│   │   ├── audit.py             # Tool invocation audit logging
+│   │   └── ...                  # intent, memory, monitor, prompts, sessions, sub_agents
 │   ├── 🌐 api/             # FastAPI REST + WebSocket + pipeline graph + stats routes
 │   ├── ⚙️ common/          # Shared config, logging, exceptions
+│   ├── 🔌 components/      # Component registry + DI container
 │   ├── 📋 contracts/       # DTOs, validation schemas
 │   ├── 🧱 databricks/      # Delta Lake, MLflow, Spark, FAISS integrations
 │   ├── 🎯 detection/       # YOLO object detection + vision analyzer
@@ -426,24 +481,58 @@ Uni_Vision/
 │   ├── 🖼️ preprocessing/   # Deskew, enhance, crop
 │   ├── 💾 storage/         # S3/MinIO persistence
 │   └── 📈 visualizer/      # OCR output visualization
-├── 💻 univision/            # React + TypeScript frontend (Vite)
+├── 💻 univision/            # React 18 + TypeScript + Vite 6 frontend
 │   └── src/
-│       ├── components/
-│       │   ├── canvas/      # Workbench — drag-and-drop block canvas
-│       │   ├── chat/        # AI Chat overlay + Navarasa multilingual chat
-│       │   ├── pipeline/    # Pipeline Monitor + Vision Theater 🎬
-│       │   ├── detections/  # Detection modals + Risk/Impact + Technical Metrics 📊
-│       │   ├── analytics/   # Stats dashboard + Databricks insights
-│       │   └── layout/      # StatusBar, Topbar, Sidebars
-│       ├── store/           # Zustand stores (graph, pipeline, model, UI)
-│       ├── services/        # REST API + WebSocket client
-│       └── lib/             # Block registry + defaults
-├── ⚙️ config/               # YAML config + Ollama Modelfiles + Grafana dashboards
-├── 🧪 tests/                # 283+ unit tests + 48+ integration tests
+│       ├── app/             # AppShell — main layout container
+│       ├── components/      # 14 modules: canvas, chat, pipeline, detections, analytics,
+│       │                    #   blocks, palette, cameras, inspector, code, edges,
+│       │                    #   feedback, status, layout
+│       ├── store/           # 12 Zustand stores (graph, pipeline, detection, chat, model,
+│       │                    #   camera, agentic, code, history, pipelineMonitor, ui, toast)
+│       ├── services/        # REST API client + WebSocket real-time stream
+│       ├── lib/             # 8 utility modules (autoLayout, blockRegistry, cycleDetection,
+│       │                    #   graphSerializer, graphValidator, mockCodeGenerator, pipelineIO)
+│       ├── types/           # 7 type definitions (api, block, configSchema, connection, graph, port)
+│       ├── constants/       # 4 files (categories, keyboardShortcuts, portTypes, templates)
+│       └── hooks/           # useKeyboardShortcuts — global keyboard shortcuts
+├── ⚙️ config/               # YAML configs + Ollama Modelfiles + Prometheus + Grafana
+│   ├── default.yaml         # Master config (Ollama, cameras, pipeline, Databricks toggle)
+│   ├── cameras.yaml         # Camera definitions + stream URLs
+│   ├── models.yaml          # Model registry + VRAM budgets
+│   ├── prometheus.yml       # Prometheus scrape config
+│   ├── prometheus_alerts.yml # Alert rules (latency, VRAM, error rates)
+│   ├── grafana/             # Dashboard JSON + provisioning (datasources, dashboards)
+│   └── ollama/              # Modelfiles: ocr, adjudicator, navarasa
+├── 🧪 tests/                # 376 tests — 320 unit (20 files) + 56 integration (5 files)
 ├── 🗃️ alembic/              # Database migrations (4 versions)
-├── 📓 databricks_notebooks/ # 5 Databricks notebooks (Delta Lake, MLflow, Spark, Pipeline)
-└── 📜 scripts/              # Ollama init, model download, smoke test
+├── 📓 databricks_notebooks/ # 6 notebooks: Setup, Delta Lake, MLflow, Spark, Vector Search, Full Pipeline
+├── 📜 scripts/              # 6 scripts: init-ollama (PS1/SH), download_models, smoke_test_agent,
+│                            #   deploy_databricks, test_ws
+├── 📄 docs/                 # 10 markdown docs (see below)
+├── 🐳 docker-compose.yml   # 7 services: app, postgres, ollama, minio, redis, prometheus, grafana
+├── 🐳 Dockerfile           # Multi-stage CUDA 12.4 build (non-root, health checks)
+├── 📦 pyproject.toml       # 4 extras: [dev], [inference], [databricks], [visualizer]
+└── 🔧 Makefile             # 14 targets: install, lint, test, docker-build/up/down, etc.
 ```
+
+---
+
+## 📚 Documentation
+
+Beyond this README, the repository includes **10 detailed documentation files**:
+
+| Document | Purpose |
+|:---:|---|
+| 📐 [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture deep-dive — modules, data flow, dependency graph |
+| 🚀 [DEPLOYMENT.md](DEPLOYMENT.md) | Production deployment guide — Docker, cloud, Ollama GPU setup |
+| 🔎 [SYSTEM_WALKTHROUGH.md](SYSTEM_WALKTHROUGH.md) | End-to-end system walkthrough — from video upload to detection output |
+| 📘 [TECHNICAL_DOCUMENTATION.md](TECHNICAL_DOCUMENTATION.md) | Full technical reference — APIs, schemas, protocols, config options |
+| 📋 [spec.md](spec.md) | System specification — requirements, constraints, design decisions |
+| 📝 [prd.md](prd.md) | Product requirements document — features, user stories, acceptance criteria |
+| 📄 [abstract.md](abstract.md) | Project abstract — concise overview for academic/conference submission |
+| 📖 [literatureabstract.md](literatureabstract.md) | Literature review abstract — related work and theoretical foundations |
+| 🎤 [PPT.MD](PPT.MD) | Presentation slide structure and talking points |
+| 🧠 [PRESENTATION_KNOWLEDGE_BASE.md](PRESENTATION_KNOWLEDGE_BASE.md) | Deep knowledge base for presentation Q&A preparation |
 
 ---
 
@@ -455,7 +544,8 @@ Uni_Vision/
 | End-to-end latency | 60.7s | 42.2s | **30% reduction** |
 | Workflow design prompt | 16,000 chars | 3,600 chars | **78% smaller** |
 | Block registry | 16 types | 38 types | **138% more blocks** |
-| Agent tools | — | 39 tools | Full autonomy |
+| Agent tools | — | 39 tools (4 modules) | Full autonomy |
+| Test suite | — | 376 tests (320 unit + 56 integration) | Full coverage |
 | Gemma 4 E2B context | 4,096 tokens | 128K tokens | **31× larger** |
 
 > 📐 Measured on RTX 4070 (8 GB VRAM), Ollama 0.20, gemma4:e2b Q4_K_M.
