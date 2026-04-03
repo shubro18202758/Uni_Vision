@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
         "Analyze recent detection quality and recommend or apply optimal "
         "confidence thresholds. Examines validation pass/fail rates over "
         "the time window and adjusts the adjudication threshold to balance "
-        "precision (fewer false positives) and recall (fewer missed plates)."
+        "precision (fewer false positives) and recall (fewer missed detections)."
     ),
     param_descriptions={
         "hours_back": "Time window for analysis (default: 1)",

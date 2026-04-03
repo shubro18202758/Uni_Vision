@@ -246,7 +246,7 @@ class ModelStateResponse(BaseModel):
     phase: str
     active_model: str
     navarasa_loaded: bool
-    qwen_loaded: bool
+    primary_loaded: bool
 
 
 class ActivateModelRequest(BaseModel):
@@ -269,7 +269,7 @@ async def get_model_state(request: Request):
         phase=state.phase.value,
         active_model=state.active_model,
         navarasa_loaded=state.navarasa_loaded,
-        qwen_loaded=state.qwen_loaded,
+        primary_loaded=state.primary_loaded,
     )
 
 
@@ -277,19 +277,19 @@ async def get_model_state(request: Request):
 async def activate_model(body: ActivateModelRequest, request: Request):
     """Switch the active Ollama model phase.
 
-    - ``pre_launch``: Activate Navarasa, unload Qwen (design phase).
-    - ``post_launch``: Activate Qwen, unload Navarasa (pipeline phase).
+    - ``pre_launch``: Activate primary model for design (pre-launch).
+    - ``post_launch``: Activate primary model for pipeline processing.
     """
     mr = _get_model_router(request)
 
     if body.phase == "pre_launch":
         state = await mr.activate_navarasa()
     else:
-        state = await mr.activate_qwen()
+        state = await mr.activate_primary()
 
     return ModelStateResponse(
         phase=state.phase.value,
         active_model=state.active_model,
         navarasa_loaded=state.navarasa_loaded,
-        qwen_loaded=state.qwen_loaded,
+        primary_loaded=state.primary_loaded,
     )

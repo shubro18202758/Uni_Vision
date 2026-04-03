@@ -36,6 +36,7 @@ from uni_vision.manager.schemas import (
 
 if TYPE_CHECKING:
     from uni_vision.manager.lifecycle import ComponentLifecycle
+    from uni_vision.manager.dependency_resolver import DependencyConflictResolver
 
 log = logging.getLogger(__name__)
 
@@ -131,6 +132,7 @@ class ComponentResolver:
         *,
         llm_client: Optional[Any] = None,
         lifecycle: Optional["ComponentLifecycle"] = None,
+        dependency_resolver: Optional["DependencyConflictResolver"] = None,
         vram_limit_mb: int = 8192,
         prefer_trusted: bool = True,
     ) -> None:
@@ -138,8 +140,11 @@ class ComponentResolver:
         self._hub = hub_client
         self._llm = llm_client
         self._lifecycle = lifecycle
+        self._dep_resolver = dependency_resolver
         self._vram_limit = vram_limit_mb
         self._prefer_trusted = prefer_trusted
+        # Cache failed resolutions to avoid repeated network calls
+        self._failed_caps: dict[ComponentCapability, "ResolutionResult"] = {}
 
     # ── Public API ────────────────────────────────────────────────
 
@@ -157,8 +162,18 @@ class ComponentResolver:
         results: List[ResolutionResult] = []
 
         for cap in required:
+            # Return cached result immediately (avoids repeated network calls
+            # and repeated hub searches for capabilities already resolved)
+            if cap in self._failed_caps:
+                results.append(self._failed_caps[cap])
+                continue
+
             result = await self._resolve_single(cap, vram_budget)
             results.append(result)
+
+            # Cache ALL resolution results (including FOUND) — provisioning
+            # failures are cached separately in ManagerAgent
+            self._failed_caps[cap] = result
 
             # Account for selected component VRAM
             if result.selected_candidate and result.status in (
@@ -184,11 +199,25 @@ class ComponentResolver:
         )
 
         # Install Python requirements
+        installed_reqs: list[str] = []
         for req in candidate.python_requirements:
             ok = await self._hub.install_package(req, verify_import=True)
             if not ok:
                 log.error("provision_dep_failed package=%s", req)
                 return None
+            installed_reqs.append(req)
+
+        # Run dependency conflict check & auto-resolve after all installs
+        if installed_reqs and self._dep_resolver is not None:
+            dep_report = await self._dep_resolver.check_and_resolve(installed_reqs)
+            if not dep_report.resolved and dep_report.final_conflicts:
+                log.error(
+                    "provision_dependency_conflicts_unresolved",
+                    component_id=candidate.component_id,
+                    conflicts=dep_report.final_conflicts,
+                )
+                # Do NOT abort — the component may still load fine.
+                # The conflicts are logged for observability.
 
         # Download model weights if HuggingFace source
         if candidate.source == "huggingface" and candidate.source_id:

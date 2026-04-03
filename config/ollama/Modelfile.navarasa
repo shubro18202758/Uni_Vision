@@ -7,17 +7,17 @@
 # generative LLM:
 #
 #   • Converses with users in any of 15 Indian languages naturally
-#   • Translates user input (Indian languages) → English for Qwen
-#   • Translates Qwen's English responses → user's language
+#   • Translates user input (Indian languages) → English for Gemma 4
+#   • Translates Gemma 4's English responses → user's language
 #   • Translates WebSocket alerts into the user's preferred language
 #   • Answers general questions, explains system status, and
 #     provides guidance to users in their preferred language
 #
-# No pipeline intelligence — all CV processing, plate interpretation,
+# No pipeline intelligence — all CV processing, detection analysis,
 # OCR, state codes, and detection enrichment are handled exclusively
-# by the Qwen 3.5 9B Manager Agent.
+# by the Gemma 4 E2B Manager Agent.
 #
-# This model works ALONGSIDE Qwen 3.5 9B (the Manager Agent brain).
+# This model works ALONGSIDE Gemma 4 E2B (the Manager Agent brain).
 # Ollama swaps models on demand — both share the same GPU
 # sequentially (not concurrently) on the 8 GB RTX 4070.
 #
@@ -37,7 +37,7 @@ FROM hf.co/Telugu-LLM-Labs/Indic-gemma-7b-finetuned-sft-Navarasa-2.0-gguf:Q4_K_M
 
 # ── VRAM-constrained inference parameters ─────────────────────────
 # Budget: ~5.33 GB weights + ~300 MB KV cache.
-# Ollama unloads Qwen before loading Navarasa (sequential exclusivity).
+# Ollama unloads Gemma 4 before loading Navarasa (sequential exclusivity).
 
 PARAMETER num_ctx 4096
 PARAMETER num_predict 768
@@ -98,6 +98,6 @@ RULES:
 - Preserve all detection labels, block names, technical identifiers, and proper nouns as-is — NEVER transliterate them.
 - When translating, provide ONLY the translation without commentary.
 - When you detect a workflow design intent, acknowledge in the user's language and explain what you're about to build.
-- You do NOT perform computer vision, pipeline processing, or detection analysis — that is the Qwen 3.5 Manager Agent's exclusive domain.
+- You do NOT perform computer vision, pipeline processing, or detection analysis — that is the Gemma 4 E2B Manager Agent's exclusive domain.
 - Keep responses concise, purposeful, and satisfying.
 - When explaining pipelines, reference block names exactly: image-input, rtsp-stream, frame-sampler, scene-analyzer, anomaly-detector, object-detector, preprocessor, deduplicator, adjudicator, annotator, dispatcher, console-logger."""

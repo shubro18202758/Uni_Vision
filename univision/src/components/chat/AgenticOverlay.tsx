@@ -159,9 +159,8 @@ export function AgenticOverlay() {
     if (pendingInput && overlayOpen && mode === "agentic" && !autoStartedRef.current) {
       autoStartedRef.current = true;
       connectAgentStream();
-      setTimeout(() => {
-        sendWorkflowDesignMessage(pendingInput);
-      }, 400);
+      // sendWorkflowDesignMessage now awaits WS open internally
+      sendWorkflowDesignMessage(pendingInput);
     }
     if (!overlayOpen) {
       autoStartedRef.current = false;
@@ -221,21 +220,32 @@ export function AgenticOverlay() {
 
     enterAgenticMode(desc);
     openOverlay();
-
-    // Small delay to ensure WS is connected
-    setTimeout(() => {
-      sendWorkflowDesignMessage(desc);
-    }, 300);
     setInput("");
+
+    // Connect WS and send the design request
+    connectAgentStream();
+    sendWorkflowDesignMessage(desc);
   }
 
   // ── Apply generated graph to workspace ───────────────────────
 
   function handleApplyGraph() {
     if (!generatedGraph) return;
-    setGraph(generatedGraph);
+    // Deep-clone the graph so the reference is guaranteed fresh for React,
+    // and close the overlay BEFORE setting the graph to avoid any overlay
+    // animation interfering with the canvas re-render cycle.
+    const graphSnapshot: ProjectGraph = {
+      project: { ...generatedGraph.project },
+      blocks: generatedGraph.blocks.map((b) => ({ ...b, position: { ...b.position }, config: { ...b.config } })),
+      connections: generatedGraph.connections.map((c) => ({ ...c })),
+    };
     exitAgenticMode();
     closeOverlay();
+    // Apply after overlay state is cleared so the canvas is the only
+    // consumer re-rendering from the graphStore update.
+    requestAnimationFrame(() => {
+      setGraph(graphSnapshot);
+    });
   }
 
   // ── Dismiss overlay ──────────────────────────────────────────
@@ -288,8 +298,8 @@ export function AgenticOverlay() {
                   <Bot size={18} className="text-white" />
                 </div>
                 <div>
-                  <h1 className="text-sm font-bold text-emerald-400 tracking-wide">
-                    NAVARASA AUTONOMOUS DESIGNER
+                  <h1 className="text-sm font-bold text-violet-400 tracking-wide">
+                    GEMMA 4 AUTONOMOUS DESIGNER
                   </h1>
                   <p className="text-[10px] text-slate-500 tracking-wider uppercase">
                     Natural Language → Pipeline Workflow
@@ -582,7 +592,7 @@ export function AgenticOverlay() {
                     </h2>
                     <p className="text-xs text-slate-500 max-w-md leading-relaxed">
                       Describe your computer vision pipeline in natural language — in any of 15 Indian
-                      languages or English. Navarasa will autonomously design, validate, and
+                      languages or English. Gemma 4 will autonomously design, validate, and
                       build a complete block-node workflow for you.
                     </p>
                     <div className="mt-6 flex flex-wrap justify-center gap-2">

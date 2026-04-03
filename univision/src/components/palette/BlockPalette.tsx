@@ -1,4 +1,4 @@
-import { Search, Zap, Camera, ScanSearch, ShieldCheck } from "lucide-react";
+import { Search, Zap, Camera, ScanSearch, ShieldCheck, Eye, Flame, Activity } from "lucide-react";
 import { useBlockRegistry } from "../../lib/blockRegistry";
 import { useUiStore } from "../../store/uiStore";
 import { useGraphStore } from "../../store/graphStore";
@@ -7,21 +7,33 @@ import { BlockCategorySection } from "./BlockCategorySection";
 /** Quick-start mini-pipelines the user can add in one click. */
 const QUICK_SNIPPETS = [
   {
-    label: "RTSP → Detect",
+    label: "Camera → AI Scan",
     icon: Camera,
-    types: ["rtsp-stream", "frame-sampler", "yolo-detector"],
+    types: ["rtsp-stream", "frame-sampler", "llm-vision"],
     color: "#22d3ee",
   },
   {
-    label: "Plate OCR",
-    icon: ScanSearch,
-    types: ["plate-detector", "plate-preprocessor", "paddleocr"],
+    label: "Anomaly Monitor",
+    icon: Eye,
+    types: ["yolo-detector", "anomaly-scorer", "alert-trigger"],
+    color: "#a78bfa",
+  },
+  {
+    label: "Safety Pipeline",
+    icon: ShieldCheck,
+    types: ["motion-detector", "pose-estimator", "dispatcher"],
     color: "#4ade80",
   },
   {
-    label: "Validate + Save",
-    icon: ShieldCheck,
-    types: ["regex-validator", "deduplicator", "dispatcher"],
+    label: "Fire Watch",
+    icon: Flame,
+    types: ["rtsp-stream", "fire-smoke-detector", "alert-trigger"],
+    color: "#f87171",
+  },
+  {
+    label: "Motion Intel",
+    icon: Activity,
+    types: ["vehicle-detector", "object-tracker", "annotator"],
     color: "#facc15",
   },
 ] as const;

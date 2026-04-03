@@ -9,9 +9,9 @@ hardware:
   vram_poll_interval_ms: 500
 
 vram_budgets:
-  llm_weights_mb: 5120       # Region A — Qwen 3.5 9B Q4_K_M GGUF weights
-  kv_cache_mb: 512            # Region B — 36L × 2 × 4096ctx × 128dim × FP16
-  vision_workspace_mb: 1024   # Region C — 2× YOLOv8n INT8 TensorRT engines
+  llm_weights_mb: 5000       # Region A — Gemma 4 E2B Q4_K_M GGUF weights (~7.2 GB disk, fits entirely on GPU)
+  kv_cache_mb: 512            # Region B — 4096 token context KV cache
+  vision_workspace_mb: 0      # Region C — Not needed (single multimodal model)
   system_overhead_mb: 512     # Region D — OS + CUDA driver context
 
 pipeline:
@@ -46,17 +46,17 @@ preprocessing:
 
 ollama:
   base_url: "http://localhost:11434"
-  model: "qwen3.5:9b-q4_K_M"
-  timeout_s: 60
-  num_ctx: 4096
-  temperature: 0.1
-  top_p: 0.9
-  top_k: 20
-  repeat_penalty: 1.15
+  model: "gemma4:e2b"              # Single multimodal model — Gemma 4 E2B (5.1B params, 2.3B effective, Text+Image+Audio, 128K ctx)
+  timeout_s: 120
+  num_ctx: 4096                    # Reduced from 128K for VRAM headroom on 8 GB GPU
+  temperature: 1.0                 # Google-recommended default for Gemma 4
+  top_p: 0.95                      # Google-recommended default for Gemma 4
+  top_k: 64                        # Google-recommended default for Gemma 4
+  repeat_penalty: 1.1
   repeat_last_n: 128
-  num_predict: 1024
+  num_predict: 1536
   num_batch: 256
-  num_gpu: -1                 # offload all layers to GPU
+  num_gpu: -1                      # offload all layers to GPU (Ollama auto-partial-offloads if needed)
   seed: 42
   stream: false
   max_retries: 2
@@ -74,9 +74,7 @@ profiling:
 
 quantization:
   llm_format: "Q4_K_M"       # GGUF mixed 4-bit K-quants
-  llm_model_tag: "qwen3.5:9b-q4_K_M"
-  vision_format: "INT8"       # TensorRT INT8 calibrated
-  vision_engine_ext: ".engine"
+  llm_model_tag: "gemma4:e2b"    # Gemma 4 E2B — single multimodal model
 
 database:
   dsn: "postgresql://uni_vision:changeme@localhost:5432/uni_vision"
@@ -97,31 +95,31 @@ manager:
   enabled: true
   hub_cache_dir: "~/.cache/uni_vision/hub"
   vram_total_mb: 8192
-  vram_reserved_for_llm_mb: 5800
+  vram_reserved_for_llm_mb: 5500
   max_search_results: 10
   http_timeout_s: 30.0
-  default_scene: "traffic"
+  default_scene: "general"
   prefer_trusted: true
   auto_download: true
   max_concurrent_downloads: 2
   component_warmup: true
 
 navarasa:
-  enabled: true
-  model: "uni-vision-navarasa"
+  enabled: false                   # Disabled — all tasks handled by Gemma 4 E2B
+  model: "gemma4:e2b"              # Fallback model if anything reads this
   base_url: "http://localhost:11434"
   timeout_s: 15.0
   num_ctx: 4096
-  temperature: 0.15
+  temperature: 1.0
   top_p: 0.9
   top_k: 30
   num_predict: 512
   num_gpu: -1
   seed: 42
   max_retries: 2
-  default_language: "hi"           # Hindi as default target language
+  default_language: "hi"
   supported_languages: "hi,te,ta,kn,ml,mr,bn,gu,pa,or,ur,as,kok,ne,sd,en"
-  translate_alerts: true           # translate WebSocket broadcast alerts
+  translate_alerts: false
 
 api:
   host: "0.0.0.0"
@@ -166,8 +164,8 @@ databricks:
     delta_table_path: "./data/delta/detections"
 
   faiss:
-    index_path: "./data/faiss/plate_index.bin"
-    metadata_path: "./data/faiss/plate_metadata.json"
+    index_path: "./data/faiss/detection_index.bin"
+    metadata_path: "./data/faiss/detection_metadata.json"
     embedding_model: "all-MiniLM-L6-v2"
     embedding_dim: 384
     nprobe: 10

@@ -31,6 +31,7 @@ class SceneType(str, enum.Enum):
     SURVEILLANCE = "surveillance"
     INDUSTRIAL = "industrial"
     INDOOR = "indoor"
+    GENERAL = "general"
     UNKNOWN = "unknown"
 
 
@@ -45,7 +46,7 @@ class TaskPriority(str, enum.Enum):
 class DiscoveryQuery:
     """An LLM-generated search query for open-ended component discovery.
 
-    The Manager Agent (Qwen 3.5) produces these when it determines that
+    The Manager Agent (Gemma 4 E2B) produces these when it determines that
     the current frame requires capabilities beyond the known enum set.
     Each query targets a specific source (HuggingFace, PyPI, GitHub)
     with free-form search terms and contextual rationale.

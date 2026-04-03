@@ -4,8 +4,11 @@ import { submitFeedback } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useState } from "react";
 import clsx from "clsx";
+import { RiskAnalysisDashboard } from "./RiskAnalysisDashboard";
+import { ImpactAnalysisDashboard } from "./ImpactAnalysisDashboard";
+import { TechnicalMetricsDashboard } from "./TechnicalMetricsDashboard";
 
-type TabKey = "details" | "reasoning" | "risk" | "impact";
+type TabKey = "details" | "reasoning" | "risk" | "impact" | "technical";
 
 interface Props {
   detection: WsDetectionEvent;
@@ -46,12 +49,28 @@ export function DetectionDetailModal({ detection, onClose, initialTab }: Props) 
   const hasAnomaly = detection.anomaly_detected ?? false;
   const riskLevel = detection.risk_level ?? detection.validation_status ?? "unknown";
 
+  // Extract primary anomaly to pass anomaly-specific context to analysis dashboards
+  const primaryAnomaly = detection.anomalies?.[0];
+  const analysisContext = {
+    camera_id: detection.camera_id ?? "",
+    risk_level: detection.risk_level ?? "unknown",
+    confidence: detection.confidence ?? 0,
+    scene_description: detection.scene_description ?? "",
+    anomaly_detected: detection.anomaly_detected ?? false,
+    detected_at_utc: detection.detected_at_utc ?? new Date().toISOString(),
+    validation_status: detection.risk_level ?? "unknown",
+    anomaly_type: primaryAnomaly?.type ?? "",
+    anomaly_severity: primaryAnomaly?.severity ?? "",
+    anomaly_description: primaryAnomaly?.description ?? "",
+    anomaly_location: primaryAnomaly?.location ?? "",
+  };
+
   const handleFeedback = async (type: "correct" | "incorrect") => {
     try {
       await submitFeedback({
         detection_id: detection.id,
         feedback_type: type === "incorrect" ? "reject" : "correct",
-        original_plate: detection.scene_description ?? detection.id,
+        original_text: detection.scene_description ?? detection.id,
       });
       setFeedbackSent(true);
       addToast("success", `Feedback "${type}" submitted`);
@@ -63,7 +82,10 @@ export function DetectionDetailModal({ detection, onClose, initialTab }: Props) 
   return (
     <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="relative w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-slate-700/40 bg-[#0d1b2e] shadow-2xl shadow-black/30 animate-in zoom-in-95 fade-in duration-200"
+        className={clsx(
+          "relative w-full max-h-[85vh] flex flex-col rounded-2xl border border-slate-700/40 bg-[#0d1b2e] shadow-2xl shadow-black/30 animate-in zoom-in-95 fade-in duration-200 transition-[max-width] duration-300",
+          activeTab === "risk" || activeTab === "impact" || activeTab === "technical" ? "max-w-6xl" : "max-w-2xl",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -84,6 +106,7 @@ export function DetectionDetailModal({ detection, onClose, initialTab }: Props) 
             { key: "reasoning" as TabKey, label: "Chain-of-Thought", icon: Brain },
             { key: "risk" as TabKey, label: "Risk Analysis", icon: BarChart3 },
             { key: "impact" as TabKey, label: "Impact", icon: Zap },
+            { key: "technical" as TabKey, label: "Technical Metrics", icon: Gauge },
           ]).map(({ key, label, icon: TabIcon }) => (
             <button
               key={key}
@@ -252,50 +275,91 @@ export function DetectionDetailModal({ detection, onClose, initialTab }: Props) 
             </div>
           )}
 
-          {/* ── Risk Analysis tab (inline data) ── */}
+          {/* ── Risk Analysis tab (full dashboard) ── */}
           {activeTab === "risk" && (
             <div className="px-5 py-4">
-              {detection.risk_analysis ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <BarChart3 size={14} className="text-slate-400" />
-                    <h4 className="text-xs font-bold text-slate-200">Risk Assessment</h4>
-                    <span className={clsx("rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase ml-auto", RISK_COLORS[riskLevel] ?? RISK_COLORS.unknown)}>
-                      {riskLevel}
-                    </span>
-                  </div>
-                  <div className="rounded-lg border border-slate-700/40 bg-[#111e36]/70 p-4">
-                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{detection.risk_analysis}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-slate-700/40 bg-slate-800/30 p-6 text-center">
-                  <BarChart3 size={20} className="mx-auto mb-2 text-slate-600" />
-                  <p className="text-xs text-slate-500">No risk analysis available for this frame.</p>
+              {/* Timestamp + risk badge header */}
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 size={14} className="text-slate-400" />
+                <h4 className="text-xs font-bold text-slate-200">Risk Assessment</h4>
+                <span className={clsx("rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase ml-auto", RISK_COLORS[riskLevel] ?? RISK_COLORS.unknown)}>
+                  {riskLevel}
+                </span>
+              </div>
+
+              {/* Anomaly detection timestamp */}
+              <div className="flex items-center gap-2 mb-4 rounded-lg border border-slate-700/40 bg-[#111e36]/70 px-3 py-2">
+                <Clock size={12} className="text-cyan-400 flex-shrink-0" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Anomaly Detected At</span>
+                <span className="text-[11px] font-mono text-cyan-300 ml-auto">
+                  {(() => { const d = new Date(detection.detected_at_utc); return `${d.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}.${String(d.getMilliseconds()).padStart(3, "0")}`; })()}
+                </span>
+              </div>
+
+              {/* LLM text summary (if present) */}
+              {detection.risk_analysis && (
+                <div className="rounded-lg border border-slate-700/40 bg-[#111e36]/70 p-4 mb-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">LLM Summary</p>
+                  <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{detection.risk_analysis}</p>
                 </div>
               )}
+
+              {/* Full interactive Risk Analysis Dashboard */}
+              <RiskAnalysisDashboard detectionId={detection.id} context={analysisContext} />
             </div>
           )}
 
-          {/* ── Impact Analysis tab (inline data) ── */}
+          {/* ── Impact Analysis tab (full dashboard) ── */}
           {activeTab === "impact" && (
             <div className="px-5 py-4">
-              {detection.impact_analysis ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Zap size={14} className="text-slate-400" />
-                    <h4 className="text-xs font-bold text-slate-200">Impact Analysis</h4>
-                  </div>
-                  <div className="rounded-lg border border-slate-700/40 bg-[#111e36]/70 p-4">
-                    <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{detection.impact_analysis}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-slate-700/40 bg-slate-800/30 p-6 text-center">
-                  <Zap size={20} className="mx-auto mb-2 text-slate-600" />
-                  <p className="text-xs text-slate-500">No impact analysis available for this frame.</p>
+              {/* Timestamp + header */}
+              <div className="flex items-center gap-2 mb-4">
+                <Zap size={14} className="text-slate-400" />
+                <h4 className="text-xs font-bold text-slate-200">Impact Analysis</h4>
+              </div>
+
+              {/* Anomaly detection timestamp */}
+              <div className="flex items-center gap-2 mb-4 rounded-lg border border-slate-700/40 bg-[#111e36]/70 px-3 py-2">
+                <Clock size={12} className="text-cyan-400 flex-shrink-0" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Anomaly Detected At</span>
+                <span className="text-[11px] font-mono text-cyan-300 ml-auto">
+                  {(() => { const d = new Date(detection.detected_at_utc); return `${d.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}.${String(d.getMilliseconds()).padStart(3, "0")}`; })()}
+                </span>
+              </div>
+
+              {/* LLM text summary (if present) */}
+              {detection.impact_analysis && (
+                <div className="rounded-lg border border-slate-700/40 bg-[#111e36]/70 p-4 mb-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">LLM Summary</p>
+                  <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{detection.impact_analysis}</p>
                 </div>
               )}
+
+              {/* Full interactive Impact Analysis Dashboard */}
+              <ImpactAnalysisDashboard detectionId={detection.id} context={analysisContext} />
+            </div>
+          )}
+
+          {/* ── Technical Metrics tab ── */}
+          {activeTab === "technical" && (
+            <div className="px-5 py-4">
+              {/* Timestamp + header */}
+              <div className="flex items-center gap-2 mb-4">
+                <Gauge size={14} className="text-slate-400" />
+                <h4 className="text-xs font-bold text-slate-200">Technical Metrics</h4>
+              </div>
+
+              {/* Anomaly detection timestamp */}
+              <div className="flex items-center gap-2 mb-4 rounded-lg border border-slate-700/40 bg-[#111e36]/70 px-3 py-2">
+                <Clock size={12} className="text-cyan-400 flex-shrink-0" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Anomaly Detected At</span>
+                <span className="text-[11px] font-mono text-cyan-300 ml-auto">
+                  {(() => { const d = new Date(detection.detected_at_utc); return `${d.toLocaleString(undefined, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}.${String(d.getMilliseconds()).padStart(3, "0")}`; })()}
+                </span>
+              </div>
+
+              {/* Full interactive Technical Metrics Dashboard */}
+              <TechnicalMetricsDashboard detectionId={detection.id} context={analysisContext} />
             </div>
           )}
         </div>

@@ -1,15 +1,21 @@
 """LLM-powered vision analyzer for multipurpose anomaly detection.
 
-Uses Qwen 3.5 9B Vision via Ollama to analyze CCTV frames and produce
-structured anomaly analysis including:
+Uses Gemma 4 E2B — a single multimodal model (Text + Image + Audio)
+that processes video frames directly and produces structured anomaly
+analysis.  No dual-model pipeline needed.
+
+Gemma 4 E2B specs:
+  * 5.1B total params, 2.3B effective (MoE architecture)
+  * Vision encoder ~150M params, variable image resolution
+  * 128K context window (clamped to 4096 for 8 GB VRAM budget)
+  * Q4_K_M quantization, 7.2 GB on disk
+
+Produces structured anomaly analysis including:
   * Scene description and object inventory
   * Anomaly detection with severity grading
   * Chain-of-thought reasoning
   * Risk assessment and impact analysis
   * Actionable recommendations
-
-The analyzer sends frame images directly to the multimodal LLM and
-parses structured JSON responses.
 """
 
 from __future__ import annotations
@@ -29,13 +35,15 @@ from uni_vision.contracts.dtos import AnalysisResult
 
 logger = logging.getLogger(__name__)
 
-# ── System prompt for domain-agnostic anomaly analysis ────────────
+# ── Unified vision + reasoning prompt (gemma4:e2b — multimodal) ───
 
 VISION_ANALYSIS_PROMPT = """\
 You are an expert computer vision analyst specializing in CCTV surveillance frame analysis.
-Analyze the provided frame image thoroughly and produce a structured anomaly assessment.
+Analyze the provided frame image thoroughly for any anomalies — structural, behavioral,
+environmental, safety, or operational.
 
-Your analysis must cover ALL objects, entities, and environmental conditions visible in the frame.
+Your analysis must cover ALL visible elements — people, vehicles, infrastructure, environment,
+lighting conditions, weather indicators, and spatial relationships.
 
 OUTPUT FORMAT — respond with ONLY valid JSON (no markdown, no commentary):
 {
@@ -56,24 +64,27 @@ OUTPUT FORMAT — respond with ONLY valid JSON (no markdown, no commentary):
 }
 
 RULES:
-1. Analyze EVERYTHING visible — people, vehicles, infrastructure, environment, lighting, weather indicators.
+1. Analyze EVERYTHING visible in the image — people, vehicles, infrastructure, environment, lighting, weather indicators.
 2. Be domain-agnostic: detect ANY anomaly type (structural, behavioral, environmental, safety, operational).
 3. Chain-of-thought must show systematic reasoning, not conclusions alone.
-4. Risk and impact analysis must be specific to what you actually observe.
+4. Risk and impact analysis must be specific to what is observed.
 5. Confidence reflects certainty in your anomaly assessment (0.0 = uncertain, 1.0 = certain).
 6. If no anomalies detected, still provide thorough scene analysis with risk_level "low".
 7. Output ONLY the JSON object. No preamble, no explanation outside JSON."""
 
 
 class VisionAnalyzer:
-    """Analyzes frames via Ollama multimodal LLM for anomaly detection.
+    """Analyzes frames via Gemma 4 E2B (single multimodal model) for anomaly detection.
+
+    Sends video frames with images directly to gemma4:e2b which handles
+    both visual encoding and anomaly reasoning in a single pass.
 
     Parameters
     ----------
     ollama_base_url : str
         Base URL for Ollama API (e.g. ``http://localhost:11434``).
     model : str
-        Ollama model tag to use.
+        Ollama model tag for the multimodal model (gemma4:e2b).
     timeout_s : int
         Request timeout in seconds.
     num_predict : int
@@ -85,10 +96,10 @@ class VisionAnalyzer:
     def __init__(
         self,
         ollama_base_url: str = "http://localhost:11434",
-        model: str = "qwen3.5:9b-q4_K_M",
+        model: str = "gemma4:e2b",
         timeout_s: int = 120,
-        num_predict: int = 1024,
-        temperature: float = 0.15,
+        num_predict: int = 1536,
+        temperature: float = 1.0,
     ) -> None:
         self._base_url = ollama_base_url.rstrip("/")
         self._model = model
@@ -128,7 +139,10 @@ class VisionAnalyzer:
         frame_id: str = "unknown",
         timestamp_utc: str = "",
     ) -> AnalysisResult:
-        """Analyze a single frame for anomalies.
+        """Analyze a single frame for anomalies using gemma4:e2b (multimodal).
+
+        Sends the frame image directly to the model which handles both
+        visual encoding and anomaly reasoning in a single pass.
 
         Returns an ``AnalysisResult`` with structured findings.
         """
@@ -140,59 +154,54 @@ class VisionAnalyzer:
             logger.error("vision_analyzer_encode_failed camera=%s frame=%s error=%s", camera_id, frame_id, exc)
             return self._fallback_result(camera_id, frame_id, timestamp_utc, f"Frame encoding failed: {exc}")
 
-        context_msg = (
-            f"Analyze this CCTV frame from camera '{camera_id}'. "
-            f"Provide comprehensive anomaly analysis."
-        )
-
+        # ── Single-model inference (gemma4:e2b — multimodal) ─────
         payload = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": VISION_ANALYSIS_PROMPT},
                 {
                     "role": "user",
-                    "content": context_msg,
+                    "content": (
+                        f"Analyze this CCTV frame from camera '{camera_id}' (frame {frame_id}). "
+                        "Produce your structured anomaly analysis JSON."
+                    ),
                     "images": [image_b64],
                 },
             ],
             "stream": False,
-            "think": False,
             "options": {
                 "num_ctx": 4096,
                 "temperature": self._temperature,
-                "top_p": 0.9,
-                "top_k": 30,
+                "top_p": 0.95,
+                "top_k": 64,
                 "num_predict": self._num_predict,
                 "num_gpu": -1,
+                "num_batch": 256,
                 "seed": 42,
             },
         }
 
         try:
-            resp = await self._client.post(
-                f"{self._base_url}/api/chat", json=payload,
-            )
+            resp = await self._client.post(f"{self._base_url}/api/chat", json=payload)
         except httpx.TimeoutException:
-            logger.error("vision_analyzer_timeout camera=%s frame=%s", camera_id, frame_id)
-            return self._fallback_result(camera_id, frame_id, timestamp_utc, "LLM timeout")
+            logger.error("vision_analyze_timeout camera=%s frame=%s", camera_id, frame_id)
+            return self._fallback_result(camera_id, frame_id, timestamp_utc, "Inference timeout")
         except httpx.HTTPError as exc:
-            logger.error("vision_analyzer_http_error error=%s", exc)
+            logger.error("vision_analyze_http_error error=%s", exc)
             return self._fallback_result(camera_id, frame_id, timestamp_utc, str(exc))
 
         if resp.status_code != 200:
-            logger.error("vision_analyzer_bad_status status=%d", resp.status_code)
+            logger.error("vision_analyze_bad_status status=%d", resp.status_code)
             return self._fallback_result(camera_id, frame_id, timestamp_utc, f"HTTP {resp.status_code}")
 
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-        body = resp.json()
-        content = body.get("message", {}).get("content", "")
-
+        content = resp.json().get("message", {}).get("content", "")
         result = self._parse_response(content, camera_id, frame_id, timestamp_utc)
 
+        total_ms = (time.perf_counter() - t0) * 1000
         logger.info(
-            "vision_analysis_complete camera=%s frame=%s anomaly=%s risk=%s confidence=%.2f elapsed=%.0fms",
+            "vision_analysis_complete camera=%s frame=%s anomaly=%s risk=%s confidence=%.2f total=%.0fms",
             camera_id, frame_id, result.anomaly_detected, result.risk_level,
-            result.confidence, elapsed_ms,
+            result.confidence, total_ms,
         )
         return result
 

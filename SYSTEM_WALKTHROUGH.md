@@ -36,11 +36,11 @@
 
 ## 1. System Overview
 
-Uni_Vision is an **Automatic Number Plate Recognition (ANPR)** system designed for real-time deployment on a single **NVIDIA RTX 4070 (8 GB VRAM)** GPU. It ingests RTSP camera feeds, detects vehicles and license plates, reads plate text via OCR, validates and deduplicates readings, and persists results to PostgreSQL + S3-compatible object storage.
+Uni_Vision is a **multipurpose intelligent detection and analysis** system designed for real-time deployment on a single **NVIDIA RTX 4070 (8 GB VRAM)** GPU. It ingests RTSP camera feeds, detects objects and anomalies, extracts text via OCR, validates and deduplicates readings, and persists results to PostgreSQL + S3-compatible object storage.
 
-What makes this system unique is the **self-assembling pipeline architecture**: a **Qwen 3.5 9B** large language model (running locally via Ollama) acts as a "Manager Agent brain" that analyzes each frame's scene context and dynamically provisions, downloads, and orchestrates computer-vision components from the internet (HuggingFace Hub, PyPI, TorchHub) — all within the 8 GB VRAM budget.
+What makes this system unique is the **self-assembling pipeline architecture**: a **Gemma 4 E2B** large language model (running locally via Ollama) acts as a "Manager Agent brain" that analyzes each frame's scene context and dynamically provisions, downloads, and orchestrates computer-vision components from the internet (HuggingFace Hub, PyPI, TorchHub) — all within the 8 GB VRAM budget.
 
-**Critical Architectural Rule:** Qwen 3.5 9B is used for **text reasoning ONLY** (pipeline orchestration, validation adjudication, agent conversations). It **never** processes images directly. All image processing is done by dedicated CV models (YOLO, EasyOCR, TrOCR, PaddleOCR, etc.).
+**Critical Architectural Note:** Gemma 4 E2B is a natively **multimodal** model (text + image + audio). It can process images directly via its built-in vision capability, unlike text-only models that require separate CV pipelines for image understanding. Dedicated CV models (YOLO, EasyOCR, TrOCR, PaddleOCR, etc.) are still used for specialized detection tasks where they outperform general-purpose LLM vision.
 
 ### Technology Stack
 
@@ -48,7 +48,7 @@ What makes this system unique is the **self-assembling pipeline architecture**: 
 |-------|-----------|
 | Language | Python ≥ 3.10 |
 | Web Framework | FastAPI + Uvicorn |
-| LLM Runtime | Ollama (Qwen 3.5 9B Q4_K_M) |
+| LLM Runtime | Ollama (Gemma 4 E2B Q4_K_M) |
 | CV Inference | TensorRT / ONNX Runtime / PyTorch |
 | Database | PostgreSQL (asyncpg) |
 | Object Storage | MinIO / AWS S3 (aioboto3) |
@@ -66,7 +66,7 @@ The entire system is designed for an **8192 MB VRAM ceiling** with the following
 ┌─────────────────────────────────────────────────────────┐
 │                   RTX 4070 — 8192 MB                    │
 ├──────────────────┬──────────────────────────────────────┤
-│ Region A: LLM    │ 5120 MB — Qwen 3.5 9B Q4_K_M weights│
+│ Region A: LLM    │ 5000 MB — Gemma 4 E2B Q4_K_M weights│
 ├──────────────────┼──────────────────────────────────────┤
 │ Region B: KV     │  512 MB — KV cache (4096 tokens)     │
 ├──────────────────┼──────────────────────────────────────┤
@@ -148,7 +148,7 @@ class AppConfig(BaseSettings):
 |-------|-----------|----------|
 | **HardwareConfig** | `device`, `cuda_device_index`, `vram_ceiling_mb`, `safety_margin_mb`, `poll_interval_ms` | `"cuda"`, `0`, `8192`, `256`, `500` |
 | **VRAMBudgets** | `llm_weights`, `kv_cache`, `vision_workspace`, `system_overhead` | `5120`, `512`, `1024`, `512` |
-| **OllamaConfig** | `base_url`, `model`, `timeout_s`, `num_ctx`, `temperature`, `top_p`, `seed` | `localhost:11434`, `qwen3.5:9b-q4_K_M`, `5.0`, `4096`, `0.1`, `0.9`, `42` |
+| **OllamaConfig** | `base_url`, `model`, `timeout_s`, `num_ctx`, `temperature`, `top_p`, `seed` | `localhost:11434`, `gemma4:e2b`, `5.0`, `4096`, `0.1`, `0.9`, `42` |
 | **PipelineConfig** | `stream_queue_maxsize`, `inference_queue_maxsize`, `high_water_mark`, `low_water_mark`, `throttle_factor` | `50`, `10`, `8`, `3`, `0.5` |
 | **ValidationConfig** | `locale_regex`, `confidence_threshold`, `adjudication_threshold`, `char_corrections` | IN regex, `0.65`, `0.75`, `{O↔0, I↔1, S↔5, B↔8, ...}` |
 | **DeskewConfig** | `max_skew_degrees`, `skip_below_degrees`, Hough params | `30°`, `3°` |
@@ -162,7 +162,7 @@ class AppConfig(BaseSettings):
 Every field can be overridden via environment variables. The prefix is `UV_` and nested models use `__` as delimiter:
 
 ```bash
-UV_OLLAMA__MODEL=qwen3.5:9b-q4_K_M
+UV_OLLAMA__MODEL=gemma4:e2b
 UV_HARDWARE__VRAM_CEILING_MB=8192
 UV_DATABASE__DSN=postgresql://user:pass@host:5432/uni_vision
 ```
@@ -265,7 +265,7 @@ Four adapter classes wrap built-in subsystems as `CVComponent` instances so the 
 
 | Wrapper | Wraps | Key Behaviour |
 |---------|-------|---------------|
-| **`BuiltinDetectorComponent`** | `VehicleDetector` / `PlateDetector` | `execute()` runs detection. In ANPR plate-crop mode (`PLATE_DETECTION` capability), it also extracts plate crops from vehicle bounding boxes, returning `List[Dict]` with `plate_crop`, `plate_bbox`, `vehicle_bbox`. |
+| **`BuiltinDetectorComponent`** | `VehicleDetector` / `PlateDetector` | `execute()` runs detection. In plate-crop mode (`PLATE_DETECTION` capability), it also extracts plate crops from vehicle bounding boxes, returning `List[Dict]` with `plate_crop`, `plate_bbox`, `vehicle_bbox`. |
 | **`BuiltinPreprocessorComponent`** | `HoughStraightener` / `PhotometricEnhancer` | Polymorphic `execute()`: handles a single `ndarray` image OR a `List[Dict]` of plate-crop records, applying preprocessing to each `plate_crop` field in-place. |
 | **`BuiltinOCRComponent`** | `OCRStrategy` | Polymorphic `execute()`: single image → single `OCRResult`, or `List[Dict]` plate-crop records → per-crop OCR, attaching `ocr_result` to each dict. |
 | **`BuiltinPostprocessorComponent`** | `CognitiveOrchestrator` | Wraps the validation + adjudication chain. |
@@ -704,7 +704,7 @@ VRAMMonitor
 
 ## 15. The Manager Agent — `manager/` (Self-Assembling Pipeline)
 
-This is the most complex subsystem — 18+ interacting modules that allow Qwen 3.5 9B to dynamically build, adapt, and optimise CV pipelines at runtime.
+This is the most complex subsystem — 18+ interacting modules that allow Gemma 4 E2B to dynamically build, adapt, and optimise CV pipelines at runtime.
 
 ### 15.1 Architecture Overview
 
@@ -765,7 +765,7 @@ On each frame, `process_frame()` executes:
 
 Two-path analysis:
 - **Fast heuristic** (default): Camera ID keyword hints + basic image statistics (brightness, aspect ratio)
-- **LLM-assisted** (optional): Sends image stats to Qwen for structured JSON response
+- **LLM-assisted** (optional): Sends image stats to Gemma 4 E2B for structured JSON response
 
 Maps `SceneType` → required capabilities via `_SCENE_CAPABILITIES`:
 
@@ -833,7 +833,7 @@ Takes a `FrameContext` and builds a `PipelineBlueprint`:
 2. For each capability, resolve to a component ID (prefer READY components from registry)
 3. Create `StageSpec` entries with canonical `input_key`/`output_key` wiring
 4. Accumulate VRAM estimates
-5. Also provides `compose_anpr_default()` for the standard ANPR pipeline
+5. Also provides `compose_default_pipeline()` for a standard detection pipeline
 
 ### 15.8 `ConflictResolver` — Pre-Execution Validation
 
@@ -958,7 +958,7 @@ Optional `dry_run()` — executes each READY component with a dummy frame for in
 
 ## 16. The Agentic AI System — `agent/` (ReAct Loop)
 
-This subsystem provides a natural-language conversational interface powered by Qwen 3.5 via a **ReAct (Reasoning + Acting)** loop.
+This subsystem provides a natural-language conversational interface powered by Gemma 4 E2B via a **ReAct (Reasoning + Acting)** loop.
 
 ### 16.1 Architecture Overview
 
@@ -1042,7 +1042,7 @@ The agent has access to 37 tools across four categories:
 | `adjust_threshold` | Runtime threshold adjustment (OCR confidence, temperature, etc.) |
 | `get_current_config` | Current pipeline configuration snapshot |
 | `search_audit_log` | Search OCR audit log for failures |
-| `analyze_plate_patterns` | Frequency distributions, multi-camera plates, low-confidence reads |
+| `analyze_detection_patterns` | Frequency distributions, multi-camera detections, low-confidence reads |
 | `diagnose_camera` | Error rates, confidence analysis, auto-recommendations per camera |
 | `run_analytics_query` | Natural language → safe pre-approved SQL patterns |
 
@@ -1055,8 +1055,8 @@ The agent has access to 37 tools across four categories:
 | `get_all_camera_profiles` | All camera error profiles |
 | `get_cross_camera_plates` | Plates seen across multiple cameras |
 | `get_ocr_error_patterns` | Common OCR confusion patterns per camera |
-| `detect_plate_anomalies` | Spike detection in plate frequency |
-| `record_plate_feedback` | Record operator corrections |
+| `detect_detection_anomalies` | Spike detection in plate frequency |
+| `record_detection_feedback` | Record operator corrections |
 | `get_recent_feedback` | Recent operator feedback entries |
 | `save_knowledge` | Persist KB to PostgreSQL |
 
@@ -1204,7 +1204,7 @@ Eight Streamlit debug pages for development and monitoring:
 | `app` | Custom (multi-stage) | Uni_Vision application | GPU reservation, depends on all services |
 | `postgres` | `postgres:16-alpine` | Primary database | Volume: `pgdata` |
 | `ollama` | `ollama/ollama` | LLM runtime | GPU reservation, volume: `ollama_data` |
-| `ollama-init` | `curlimages/curl` | Model setup | Pulls Qwen, creates custom Modelfiles |
+| `ollama-init` | `curlimages/curl` | Model setup | Pulls Gemma 4 E2B, creates custom Modelfiles |
 | `minio` | `minio/minio` | S3-compatible object storage | Volume: `minio_data` |
 | `redis` | `redis:7-alpine` | Cache + pub/sub | Volume: `redis_data` |
 | `prometheus` | `prom/prometheus` | Metrics collection | 15s scrape interval, 10 alert rules |
@@ -1232,17 +1232,17 @@ Runtime stage:    nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 Two custom Modelfiles:
 
-**`Modelfile.ocr`** — Qwen configured as OCR text extraction specialist:
+**`Modelfile.ocr`** — Gemma 4 E2B configured as OCR text extraction specialist:
 ```
-FROM qwen3.5:9b-q4_K_M
+FROM gemma4:e2b
 SYSTEM "You are a license plate OCR extraction specialist..."
 PARAMETER temperature 0.1
 PARAMETER num_ctx 4096
 ```
 
-**`Modelfile.adjudicator`** — Qwen configured as adjudication specialist:
+**`Modelfile.adjudicator`** — Gemma 4 E2B configured as adjudication specialist:
 ```
-FROM qwen3.5:9b-q4_K_M
+FROM gemma4:e2b
 SYSTEM "You are a license plate text adjudication specialist..."
 PARAMETER temperature 0.1
 ```
@@ -1294,7 +1294,7 @@ PARAMETER temperature 0.1
 | Script | Purpose |
 |--------|---------|
 | `scripts/download_models.py` | Downloads YOLOv8n, exports to ONNX, converts to TensorRT |
-| `scripts/init-ollama.sh` | 5-step: wait for Ollama → pull Qwen → create custom models → validate → list |
+| `scripts/init-ollama.sh` | 5-step: wait for Ollama → pull Gemma 4 E2B → create custom models → validate → list |
 | `scripts/init-ollama.ps1` | PowerShell equivalent of init-ollama.sh |
 | `scripts/smoke_test_agent.py` | 3 async tests for agent health verification |
 
@@ -1459,14 +1459,15 @@ User: "Why is camera toll-gate-2 showing low confidence?"
 
 ## 22. Key Architectural Decisions
 
-### 22.1 Why Qwen Never Sees Images
-The RTX 4070's 8 GB VRAM cannot simultaneously hold a vision-language model large enough for quality OCR AND the dedicated detection models. By restricting Qwen to text reasoning only, we get:
-- Full 5.8 GB for a high-quality text LLM (Q4_K_M quantisation)
-- Remaining ~2.4 GB for multiple fast CV models
-- No image encoding overhead in the LLM pipeline
+### 22.1 Gemma 4 E2B's Native Multimodal Capability
+Gemma 4 E2B is a natively multimodal model that handles text, images, and audio directly. Unlike previous text-only LLMs, it can process plate images via its built-in vision encoder. Dedicated CV models (YOLO, etc.) are still used for specialized detection tasks where they offer better speed and accuracy, while Gemma 4 E2B handles:
+- High-quality OCR via its vision capability
+- Full 7.2 GB model fits on GPU with ~2168 MB headroom — NO CPU offload needed
+- Remaining ~2 GB for multiple fast CV models
+- Native image understanding eliminates the need for separate image encoding pipelines
 
 ### 22.2 Why Dynamic Pipeline Assembly
-Different cameras may view different scenes (traffic, parking, surveillance). A fixed ANPR pipeline wastes GPU on parking cameras that don't need plate detection. The Manager Agent:
+Different cameras may view different scenes (traffic, parking, surveillance). A fixed detection pipeline wastes GPU on cameras that don't need specialised processing. The Manager Agent:
 - Analyses each camera's scene type
 - Provisions only the needed capabilities
 - Downloads specialised models when general ones underperform
@@ -1474,7 +1475,7 @@ Different cameras may view different scenes (traffic, parking, surveillance). A 
 
 ### 22.3 Why Dual Pipeline Paths
 The legacy fixed pipeline (S0-S8) provides:
-- Guaranteed low-latency for ANPR (no LLM reasoning overhead)
+- Guaranteed low-latency for detection tasks (no LLM reasoning overhead)
 - Fallback when the Manager Agent is disabled or unavailable
 - Deterministic behaviour for testing and benchmarking
 

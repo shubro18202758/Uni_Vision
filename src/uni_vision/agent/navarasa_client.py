@@ -8,7 +8,7 @@ and uses the prompt pattern:
     ### Input: {input}
     ### Response:
 
-The client shares the Ollama endpoint with the Qwen 3.5 9B Manager
+The client shares the Ollama endpoint with the Gemma 4 E2B Manager
 Agent but targets the ``uni-vision-navarasa`` model tag.  Ollama
 handles sequential model swapping — only one model occupies VRAM at
 a time on the 8 GB RTX 4070.
@@ -16,12 +16,12 @@ a time on the 8 GB RTX 4070.
 Responsibility:
   - Conversational and interactive generative LLM for the frontend UI.
     Converses naturally with users in any of 15 Indian languages,
-    translates between Indian languages and English for Qwen
+    translates between Indian languages and English for Gemma 4
     processing, explains system status and guides users through the
     interface, and translates alerts/notifications.
   - All pipeline intelligence (plate interpretation, OCR, state
     codes, detection enrichment, CV component management) is
-    handled exclusively by the Qwen 3.5 9B Manager Agent.
+    handled exclusively by the Gemma 4 E2B Manager Agent.
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ class NavarasaClient:
 
     Handles natural conversation in Indian languages, multilingual
     translation, and interactive guidance for the frontend interface.
-    All pipeline/CV intelligence is handled by the Qwen 3.5 9B
+    All pipeline/CV intelligence is handled by the Gemma 4 E2B
     Manager Agent — Navarasa focuses on user-facing interaction.
 
     Parameters

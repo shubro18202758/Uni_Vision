@@ -21,7 +21,7 @@ def render() -> None:
     st.markdown(
         """
         Stage S7 runs **OCR extraction** via the primary engine
-        (Qwen 3.5 LLM via Ollama) with automatic fallback to
+        (Gemma 4 E2B LLM via Ollama) with automatic fallback to
         EasyOCR on failure. This page shows OCR results, raw text,
         confidence scores, and engine routing.
         """
@@ -30,7 +30,7 @@ def render() -> None:
     # ── Filters ───────────────────────────────────────────────────
     col1, col2 = st.columns(2)
     with col1:
-        engine_filter = st.selectbox("Engine Filter", ["All", "qwen3.5", "easyocr"])
+        engine_filter = st.selectbox("Engine Filter", ["All", "gemma4", "easyocr"])
     with col2:
         min_conf = st.slider("Min Confidence", 0.0, 1.0, 0.0, 0.05)
 

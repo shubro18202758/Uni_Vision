@@ -110,7 +110,7 @@ def generate_detection(i: int) -> dict:
         "plate_number": f"ANOMALY-{anomaly[:3].upper()}-{i:04d}",
         "raw_ocr_text": f"Scene analysis: {anomaly.replace('_', ' ')}",
         "ocr_confidence": confidence,
-        "ocr_engine": "qwen3.5-9b-vision",
+        "ocr_engine": "gemma4-e2b-vision",
         "vehicle_class": random.choice(VEHICLES) if "vehicle" in anomaly else "N/A",
         "vehicle_image_path": f"s3://uni-vision/frames/{camera}/{detected.strftime('%Y%m%d_%H%M%S')}.jpg",
         "plate_image_path": f"s3://uni-vision/crops/{camera}/{detected.strftime('%Y%m%d_%H%M%S')}_crop.jpg",

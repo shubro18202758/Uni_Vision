@@ -1,6 +1,6 @@
-"""LLM prompt templates for the Manager Agent (Qwen 3.5 9B).
+"""LLM prompt templates for the Manager Agent (Gemma 4 E2B).
 
-The Manager Agent uses Qwen not for direct OCR but as a reasoning
+The Manager Agent uses Gemma 4 not for direct OCR but as a reasoning
 engine to decide WHICH components to load, HOW to compose them into
 a pipeline, and HOW to resolve conflicts.  All interactions use
 structured JSON output for reliable parsing.

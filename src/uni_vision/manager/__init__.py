@@ -1,6 +1,6 @@
-"""Manager Agent subsystem — Qwen 3.5 9B as meta-orchestrator.
+"""Manager Agent subsystem — Gemma 4 E2B as meta-orchestrator.
 
-Instead of acting as a direct OCR / reasoning LLM, Qwen operates as
+Instead of acting as a direct OCR / reasoning LLM, Gemma 4 operates as
 a Manager Agent that:
 
   1. Analyses incoming frame context to decide what CV tasks are required.

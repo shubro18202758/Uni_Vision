@@ -11,6 +11,18 @@ import { exportPipelineJson, importPipelineJson } from "../../lib/pipelineIO";
 import { useModelStore } from "../../store/modelStore";
 import { useUiStore } from "../../store/uiStore";
 
+function Breadcrumb() {
+  const projectName = useGraphStore((s) => s.projectName);
+  const blockCount = useGraphStore((s) => s.blocks.length);
+  return (
+    <div className="hidden lg:flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-700/50">
+      <span className="text-[10px] text-slate-500">{projectName}</span>
+      <span className="text-[10px] text-slate-600">/</span>
+      <span className="text-[10px] text-slate-500">{blockCount} nodes</span>
+    </div>
+  );
+}
+
 export function Topbar() {
   const [saving, setSaving] = useState(false);
   const [launching, setLaunching] = useState(false);
@@ -41,14 +53,8 @@ export function Topbar() {
     const graph = getCurrentGraph();
     const { setBlockExecState, setAllExecStates } = useGraphStore.getState();
 
-    // ── CRITICAL: Swap Navarasa → Qwen before pipeline launch ──
-    addToast("info", "Swapping to Qwen 3.5 for pipeline processing...");
-    const swapped = await activateForLaunch();
-    if (!swapped) {
-      addToast("warning", "Model swap failed — launching with current model");
-    } else {
-      addToast("success", "Qwen 3.5 activated — Navarasa unloaded from VRAM");
-    }
+    // Ensure primary model is ready for pipeline processing
+    await activateForLaunch();
 
     // Visual: mark every block queued then running
     setAllExecStates("queued");
@@ -117,14 +123,8 @@ export function Topbar() {
       addToast("warning", "Could not stop processing — backend may be unreachable");
     }
 
-    // ── Swap Qwen → Navarasa when pipeline stops ──
-    addToast("info", "Swapping back to Navarasa 2.0...");
-    const swapped = await activateForDesign();
-    if (swapped) {
-      addToast("success", "Navarasa 2.0 activated — Qwen unloaded from VRAM");
-    } else {
-      addToast("warning", "Model swap back failed — Navarasa may not be available");
-    }
+    // Keep primary model in ready state (single-model setup)
+    await activateForDesign();
     useGraphStore.getState().clearExecStates();
     setPipelineRunning(false);
   };
@@ -154,7 +154,7 @@ export function Topbar() {
 
   // Model indicator config
   const isNavarasa = phase === "pre_launch";
-  const modelLabel = isNavarasa ? "Navarasa 2.0" : phase === "post_launch" ? "Qwen 3.5" : "Transitioning";
+  const modelLabel = isNavarasa ? "Navarasa 2.0" : phase === "post_launch" ? "Gemma 4 E2B" : "Transitioning";
   const modelColor = isNavarasa ? "emerald" : phase === "post_launch" ? "blue" : "amber";
 
   return (
@@ -165,11 +165,7 @@ export function Topbar() {
         </div>
         <span className="text-[13px] font-semibold tracking-tight text-slate-200">UniVision</span>
         {/* Breadcrumb */}
-        <div className="hidden lg:flex items-center gap-1.5 ml-2 pl-2 border-l border-slate-700/50">
-          <span className="text-[10px] text-slate-500">{useGraphStore.getState().projectName}</span>
-          <span className="text-[10px] text-slate-600">/</span>
-          <span className="text-[10px] text-slate-500">{useGraphStore.getState().blocks.length} nodes</span>
-        </div>
+        <Breadcrumb />
       </div>
 
       <div className="flex items-center gap-2.5">

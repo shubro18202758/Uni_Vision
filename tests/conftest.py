@@ -119,13 +119,61 @@ def _build_prometheus_stub() -> ModuleType:
 
 
 def _build_structlog_stub() -> ModuleType:
-    """Build a minimal structlog stub that returns stdlib-compatible loggers."""
+    """Build a minimal structlog stub that returns stdlib-compatible loggers.
+
+    structlog loggers accept arbitrary **kwargs (key=value context).
+    The stdlib Logger._log() does NOT accept extra kwargs, so we wrap
+    it with a thin adapter that silently drops them.
+    """
     import logging
 
     mod = ModuleType("structlog")
 
+    class _StructlogAdapter:
+        """Minimal adapter matching structlog's .info/.warning/.error/.debug API."""
+
+        def __init__(self, name: str = "structlog_stub"):
+            self._logger = logging.getLogger(name)
+
+        def _log(self, level: int, msg: str, **kwargs):
+            # Drop structlog-style kwargs; just log the message
+            if self._logger.isEnabledFor(level):
+                self._logger.log(level, msg)
+
+        def debug(self, msg, *args, **kwargs):
+            self._log(logging.DEBUG, msg, **kwargs)
+
+        def info(self, msg, *args, **kwargs):
+            self._log(logging.INFO, msg, **kwargs)
+
+        def warning(self, msg, *args, **kwargs):
+            self._log(logging.WARNING, msg, **kwargs)
+
+        warn = warning
+
+        def error(self, msg, *args, **kwargs):
+            self._log(logging.ERROR, msg, **kwargs)
+
+        def critical(self, msg, *args, **kwargs):
+            self._log(logging.CRITICAL, msg, **kwargs)
+
+        def exception(self, msg, *args, **kwargs):
+            self._log(logging.ERROR, msg, **kwargs)
+
+        def msg(self, msg, *args, **kwargs):
+            self._log(logging.INFO, msg, **kwargs)
+
+        def bind(self, **kwargs):
+            return self
+
+        def unbind(self, *keys):
+            return self
+
+        def new(self, **kwargs):
+            return self
+
     def get_logger(*args, **kwargs):
-        return logging.getLogger("structlog_stub")
+        return _StructlogAdapter()
 
     mod.get_logger = get_logger  # type: ignore[attr-defined]
     return mod

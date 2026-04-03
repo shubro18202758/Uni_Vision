@@ -4,13 +4,13 @@
 cameras:
   - camera_id: "cam_01"
     source_url: "rtsp://192.168.1.100:554/stream1"
-    location_tag: "toll_gate_lane_1"
+    location_tag: "entrance_cam_north"
     fps_target: 10
     enabled: true
 
   - camera_id: "cam_02"
     source_url: "rtsp://192.168.1.101:554/stream1"
-    location_tag: "toll_gate_lane_2"
+    location_tag: "monitoring_zone_east"
     fps_target: 10
     enabled: true
 

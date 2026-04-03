@@ -149,8 +149,8 @@ export interface AgentStatus {
 export interface FeedbackRequest {
   detection_id: string;
   feedback_type: "confirm" | "correct" | "reject";
-  original_plate: string;
-  corrected_plate?: string;
+  original_text: string;
+  corrected_text?: string;
   camera_id?: string;
   notes?: string;
 }
@@ -186,7 +186,7 @@ export interface WsDetectionEvent {
   risk_analysis?: string;
   impact_analysis?: string;
   recommendations?: string[];
-  // Legacy ANPR fields (optional, backward compat)
+  // Legacy detection fields (optional, backward compat)
   plate_number?: string;
   raw_ocr_text?: string;
   ocr_confidence?: number;
@@ -564,7 +564,12 @@ export type PipelineEventType =
   | "flag_raised"
   | "pipeline_idle"
   | "queue_status"
-  | "analysis_result";
+  | "analysis_result"
+  | "job_created"
+  | "job_phase_changed"
+  | "component_provisioned"
+  | "job_flushing"
+  | "job_flush_complete";
 
 export interface PipelineStageEvent {
   type: PipelineEventType;
@@ -584,4 +589,54 @@ export interface PipelineStageEvent {
   queue_depth?: number;
   detection?: Record<string, unknown>;
   analysis?: Record<string, unknown>;
+  // Manager Agent lifecycle fields (job_* / component_* events)
+  data?: Record<string, unknown>;
+}
+
+// ── Manager Agent Job Lifecycle ──────────────────────────────────
+
+export type ManagerJobPhase =
+  | "initializing"
+  | "discovering"
+  | "provisioning"
+  | "processing"
+  | "anomaly_detected"
+  | "completing"
+  | "flushing"
+  | "completed"
+  | "error";
+
+export interface ManagerJobState {
+  jobId: string;
+  cameraId: string;
+  phase: ManagerJobPhase;
+  dynamicComponents: string[];
+  dynamicPipPackages: string[];
+  anomalyFrames: number;
+  totalFrames: number;
+  flushed: boolean;
+  flushSummary?: Record<string, unknown>;
+}
+
+// ── Technical Metrics ────────────────────────────────────────────
+
+export interface TechnicalBottleneck {
+  component: string;
+  type: string;
+  description: string;
+  mitigation: string;
+}
+
+export interface TechnicalMetricsResponse {
+  detection_id: string;
+  anomaly_type: string;
+  anomaly_severity: string;
+  inference_metrics: Record<string, unknown>;
+  accuracy_metrics: Record<string, unknown>;
+  pipeline_metrics: Record<string, unknown>;
+  hardware_metrics: Record<string, unknown>;
+  libraries: Record<string, string>;
+  media_constraints: Record<string, unknown>;
+  bottlenecks: TechnicalBottleneck[];
+  generated_at_utc: string;
 }

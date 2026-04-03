@@ -6,7 +6,7 @@ re-evaluates the plate by running it through **all available OCR
 engines** and using consensus voting to determine the most likely
 correct plate text.
 
-Qwen 3.5 9B is the Manager Agent brain only — it does NOT process
+Gemma 4 E2B is the Manager Agent brain only — it does NOT process
 images.  All OCR is performed by dedicated pre-trained models and
 libraries (EasyOCR, PaddleOCR, TrOCR, etc.) that the Manager Agent
 provisions at runtime.

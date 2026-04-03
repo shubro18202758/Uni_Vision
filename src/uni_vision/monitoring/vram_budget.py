@@ -13,14 +13,16 @@ Layout (RTX 4070, 8192 MB total):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Region  Purpose                     Budget   Notes
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-A       LLM weights (Q4_K_M)        5120 MB  Qwen 3.5 9B @ 4 bits
-B       KV cache (4096 ctx)          512 MB  ~0.5 MB per layer × 2 (K+V)
-C       Vision workspace (INT8)     1024 MB  YOLOv8n×2 sequential
+A       LLM weights (Q4_K_M)        5000 MB  Gemma 4 E2B @ 4 bits (MoE)
+B       KV cache (4096 ctx)          256 MB  Ollama-managed scratch
+C       Vision workspace (INT8)      256 MB  YOLOv8n×2 sequential
 D       System / CUDA runtime        512 MB  Context + driver + OS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOTAL                               7168 MB
-HEADROOM                            1024 MB  (12.5% safety)
+TOTAL                               6024 MB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Gemma 4 E2B (7.2 GB Q4_K_M on disk) fits entirely on an 8 GB GPU
+with ~2168 MB headroom — no CPU offload, no bottleneck.
 """
 
 from __future__ import annotations
@@ -38,16 +40,16 @@ logger = logging.getLogger(__name__)
 VRAM_CEILING_MB: int = 8192
 
 # Per-model measured sizes (from Ollama `show` and TensorRT build logs)
-QWEN_9B_Q4_KM_WEIGHTS_MB: int = 5120   # on-GPU after mmap
+GEMMA4_E2B_WEIGHTS_MB: int = 5000       # on-GPU after mmap (fits entirely, no CPU offload)
 YOLOV8N_INT8_SINGLE_MB: int = 45        # single TensorRT engine
 YOLOV8N_INT8_WORKSPACE_MB: int = 256    # TensorRT execution workspace
 
-# KV-cache arithmetic for Qwen 3.5 9B:
-#   36 layers × 2 (K + V) × 4096 tokens × 128 dims × 2 bytes (FP16)
-#   = 36 × 2 × 4096 × 128 × 2 = ~72 MB (exact)
-#   Ollama reserves additional scratch buffers (~440 MB).
+# KV-cache arithmetic for Gemma 4 E2B:
+#   MoE architecture — 5.1B total params, 2.3B effective;
+#   Ollama manages KV-cache and scratch buffers internally.
+#   256 MB accommodates 4096 tokens with Ollama’s scratch overhead.
 KV_CACHE_BASE_TOKENS: int = 4096
-KV_CACHE_BUDGET_MB: int = 512
+KV_CACHE_BUDGET_MB: int = 256
 
 # CUDA runtime + driver + OS desktop compositor
 SYSTEM_OVERHEAD_MB: int = 512
@@ -73,9 +75,9 @@ class VRAMBudgetReport:
 def compute_budget(
     *,
     ceiling_mb: int = VRAM_CEILING_MB,
-    llm_weights_mb: int = QWEN_9B_Q4_KM_WEIGHTS_MB,
+    llm_weights_mb: int = GEMMA4_E2B_WEIGHTS_MB,
     kv_cache_mb: int = KV_CACHE_BUDGET_MB,
-    vision_workspace_mb: int = 1024,
+    vision_workspace_mb: int = 256,
     system_overhead_mb: int = SYSTEM_OVERHEAD_MB,
     context_tokens: int = KV_CACHE_BASE_TOKENS,
 ) -> VRAMBudgetReport:
@@ -115,9 +117,9 @@ def compute_budget(
 def validate_budget(
     *,
     ceiling_mb: int = VRAM_CEILING_MB,
-    llm_weights_mb: int = QWEN_9B_Q4_KM_WEIGHTS_MB,
+    llm_weights_mb: int = GEMMA4_E2B_WEIGHTS_MB,
     kv_cache_mb: int = KV_CACHE_BUDGET_MB,
-    vision_workspace_mb: int = 1024,
+    vision_workspace_mb: int = 256,
     system_overhead_mb: int = SYSTEM_OVERHEAD_MB,
     context_tokens: int = KV_CACHE_BASE_TOKENS,
 ) -> VRAMBudgetReport:
@@ -160,21 +162,19 @@ def validate_budget(
 def max_context_for_budget(
     *,
     ceiling_mb: int = VRAM_CEILING_MB,
-    llm_weights_mb: int = QWEN_9B_Q4_KM_WEIGHTS_MB,
-    vision_workspace_mb: int = 1024,
+    llm_weights_mb: int = GEMMA4_E2B_WEIGHTS_MB,
+    vision_workspace_mb: int = 256,
     system_overhead_mb: int = SYSTEM_OVERHEAD_MB,
     safety_margin_mb: int = 256,
     bytes_per_token: float = 0.125,  # KV per token per layer (estimated)
-    num_layers: int = 36,
+    num_layers: int = 35,
 ) -> int:
     """Calculate the maximum context window (tokens) that fits in budget.
 
-    KV cache size ≈ num_layers × 2 (K+V) × ctx_tokens × head_dim × dtype
-    For Qwen 3.5 9B: 36 layers, head_dim=128, FP16 = 2 bytes
-    Per-token KV ≈ 36 × 2 × 128 × 2 = 18.432 KB ≈ 0.018 MB
-
-    Adding Ollama scratch overhead: ~0.125 MB per token (empirical, includes
-    attention workspace, rope buffers, and quantised-weight dequant scratch).
+    Gemma 4 E2B: MoE architecture (5.1B total / 2.3B effective),
+    ~35 transformer layers.  Ollama manages KV allocation internally.
+    Per-token KV estimate ≈ 0.125 MB (empirical, includes attention
+    workspace, RoPE buffers, and dequant scratch).
     """
     available = ceiling_mb - llm_weights_mb - vision_workspace_mb - system_overhead_mb - safety_margin_mb
     if available <= 0:

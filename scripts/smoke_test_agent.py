@@ -1,4 +1,4 @@
-"""End-to-end smoke test: Qwen 3.5 9B via AgentLLMClient."""
+"""End-to-end smoke test: Gemma 4 E2B via AgentLLMClient."""
 import asyncio
 import json
 import sys
@@ -78,7 +78,7 @@ async def main():
 
     await client.close()
     print("\n" + "=" * 50)
-    print("ALL SMOKE TESTS PASSED — Qwen 3.5 9B is operational")
+    print("ALL SMOKE TESTS PASSED — Gemma 4 E2B is operational")
     print("=" * 50)
 
 

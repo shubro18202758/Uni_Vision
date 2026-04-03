@@ -76,7 +76,7 @@ for i in range(1000):
         anomaly,
         f"Scene: {anomaly.replace('_', ' ')} detected",
         round(conf, 4),
-        "qwen3.5-9b-vision",
+        "gemma4-e2b-vision",
         random.choice(["confirmed", "pending", "rejected"]),
         random.choice(ZONES),
         detected.strftime("%Y-%m-%d %H:%M:%S"),

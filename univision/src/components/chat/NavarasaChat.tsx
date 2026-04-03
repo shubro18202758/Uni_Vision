@@ -113,7 +113,7 @@ export function NavarasaChat() {
           </div>
           <div>
             <span className="text-[11px] font-bold text-slate-200 tracking-wide">
-              Navarasa 2.0
+              Gemma 4 E2B
             </span>
             <span className="flex items-center gap-1 text-[9px] text-slate-500">
               {wsConnected ? (
@@ -291,7 +291,7 @@ export function NavarasaChat() {
           <div className="relative flex-1">
             <input
               className="w-full rounded-xl border border-slate-600/40 bg-[#0d1526] px-3.5 py-2 pr-8 text-[11px] text-slate-200 placeholder:text-slate-500 focus:border-emerald-500/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all"
-              placeholder="Message Navarasa..."
+              placeholder="Message Gemma 4..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={sending}

@@ -5,7 +5,7 @@ sorts the nodes, and executes each node in order by routing data along
 connections.  Each block type maps to a *handler* function that processes
 its inputs and produces outputs.
 
-The engine is deliberately **not** tied to ANPR-specific logic.  It
+The engine is deliberately **not** tied to any domain-specific logic.  It
 operates on generic data slots (frames, bounding box lists, text, etc.)
 and dispatches to the appropriate backend component for each block type.
 
@@ -387,7 +387,7 @@ class GraphEngine:
         """Return a human-readable description of the current graph.
 
         Used to inject graph context into the agent's system prompt
-        so Qwen 3.5 and Navarasa 2.0 understand the current pipeline.
+        so Gemma 4 E2B and Navarasa 2.0 understand the current pipeline.
         """
         if not self._current_graph_nodes:
             return "No pipeline graph is currently deployed."

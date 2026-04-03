@@ -494,8 +494,8 @@ class TestKnowledgeBase:
         kb = KnowledgeBase()
         fb = FeedbackEntry(
             detection_id="det_001",
-            original_plate="MH12AB1234",
-            corrected_plate="MH12AB1234",
+            original_text="MH12AB1234",
+            corrected_text="MH12AB1234",
             feedback_type="confirm",
             camera_id="cam_01",
         )
@@ -518,7 +518,7 @@ class TestAgentLLMClient:
 
         config = MagicMock()
         config.host = "http://localhost:11434"
-        config.model = "qwen3.5:latest"
+        config.model = "gemma4:e2b"
 
         # httpx is stubbed in test env — just verify no crash
         try:
@@ -614,7 +614,7 @@ class TestCoordinatorUnit:
         config.ollama = MagicMock()
         config.ollama.base_url = "http://localhost:11434"
         config.ollama.host = "http://localhost:11434"
-        config.ollama.model = "qwen3.5:latest"
+        config.ollama.model = "gemma4:e2b"
         config.navarasa = MagicMock()
         config.navarasa.enabled = False
 
@@ -637,7 +637,7 @@ class TestCoordinatorUnit:
         config.ollama = MagicMock()
         config.ollama.base_url = "http://localhost:11434"
         config.ollama.host = "http://localhost:11434"
-        config.ollama.model = "qwen3.5:latest"
+        config.ollama.model = "gemma4:e2b"
         config.navarasa = MagicMock()
         config.navarasa.enabled = False
 

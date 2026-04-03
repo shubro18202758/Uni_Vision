@@ -8,7 +8,7 @@ Usage (in the API lifespan)::
 
     coordinator = AgentCoordinator(config)
     await coordinator.start()            # warm up LLM, register tools
-    response = await coordinator.chat("How many plates today?")
+    response = await coordinator.chat("How many detections today?")
     await coordinator.shutdown()
 """
 

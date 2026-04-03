@@ -1,6 +1,6 @@
 """ReAct-style system prompts and tool schema formatting for the agent.
 
-Generates the system prompt that instructs Qwen 3.5 9B to operate
+Generates the system prompt that instructs Gemma 4 E2B to operate
 as an autonomous agent using the Thought → Action → Observation loop.
 
 The prompt includes:
@@ -39,9 +39,9 @@ def build_agent_system_prompt(
     tools_json = json.dumps(tool_schemas, indent=2)
 
     return f"""\
-You are Uni_Vision Agent, an autonomous AI assistant that manages a real-time \
-Automatic Number Plate Recognition (ANPR) pipeline. You have deep expertise in \
-computer vision, OCR, and traffic surveillance systems.
+You are Uni_Vision Agent, an autonomous AI assistant that manages real-time \
+computer-vision detection and analysis pipelines. You have deep expertise in \
+computer vision, OCR, anomaly detection, and intelligent surveillance systems.
 
 ROLE: {agent_role}
 
@@ -91,8 +91,9 @@ your final answer.
 
 ## Domain Knowledge
 
-- The pipeline processes video frames through stages S0→S8: Ingest → Sample → \
-Vehicle Detect → Plate Detect → Crop → Straighten → Enhance → OCR → Validate+Dispatch.
+- The pipeline processes video frames through configurable stages: Ingestion → \
+Preprocessing → Scene Analysis → Anomaly Detection → Deep Analysis → Results & Dispatch. \
+Stages are dynamically composed by the Manager Agent based on the detection domain.
 - OCR uses Manager-provisioned engines (EasyOCR default; additional engines \
 like PaddleOCR, TrOCR are provisioned at runtime by the Manager Agent).
 - Detection results are stored in PostgreSQL with S3/MinIO image archiving.
@@ -155,7 +156,7 @@ from typing import Optional  # noqa: E402
 
 NAVARASA_TRANSLATE_PROMPT = """\
 Translate the following text to {target_language}.
-The text is from an Indian ANPR (Automatic Number Plate Recognition) system.
-Preserve all plate numbers, technical terms, and proper nouns as-is.
+The text is from a Uni_Vision intelligent surveillance and detection system.
+Preserve all detection identifiers, technical terms, and proper nouns as-is.
 Provide ONLY the translation, no explanation or commentary.
 """

@@ -74,8 +74,8 @@ class FeedbackEntry:
     """Operator feedback on an agent or OCR result."""
 
     detection_id: str
-    original_plate: str
-    corrected_plate: str
+    original_text: str
+    corrected_text: str
     feedback_type: str  # "confirm" | "correct" | "reject"
     camera_id: str
     timestamp: float = field(default_factory=time.time)
@@ -187,24 +187,24 @@ class KnowledgeBase:
             self._feedback = self._feedback[-self._max_feedback:]
 
         # If the feedback provides a correction, record as an observation
-        if entry.feedback_type == "correct" and entry.corrected_plate:
+        if entry.feedback_type == "correct" and entry.corrected_text:
             self.record_observation(
                 PlateObservation(
-                    plate_text=entry.corrected_plate,
+                    plate_text=entry.corrected_text,
                     camera_id=entry.camera_id,
                     confidence=1.0,
                     engine="human_feedback",
                     validation_status="valid",
                     was_corrected=True,
-                    original_ocr_text=entry.original_plate,
+                    original_ocr_text=entry.original_text,
                 )
             )
 
         logger.info(
-            "kb_feedback_recorded type=%s camera=%s plate=%s",
+            "kb_feedback_recorded type=%s camera=%s text=%s",
             entry.feedback_type,
             entry.camera_id,
-            entry.corrected_plate or entry.original_plate,
+            entry.corrected_text or entry.original_text,
         )
 
     # ── Queries ───────────────────────────────────────────────────

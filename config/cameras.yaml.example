@@ -7,25 +7,25 @@
 cameras:
   - camera_id: "cam-gate-a"
     source_url: "rtsp://192.168.1.100:554/stream1"
-    location_tag: "Toll Gate A — Inbound"
+    location_tag: "Entry Point A — Primary"
     fps_target: 5
     enabled: true
 
   - camera_id: "cam-gate-b"
     source_url: "rtsp://192.168.1.101:554/stream1"
-    location_tag: "Toll Gate B — Inbound"
+    location_tag: "Entry Point B — Secondary"
     fps_target: 5
     enabled: true
 
   - camera_id: "cam-gate-c"
     source_url: "rtsp://192.168.1.102:554/stream1"
-    location_tag: "Toll Gate C — Outbound"
+    location_tag: "Exit Point C — Primary"
     fps_target: 3
     enabled: true
 
   - camera_id: "cam-gate-d"
     source_url: "rtsp://192.168.1.103:554/stream1"
-    location_tag: "Toll Gate D — Outbound"
+    location_tag: "Exit Point D — Secondary"
     fps_target: 3
     enabled: true
 

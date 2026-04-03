@@ -23,7 +23,7 @@ import {
   fetchMLflowSummary,
   fetchSparkOverview,
   fetchVectorStats,
-  searchSimilarPlates,
+  searchSimilarDetections,
   fetchDatabricksHealth,
   fetchVectorClusters,
   fetchSparkAnalytics,
@@ -203,7 +203,7 @@ export function DatabricksInsights() {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      const res = await searchSimilarPlates(searchQuery.trim());
+      const res = await searchSimilarDetections(searchQuery.trim());
       setSearchResults(res.results ?? []);
     } catch {
       setSearchResults([]);
@@ -455,7 +455,7 @@ export function DatabricksInsights() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder="Search plate..."
+            placeholder="Search detections..."
             className="flex-1 rounded-md border border-slate-700/50 bg-[#0a1628] px-2.5 py-1.5 text-[11px] text-slate-200 placeholder-slate-600 outline-none focus:border-purple-500/50"
           />
           <button
@@ -481,7 +481,7 @@ export function DatabricksInsights() {
               >
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-slate-200">
-                    {r.plate_text}
+                    {r.detection_text}
                   </span>
                   <span className="text-slate-500">{r.camera_id}</span>
                 </div>
@@ -511,7 +511,7 @@ export function DatabricksInsights() {
         <Section icon={ShieldAlert} title="Anomaly Detection" color="#f87171">
           <div className="space-y-1">
             <div className="text-[9px] text-slate-500 mb-1">
-              Z-score flagged plates ({anomalies.length} detected)
+              Z-score flagged detections ({anomalies.length} detected)
             </div>
             {anomalies.slice(0, 6).map((a, i) => (
               <div
@@ -519,7 +519,7 @@ export function DatabricksInsights() {
                 className="flex items-center justify-between rounded-md bg-[#0a1628] px-2 py-1.5 text-[9px]"
               >
                 <span className="font-mono font-bold text-slate-200">
-                  {String(a.plate_text ?? "—")}
+                  {String(a.detection_text ?? "—")}
                 </span>
                 <div className="flex items-center gap-2">
                   <span
@@ -544,7 +544,7 @@ export function DatabricksInsights() {
 
       {/* Cluster Analysis Section */}
       {clusterData && Array.isArray((clusterData as Record<string, unknown>).clusters) && (
-        <Section icon={Radar} title="Plate Clusters (K-Means)" color="#38bdf8">
+        <Section icon={Radar} title="Detection Clusters (K-Means)" color="#38bdf8">
           <div className="space-y-1.5">
             <InfoRow
               label="Clusters"

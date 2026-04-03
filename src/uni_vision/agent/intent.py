@@ -63,11 +63,11 @@ _PATTERNS: Dict[QueryIntent, List[re.Pattern[str]]] = {
         re.compile(r"\bvram|memory usage\b", re.I),
     ],
     QueryIntent.DETECTION: [
-        re.compile(r"\b(plate|detection|detect|detected|read)\b", re.I),
-        re.compile(r"\b(find|search|look\s*up|query|show).*(plate|vehicle)\b", re.I),
-        re.compile(r"\b[A-Z]{2,3}[\s-]?\d{2,4}[\s-]?[A-Z]{0,3}\b"),  # plate pattern
-        re.compile(r"\brecent.*(detection|plate|read)\b", re.I),
-        re.compile(r"\bhow many.*(plate|detection|vehicle)\b", re.I),
+        re.compile(r"\b(detection|detect|detected|identified|read|plate|object)\b", re.I),
+        re.compile(r"\b(find|search|look\s*up|query|show).*(detection|object|plate|vehicle|result)\b", re.I),
+        re.compile(r"\b[A-Z]{2,3}[\s-]?\d{2,4}[\s-]?[A-Z]{0,3}\b"),  # alphanumeric ID pattern
+        re.compile(r"\brecent.*(detection|result|read|finding)\b", re.I),
+        re.compile(r"\bhow many.*(detection|object|result|plate|vehicle)\b", re.I),
     ],
     QueryIntent.ANALYTICS: [
         re.compile(r"\b(analytics|trend|pattern|statistics|stat|avg|average)\b", re.I),
@@ -91,7 +91,7 @@ _PATTERNS: Dict[QueryIntent, List[re.Pattern[str]]] = {
         re.compile(r"\b(knowledge|learn|feedback|correction|confirm)\b", re.I),
         re.compile(r"\b(error.*(pattern|profile)|confusion|misread)\b", re.I),
         re.compile(r"\b(cross.?camera|multi.?camera)\b", re.I),
-        re.compile(r"\b(frequent|common).*(plate|vehicle)\b", re.I),
+        re.compile(r"\b(frequent|common).*(detection|plate|vehicle|object)\b", re.I),
         re.compile(r"\b(anomal|spike|unusual|suspicious)\b", re.I),
     ],
     QueryIntent.DIAGNOSTICS: [
@@ -104,7 +104,7 @@ _PATTERNS: Dict[QueryIntent, List[re.Pattern[str]]] = {
     QueryIntent.WORKFLOW_DESIGN: [
         re.compile(r"\b(design|create|build|make|generate|setup|set\s*up).*(workflow|pipeline|flow)\b", re.I),
         re.compile(r"\b(workflow|pipeline).*(design|create|build|make|generate)\b", re.I),
-        re.compile(r"\bI\s+want.*(pipeline|workflow|ANPR|detection)\b", re.I),
+        re.compile(r"\bI\s+want.*(pipeline|workflow|detection)\b", re.I),
         re.compile(r"\b(auto|automat).*(pipeline|workflow|build|design)\b", re.I),
         re.compile(r"\b(connect|wire|chain|link).*(blocks?|nodes?|stages?)\b", re.I),
         re.compile(r"\bmake\s+me.*(pipeline|workflow|system|setup)\b", re.I),
@@ -130,7 +130,7 @@ _TOOL_SUGGESTIONS: Dict[QueryIntent, List[str]] = {
     ],
     QueryIntent.ANALYTICS: [
         "run_analytics_query",
-        "analyze_plate_patterns",
+        "analyze_detection_patterns",
         "get_stage_analytics",
     ],
     QueryIntent.CAMERA: [
@@ -146,9 +146,9 @@ _TOOL_SUGGESTIONS: Dict[QueryIntent, List[str]] = {
     ],
     QueryIntent.KNOWLEDGE: [
         "get_knowledge_stats",
-        "get_frequent_plates",
-        "get_cross_camera_plates",
-        "detect_plate_anomalies",
+        "get_frequent_detections",
+        "get_cross_camera_detections",
+        "detect_detection_anomalies",
         "get_ocr_error_patterns",
     ],
     QueryIntent.DIAGNOSTICS: [
@@ -171,7 +171,7 @@ _CONTEXT_HINTS: Dict[QueryIntent, List[str]] = {
         "Focus on overall system health and pipeline state.",
     ],
     QueryIntent.DETECTION: [
-        "The user wants to look up specific plate detections.",
+        "The user wants to look up specific detections or identified objects.",
         "Use query_detections for filtering and get_detection_summary for counts.",
     ],
     QueryIntent.ANALYTICS: [

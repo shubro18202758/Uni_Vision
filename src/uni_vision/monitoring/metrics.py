@@ -38,7 +38,7 @@ FRAMES_DROPPED = Counter(
 
 DETECTIONS_TOTAL = Counter(
     "uv_detections_total",
-    "Successful vehicle + plate detection events",
+    "Successful detection and analysis events",
     ["camera_id"],
 )
 

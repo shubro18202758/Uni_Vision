@@ -41,6 +41,7 @@ interface ContextMenuState {
 export function WorkbenchCanvas() {
   const blocks = useGraphStore((state) => state.blocks);
   const connections = useGraphStore((state) => state.connections);
+  const graphVersion = useGraphStore((state) => state.graphVersion);
   const addBlock = useGraphStore((state) => state.addBlock);
   const addConnectionToStore = useGraphStore((state) => state.addConnection);
   const removeConnection = useGraphStore((state) => state.removeConnection);
@@ -58,6 +59,7 @@ export function WorkbenchCanvas() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const lastTopologyRef = useRef<string>("");
+  const prevGraphVersionRef = useRef(graphVersion);
 
   // Listen for node-context-menu custom events from BlockNode
   useEffect(() => {
@@ -129,21 +131,36 @@ export function WorkbenchCanvas() {
     [blocks, connections, edgeType],
   );
 
-  // Auto-layout when topology changes (block ids or connections) and mode is not manual
+  // Stable topology fingerprint — changes when blocks or connections change identity
+  const topoFingerprint = useMemo(
+    () =>
+      blocks.map((b) => b.id).sort().join(",") +
+      "|" +
+      connections.map((c) => `${c.source}-${c.target}`).sort().join(","),
+    [blocks, connections],
+  );
+
+  // Auto-layout when topology changes (block ids or connections) and mode is not manual.
+  // Exception: a full graph replacement (graphVersion change) ALWAYS triggers
+  // hierarchical-lr layout so that designed/loaded workflows look clean.
   useEffect(() => {
-    if (layoutMode === "manual") return;
-    const topo = blocks.map((b) => b.id).sort().join(",") + "|" + connections.map((c) => `${c.source}-${c.target}`).sort().join(",");
-    if (topo === lastTopologyRef.current) return;
-    lastTopologyRef.current = topo;
+    const isNewGraph = graphVersion !== prevGraphVersionRef.current;
+    if (isNewGraph) prevGraphVersionRef.current = graphVersion;
+
+    // For incremental edits respect manual mode; for full replacements always layout
+    if (!isNewGraph && layoutMode === "manual") return;
+    if (!isNewGraph && topoFingerprint === lastTopologyRef.current) return;
+    lastTopologyRef.current = topoFingerprint;
     if (blocks.length === 0) return;
 
-    const laid = applyLayout(layoutMode, nodes, edges);
+    const algo = isNewGraph ? "hierarchical-lr" : layoutMode;
+    const laid = applyLayout(algo, nodes, edges);
     const posMap = new Map<string, { x: number; y: number }>();
     laid.forEach((n) => posMap.set(n.id, n.position));
     updateBlockPositions(posMap);
     // Fit viewport after React Flow processes new positions
     setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 200);
-  }, [layoutMode, blocks.length, connections.length]);
+  }, [graphVersion, layoutMode, topoFingerprint, nodes, edges, blocks.length, updateBlockPositions, fitView]);
 
   // Safety: fit view on initial mount with delay to ensure nodes are measured
   useEffect(() => {
@@ -195,6 +212,7 @@ export function WorkbenchCanvas() {
         />
       )}
       <ReactFlow
+        key={graphVersion}
         fitView
         fitViewOptions={{ padding: 0.15, duration: 400 }}
         edges={edges}

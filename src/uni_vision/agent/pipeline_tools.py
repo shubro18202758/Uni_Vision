@@ -7,7 +7,7 @@ These tools provide the agent with read/write access to the system:
   * Adjust pipeline thresholds dynamically.
   * Perform system health checks.
   * Search the OCR audit log for failures.
-  * Analyse plate patterns and anomalies.
+  * Analyse detection patterns and anomalies.
   * Re-process detections with adjusted parameters.
 """
 
@@ -32,12 +32,12 @@ logger = logging.getLogger(__name__)
     name="query_detections",
     description=(
         "Query recent detection records from the database. "
-        "Supports filtering by camera_id, plate_number (partial match), "
+        "Supports filtering by camera_id, identifier (partial match), "
         "validation_status, and time range. Returns up to 'limit' results."
     ),
     param_descriptions={
         "camera_id": "Filter by camera ID (exact match), empty for all cameras",
-        "plate_number": "Filter by plate number (partial/ILIKE match), empty for all",
+        "plate_number": "Filter by detection identifier (partial/ILIKE match), empty for all",
         "status": "Filter by validation status (valid, low_confidence, regex_fail, etc.)",
         "hours_back": "How many hours back to search (default: 1)",
         "limit": "Maximum number of results to return (default: 20, max: 100)",
@@ -506,7 +506,7 @@ async def get_current_config(
     name="search_audit_log",
     description=(
         "Search the OCR audit log for failed or low-confidence readings. "
-        "Useful for diagnosing OCR quality issues on specific cameras or plates."
+        "Useful for diagnosing OCR quality issues on specific cameras or detections."
     ),
     param_descriptions={
         "camera_id": "Filter by camera ID (empty for all)",
@@ -571,24 +571,24 @@ async def search_audit_log(
 
 
 @tool(
-    name="analyze_plate_patterns",
+    name="analyze_detection_patterns",
     description=(
-        "Analyse plate detection patterns — find most/least common plates, "
-        "frequency distributions, and anomalies like plates seen across "
+        "Analyse detection patterns — find most/least common detections, "
+        "frequency distributions, and anomalies like detections seen across "
         "multiple cameras simultaneously."
     ),
     param_descriptions={
         "hours_back": "Time window for analysis (default: 24)",
-        "top_n": "Number of top plates to return (default: 10)",
+        "top_n": "Number of top detections to return (default: 10)",
     },
 )
-async def analyze_plate_patterns(
+async def analyze_detection_patterns(
     hours_back: float = 24.0,
     top_n: int = 10,
     *,
     context: Any = None,
 ) -> Dict[str, Any]:
-    """Analyse plate detection patterns."""
+    """Analyse detection patterns."""
     pg_client = _get_pg_client(context)
     if pg_client is None:
         return {"error": "Database not connected"}

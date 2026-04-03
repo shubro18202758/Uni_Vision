@@ -1,6 +1,6 @@
-"""Manager Agent — the Qwen 3.5 9B meta-orchestrator.
+"""Manager Agent — the Gemma 4 E2B meta-orchestrator.
 
-This is the brain of the self-assembling CV platform.  Qwen 3.5 9B
+This is the brain of the self-assembling CV platform.  Gemma 4 E2B
 no longer does OCR or direct reasoning on frames.  Instead it:
 
   1. Receives a frame + camera context.
@@ -54,6 +54,10 @@ from uni_vision.manager.schemas import (
 )
 from uni_vision.manager.temporal_tracker import TemporalTracker
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from uni_vision.manager.job_lifecycle import JobLifecycleManager
+
 log = structlog.get_logger(__name__)
 
 # Maximum ReAct iterations before the agent gives up
@@ -71,7 +75,7 @@ class ManagerAgent:
     Parameters
     ----------
     llm_client:
-        Async LLM client for Qwen 3.5 9B.
+        Async LLM client for Gemma 4 E2B.
     registry:
         Component registry tracking all available components.
     hub_client:
@@ -127,6 +131,7 @@ class ManagerAgent:
         gpu_profiler: Optional[GPUProfiler] = None,
         compat_matrix: Optional[CompatibilityMatrix] = None,
         temporal_tracker: Optional[TemporalTracker] = None,
+        job_lifecycle: Optional["JobLifecycleManager"] = None,
     ) -> None:
         self._llm = llm_client
         self._registry = registry
@@ -148,8 +153,19 @@ class ManagerAgent:
         self._compat = compat_matrix or CompatibilityMatrix()
         self._temporal = temporal_tracker or TemporalTracker()
 
+        # Job lifecycle (tracks per-job dynamic components + anomaly state)
+        self._job_lifecycle: Optional["JobLifecycleManager"] = job_lifecycle
+
         # Cache last blueprint per camera to avoid re-composing
         self._blueprint_cache: Dict[str, PipelineBlueprint] = {}
+
+        # Cache component IDs that already failed provisioning (skip retries)
+        self._provision_failed: set[str] = set()
+
+        # Cameras where ALL components failed — skip expensive pipeline build
+        # Maps camera_id → monotonic timestamp.  Retries after _DEGRADED_RETRY_S.
+        self._degraded_cameras: Dict[str, float] = {}
+        self._DEGRADED_RETRY_S: float = 300.0  # 5 minutes
 
         # Track consecutive adaptation actions to avoid thrash
         self._adaptation_count: int = 0
@@ -182,6 +198,25 @@ class ManagerAgent:
         t0 = time.monotonic()
         metadata = metadata or {}
         self._adaptation_count = 0
+        cam = camera_id or "default"
+
+        # 0. Degraded-mode early exit — all components missing, skip expensive build
+        degraded_since = self._degraded_cameras.get(cam)
+        if degraded_since is not None:
+            if (time.monotonic() - degraded_since) < self._DEGRADED_RETRY_S:
+                return PipelineExecutionResult(
+                    blueprint_id="degraded-skip",
+                    stage_results=[],
+                    final_output={},
+                    success=False,
+                    total_elapsed_ms=(time.monotonic() - t0) * 1000,
+                )
+            else:
+                # Retry interval elapsed — clear caches and try again
+                del self._degraded_cameras[cam]
+                self._provision_failed.clear()
+                self.invalidate_cache(cam)
+                log.info("degraded_retry", camera=cam)
 
         # 1. Analyze context
         context = await self._analyzer.analyze(
@@ -191,7 +226,6 @@ class ManagerAgent:
         )
 
         # 1b. Scene transition detection (hysteresis)
-        cam = camera_id or "default"
         scene_change = self._scene_det.observe(
             camera_id=cam,
             scene_type=context.scene_type.value,
@@ -213,7 +247,7 @@ class ManagerAgent:
 
         if blueprint is None:
             # 4. Build new pipeline (may consult quality scores + compat)
-            blueprint = await self._build_pipeline(context, temporal_hints)
+            blueprint = await self._build_pipeline(context, temporal_hints, camera_id=camera_id)
             if camera_id:
                 self._blueprint_cache[camera_id] = blueprint
 
@@ -241,6 +275,11 @@ class ManagerAgent:
         # 7. Execute with per-stage telemetry
         result = await self._execute_blueprint(blueprint, frame)
         result.total_elapsed_ms = (time.monotonic() - t0) * 1000
+
+        # 7b. Mark camera degraded when zero stages succeeded
+        if not result.success and not any(sr.success for sr in result.stage_results):
+            self._degraded_cameras[cam] = time.monotonic()
+            log.info("camera_degraded", camera=cam, reason="all_stages_failed")
 
         # 8. Post-execution: record telemetry across all subsystems
         await self._record_telemetry(result, context, blueprint, cam)
@@ -276,6 +315,7 @@ class ManagerAgent:
         self,
         context: FrameContext,
         temporal_hints: Optional[Set[str]] = None,
+        camera_id: Optional[str] = None,
     ) -> PipelineBlueprint:
         """Build a new pipeline for the given context.
 
@@ -342,14 +382,32 @@ class ManagerAgent:
 
                     # Provision if not already in registry
                     if candidate.component_id not in self._registry:
+                        # Skip if previously failed provisioning
+                        if candidate.component_id in self._provision_failed:
+                            continue
                         try:
                             await self._resolver.provision_candidate(candidate)
+                            # Track as dynamic component for job lifecycle
+                            if self._job_lifecycle and camera_id:
+                                job = self._job_lifecycle.get_job_for_camera(camera_id)
+                                if job:
+                                    pip_pkg = (
+                                        candidate.python_requirements[0]
+                                        if candidate.python_requirements
+                                        else None
+                                    )
+                                    await self._job_lifecycle.register_dynamic_component(
+                                        job.job_id,
+                                        candidate.component_id,
+                                        pip_package=pip_pkg,
+                                    )
                         except Exception as exc:
                             log.warning(
                                 "provision_failed",
                                 candidate=candidate.component_id,
                                 error=str(exc),
                             )
+                            self._provision_failed.add(candidate.component_id)
                             continue
 
                     # Verify component reached READY state
@@ -360,6 +418,7 @@ class ManagerAgent:
                             cid=candidate.component_id,
                             state=prov_comp.state.value if prov_comp else "missing",
                         )
+                        self._provision_failed.add(candidate.component_id)
 
                     resolved_map[res.capability] = candidate.component_id
 
@@ -401,14 +460,31 @@ class ManagerAgent:
                     cand = dres.selected_candidate
                     # Provision dynamic components
                     if cand.component_id not in self._registry:
+                        if cand.component_id in self._provision_failed:
+                            continue
                         try:
                             await self._resolver.provision_candidate(cand)
+                            # Track as dynamic component for job lifecycle
+                            if self._job_lifecycle and camera_id:
+                                job = self._job_lifecycle.get_job_for_camera(camera_id)
+                                if job:
+                                    pip_pkg = (
+                                        cand.python_requirements[0]
+                                        if cand.python_requirements
+                                        else None
+                                    )
+                                    await self._job_lifecycle.register_dynamic_component(
+                                        job.job_id,
+                                        cand.component_id,
+                                        pip_package=pip_pkg,
+                                    )
                         except Exception as exc:
                             log.warning(
                                 "dynamic_provision_failed",
                                 candidate=cand.component_id,
                                 error=str(exc),
                             )
+                            self._provision_failed.add(cand.component_id)
                             continue
 
                     # Determine which dynamic label this resolves
@@ -844,6 +920,11 @@ class ManagerAgent:
                 )
                 if fallback_cand:
                     fid = fallback_cand.component_id
+                    # Skip if this fallback already failed provisioning
+                    if fid in self._provision_failed:
+                        if not stage.is_optional:
+                            new_stages.append(stage)
+                        continue
                     log.info(
                         "fallback_swap",
                         original=stage.component_id,
@@ -855,6 +936,7 @@ class ManagerAgent:
                             await self._resolver.provision_candidate(fallback_cand)
                         except Exception as exc:
                             log.warning("fallback_provision_failed", fallback=fid, error=str(exc))
+                            self._provision_failed.add(fid)
                             if not stage.is_optional:
                                 new_stages.append(stage)
                             continue
@@ -907,7 +989,7 @@ class ManagerAgent:
         log.info("resolving_compat_issues", problematic=list(bad_ids))
         # Invalidate and rebuild from scratch
         if blueprint.context:
-            return await self._build_pipeline(blueprint.context)
+            return await self._build_pipeline(blueprint.context, camera_id=None)
         return self._strip_failed_stages(blueprint, bad_ids)
 
     @staticmethod

@@ -1,6 +1,6 @@
 """OCR utility constants — no LLM image processing.
 
-Qwen 3.5 9B is the Manager Agent brain only — it does NOT process
+Gemma 4 E2B is the Manager Agent brain only — it does NOT process
 images or perform OCR.  All image processing is handled by dedicated
 pre-trained models and libraries (EasyOCR, PaddleOCR, TrOCR, etc.)
 that the Manager Agent provisions at runtime.

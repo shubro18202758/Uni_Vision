@@ -8,9 +8,9 @@ import { ChevronDown, ChevronRight, MessageSquareText, Lightbulb, ArrowRight, Ar
 /** Computer-vision pipeline instruction presets per category. */
 const INSTRUCTION_PRESETS: Record<string, string[]> = {
   Input: [
-    "Connect to the parking lot entrance RTSP camera and stream at 5 FPS",
-    "Load test images from the captured plate samples folder",
-    "Stream from highway toll booth camera with H.265 encoding",
+    "Connect to the facility entrance RTSP camera and stream at 5 FPS",
+    "Load test images from the captured samples folder",
+    "Stream from the warehouse security camera with H.265 encoding",
   ],
   Ingestion: [
     "Sample every 3rd frame to balance coverage and processing load",
@@ -18,28 +18,28 @@ const INSTRUCTION_PRESETS: Record<string, string[]> = {
     "Buffer 10 frames and release the sharpest one per batch",
   ],
   Detection: [
-    "Detect all vehicles — cars, trucks, buses, motorcycles — with ≥50% confidence",
-    "Detect anomalies or objects of interest with tight bounding boxes",
+    "Detect all objects of interest — people, vehicles, hazards — with ≥50% confidence",
+    "Detect anomalies such as fire, smoke, intrusions, or structural defects",
     "Use YOLOv8 nano model for real-time detection on 1080p streams",
   ],
   Preprocessing: [
-    "Deskew and enhance contrast on plate crops for better OCR accuracy",
-    "Apply CLAHE histogram equalisation and resize plates to 200px width",
-    "Sharpen blurry night-time plate captures before OCR",
+    "Deskew and enhance contrast on cropped regions for better recognition",
+    "Apply CLAHE histogram equalisation and resize ROI to 200px width",
+    "Sharpen blurry night-time captures before analysis",
   ],
   OCR: [
-    "Read plate numbers with high accuracy using angle classifier",
+    "Extract visible text, labels, or identifiers with high accuracy",
     "Use PaddleOCR with high-accuracy mode for text extraction",
-    "Extract text from multi-line plates with confidence scoring",
+    "Read multi-line text regions with confidence scoring",
   ],
   PostProcessing: [
-    "Validate plates against Indian format XX00XX0000",
+    "Validate detections against expected patterns or thresholds",
     "Remove duplicate readings within a 10-second window using perceptual hash",
-    "Normalise OCR output — strip spaces, fix common O/0 confusions",
+    "Normalise output — strip noise, fix common recognition confusions",
   ],
   Output: [
-    "Save validated plates to database and broadcast via Redis pub/sub",
-    "Draw bounding boxes and plate labels on the live monitoring feed",
+    "Save validated detections to database and broadcast via Redis pub/sub",
+    "Draw bounding boxes and labels on the live monitoring feed",
     "Export detection logs as CSV every hour",
   ],
   Utility: [

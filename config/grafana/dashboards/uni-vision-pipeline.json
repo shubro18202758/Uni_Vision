@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Uni_Vision ANPR Pipeline — Real-time monitoring dashboard",
+  "description": "Uni_Vision Detection Pipeline — Real-time monitoring dashboard",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -332,7 +332,7 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": ["uni-vision", "anpr", "pipeline"],
+  "tags": ["uni-vision", "detection", "pipeline"],
   "templating": {
     "list": [
       {

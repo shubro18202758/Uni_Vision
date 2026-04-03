@@ -68,9 +68,9 @@
 
 ### What Makes Uni_Vision Different
 
-1. **LLM-Powered OCR** — Instead of traditional OCR engines alone, the primary OCR engine is **Qwen 3.5 9B** (a 9-billion-parameter multimodal language model) served via Ollama. The LLM performs multimodal reasoning directly on plate images, achieving higher accuracy than conventional OCR especially under adverse conditions.
+1. **LLM-Powered OCR** — Instead of traditional OCR engines alone, the primary OCR engine is **Gemma 4 E2B** (a 5.1-billion-parameter multimodal language model, 2.3B effective via MoE architecture) served via Ollama. The LLM performs multimodal reasoning directly on plate images using its native vision capability, achieving higher accuracy than conventional OCR especially under adverse conditions.
 
-2. **Fully Agentic Control Plane** — A ReAct-pattern AI agent backed by the same Qwen 3.5 9B model provides natural-language pipeline management, autonomous monitoring, self-healing capabilities, and intelligent analytics — all through conversational queries.
+2. **Fully Agentic Control Plane** — A ReAct-pattern AI agent backed by the same Gemma 4 E2B model provides natural-language pipeline management, autonomous monitoring, self-healing capabilities, and intelligent analytics — all through conversational queries.
 
 3. **Single-GPU Optimised** — The entire system (two YOLOv8 detection models + one 9B-parameter LLM + inference pipeline) operates within the strict 8192 MB VRAM ceiling of an NVIDIA RTX 4070 through a carefully engineered sequential-exclusivity memory protocol.
 
@@ -110,7 +110,7 @@
 │  │                        OCR Layer (S7)                            │        │
 │  │  ┌─────────────────────┐    ┌──────────────────────────────┐    │        │
 │  │  │  Primary: OllamaLLM │◀──│ OCRStrategy (Strategy Pattern)│    │        │
-│  │  │  Qwen 3.5 9B Q4_K_M│    │  Circuit Breaker + Retry     │    │        │
+│  │  │  Gemma 4 E2B Q4_K_M│    │  Circuit Breaker + Retry     │    │        │
 │  │  │  via HTTP API       │    │  Context-Aware Re-prompting  │    │        │
 │  │  └─────────────────────┘    └──────────────────────────────┘    │        │
 │  │  ┌─────────────────────┐                                        │        │
@@ -125,7 +125,7 @@
 │  │  Layer 1: DeterministicValidator                                 │        │
 │  │    → Position-aware char correction → Regex validation           │        │
 │  │  Layer 2: AgenticAdjudicator (LLM-based, only on failures)      │        │
-│  │    → Multi-engine result adjudication via Qwen 3.5               │        │
+│  │    → Multi-engine result adjudication via Gemma 4 E2B            │        │
 │  └──────────────────────────────────────────────────────────────────┘        │
 │                          │                                                   │
 │         ┌────────────────┼──────────────────┐                               │
@@ -182,7 +182,7 @@ No two neural network forward passes may occupy VRAM simultaneously unless their
 
 ### P4 — The LLM is the Orchestrator, Not Middleware
 
-No framework-level orchestration layer (LangChain, LlamaIndex, AutoGen) exists. The Qwen 3.5 9B model is the reasoning engine. The application layer is a thin, deterministic Python harness that issues prompts, parses structured responses, catches failures, and re-prompts with error context.
+No framework-level orchestration layer (LangChain, LlamaIndex, AutoGen) exists. The Gemma 4 E2B model is the reasoning engine. The application layer is a thin, deterministic Python harness that issues prompts, parses structured responses, catches failures, and re-prompts with error context.
 
 ### P5 — Every Stage is a Replaceable Unit
 
@@ -199,7 +199,7 @@ Each pipeline stage adheres to a strict interface contract via Python `Protocol`
 | **Visualizer** | Streamlit | ≥1.41 | 8-page pipeline debugging dashboard |
 | **Vehicle Detection** | YOLOv8n (Ultralytics) | ≥8.3 | INT8 quantized, TensorRT primary, ONNX fallback |
 | **Plate Detection** | YOLOv8n | Same | Single-class "plate" detector |
-| **Primary OCR** | Qwen 3.5 9B Q4_K_M | via Ollama 0.17.7 | Multimodal LLM OCR via HTTP API |
+| **Primary OCR** | Gemma 4 E2B Q4_K_M | via Ollama 0.20.0 | Multimodal LLM OCR via HTTP API |
 | **Fallback OCR** | EasyOCR | ≥1.7 | CPU-only fallback with ThreadPoolExecutor |
 | **Image Processing** | OpenCV | ≥4.10 | Frame decode, preprocessing, geometric transforms |
 | **Array Computing** | NumPy | ≥1.26 | Tensor manipulation, pHash computation |
@@ -281,7 +281,7 @@ Uni_Vision/
 │
 ├── scripts/
 │   ├── download_models.py            # YOLOv8n weight download + ONNX export (opset 17)
-│   ├── init-ollama.sh                # Linux: Pull qwen3.5 + create custom models
+│   ├── init-ollama.sh                # Linux: Pull gemma4:e2b + create custom models
 │   ├── init-ollama.ps1               # Windows: Same as above
 │   └── smoke_test_agent.py           # End-to-end agent validation (3-part test)
 │
@@ -449,7 +449,7 @@ class VRAMBudgets:
 
 class OllamaConfig:
     base_url: str = "http://localhost:11434"
-    model: str = "qwen3.5:9b-q4_K_M"
+    model: str = "gemma4:e2b"
     timeout_s: int = 5
     num_ctx: int = 4096
     temperature: float = 0.1
@@ -524,7 +524,7 @@ The pipeline processes frames sequentially through 8 stages, ensuring GPU single
               │                          │   FREE Region C tensors
   S5 (deskew) │
   S6 (enhance)│
-              │── HTTP POST (base64) ──────────────────────▶ S7 (Qwen 3.5 OCR)
+              │── HTTP POST (base64) ──────────────────────▶ S7 (Gemma 4 E2B OCR)
               │                                              │
               │◀── HTTP RESPONSE ───────────────────────────│
   S8 (post-   │
@@ -710,18 +710,17 @@ All sub-stages preserve the original image separately for audit/debug. The `Prep
 | Property | Specification |
 |----------|---------------|
 | **Module** | `ocr/llm_ocr.py` + `ocr/strategy.py` |
-| **Model** | Qwen 3.5 9B (Q4_K_M GGUF, 6.6 GB) served by Ollama |
+| **Model** | Gemma 4 E2B (Q4_K_M GGUF, 7.2 GB) served by Ollama |
 | **Invocation** | HTTP POST to `http://localhost:11434/api/chat` |
 | **Input** | System prompt + base64-encoded enhanced plate image |
 | **Context Window** | Hard-capped at 4096 tokens (`num_ctx: 4096`) |
-| **Thinking Mode** | Explicitly disabled (`"think": false` in API payload) |
 | **Output Schema** | XML: `<plate_text>`, `<confidence>`, `<char_alternatives>`, `<reasoning_trace>` |
 | **Latency Target** | ≤ 2000ms per plate |
-| **VRAM** | Region A (5120 MB weights) + Region B (512 MB KV cache) |
+| **VRAM** | Region A (5000 MB weights) + Region B (256 MB KV cache) + Vision (256 MB) |
 | **Fallback** | Ollama timeout/circuit open → EasyOCR (CPU-only) |
 
-**Critical Discovery — Qwen 3.5 Thinking Mode:**
-Qwen 3.5 enables chain-of-thought "thinking mode" by default. The API response has a separate `thinking` field that consumes `num_predict` tokens, leaving the `content` field empty. All three Ollama API call sites (`llm_client.py`, `llm_ocr.py`, `adjudicator.py`) include `"think": false` in the payload to ensure clean, direct output.
+**Gemma 4 E2B Model Notes:**
+Gemma 4 E2B is a natively multimodal model from Google with 5.1B total parameters (2.3B effective via Mixture of Experts architecture). Unlike previous text-only LLMs, it processes images directly through its built-in vision encoder. It does not have a separate "thinking mode" — all output goes directly to the `content` field. The model supports text, image, and audio inputs natively.
 
 **OCR Strategy Pattern:**
 ```python
@@ -789,11 +788,11 @@ CLOSED ──[failure_count >= threshold]──▶ OPEN
 **Layer 2 — AgenticAdjudicator (`adjudicator.py`):**
 ```
 - Activated ONLY on "regex_fail" or "low_confidence" results
-- Sends original OCR result + plate image to Qwen 3.5 9B
+- Sends original OCR result + plate image to Gemma 4 E2B
 - LLM provides adjudicated plate text with reasoning
 - If adjudication succeeds → upgrade validation status
 - If adjudication fails → retain original status, log to audit
-- "think": false required in API payload
+- "think": false is NOT required (Gemma 4 E2B has no thinking mode)
 ```
 
 **Deduplication (`deduplicator.py`):**
@@ -825,8 +824,8 @@ All operations are async with error isolation.
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─────────────────────────────────────────────┐                │
-│  │  REGION A — LLM Weights                     │  5120 MB      │
-│  │  Qwen 3.5 9B Q4_K_M (6.6 GB on disk)       │               │
+│  │  REGION A — LLM Weights                     │  5000 MB      │
+│  │  Gemma 4 E2B Q4_K_M (7.2 GB on disk)       │               │
 │  │  Static. Loaded once at boot. Never evicted. │               │
 │  └─────────────────────────────────────────────┘                │
 │                                                                 │
@@ -902,7 +901,7 @@ The OCR layer implements the **Strategy design pattern** with automatic failover
 OllamaLLMOCR (Primary):
   - Encodes plate image to base64 PNG
   - Constructs system prompt with XML output schema
-  - POST /api/chat with {model, messages, stream: false, think: false, options: {...}}
+  - POST /api/chat with {model, messages, stream: false, options: {...}}
   - Parses XML response: <plate_text>, <confidence>, <char_alternatives>
   - On parse failure: appends error to context, re-prompts (max 2 retries)
   - On timeout (5s): records circuit breaker failure
@@ -944,7 +943,7 @@ The post-processing stage uses a **2-layer cognitive architecture**:
               │                                          │
               │  - LLM-based multi-engine adjudication   │
               │  - Sends plate image + OCR result to LLM │
-              │  - Qwen 3.5 reasons about the correct    │
+              │  - Gemma 4 E2B reasons about the correct    │
               │    plate text and provides confidence     │
               │  - Only activated on Layer 1 failures     │
               │                                          │
@@ -957,7 +956,7 @@ The post-processing stage uses a **2-layer cognitive architecture**:
 
 ## 11. Agentic AI System
 
-The agentic control plane transforms Uni_Vision from a passive pipeline into an **intelligent, self-managing system**. An AI agent backed by Qwen 3.5 9B can monitor, diagnose, tune, and repair the pipeline through natural language interaction.
+The agentic control plane transforms Uni_Vision from a passive pipeline into an **intelligent, self-managing system**. An AI agent backed by Gemma 4 E2B can monitor, diagnose, tune, and repair the pipeline through natural language interaction.
 
 ### 11.1 ReAct Pattern & Agent Loop
 
@@ -1151,7 +1150,7 @@ class PlateObservation:
 - `get_camera_error_profile(camera_id)` → Error breakdown per camera
 - `get_cross_camera_plates()` → Plates seen across multiple cameras
 - `get_ocr_error_patterns()` → Common OCR confusion patterns
-- `detect_plate_anomalies()` → Statistical anomaly detection
+- `detect_detection_anomalies()` → Statistical anomaly detection
 
 **Persistence:** Knowledge state serialized to PostgreSQL `agent_knowledge` table (JSONB) on shutdown, restored on startup.
 
@@ -1222,7 +1221,7 @@ class AuditEntry:
 | `adjust_threshold` | Modify confidence thresholds (vehicle/plate detection, OCR) |
 | `get_current_config` | Current runtime configuration snapshot |
 | `search_audit_log` | Query OCR audit log entries |
-| `analyze_plate_patterns` | Pattern analysis on detected plates |
+| `analyze_detection_patterns` | Pattern analysis on detections |
 
 **Pipeline Control (6 tools — `control_tools.py`):**
 
@@ -1245,13 +1244,13 @@ class AuditEntry:
 | `get_all_camera_profiles` | Error profiles for all cameras |
 | `get_cross_camera_plates` | Plates detected across multiple cameras |
 | `get_ocr_error_patterns` | Common OCR character confusion patterns |
-| `detect_plate_anomalies` | Statistical anomaly detection in plate data |
+| `detect_detection_anomalies` | Statistical anomaly detection in plate data |
 
 **Additional tools (from coordinator.py):**
 
 | Tool | Description |
 |------|-------------|
-| `record_plate_feedback` | Record human correction/confirmation for a plate |
+| `record_detection_feedback` | Record human correction/confirmation for a plate |
 | `get_recent_feedback` | Retrieve recent feedback entries |
 | `get_camera_hints` | Get ML-derived hints for camera positioning |
 | `save_knowledge` | Persist knowledge base to database |
@@ -1765,7 +1764,7 @@ This enables the **full test suite to run without GPU, database, or any external
 
 ### End-to-End Smoke Test (`scripts/smoke_test_agent.py`)
 
-3-part validation against live Qwen 3.5 9B model:
+3-part validation against live Gemma 4 E2B model:
 
 ```
 Test 1: Simple Q&A    → Clean text answer about ANPR
@@ -1956,9 +1955,9 @@ make db-revision    # Generate new migration
 | Post-processing CER reduction | ≥ 15% vs raw OCR |
 | Deduplication effectiveness | ≥ 20% reduction |
 
-### Qwen 3.5 9B Validated Performance
+### Gemma 4 E2B Validated Performance
 
-Measured on RTX 4070 with `think: false`:
+Measured on RTX 4070:
 - Simple Q&A: ~1 second total, ~11.5 tok/s evaluation rate
 - ReAct tool-call JSON: Clean structured output, correct format
 - Multi-turn reasoning: Correct observation→answer chains
@@ -2023,7 +2022,7 @@ Camera RTSP Stream
            ▼
   ┌─────────────────┐
   │ Ollama HTTP     │ → base64 PNG in prompt
-  │ POST /api/chat  │ → think: false
+  │ POST /api/chat  │ → native multimodal vision
   │ (≤2000ms)       │ → XML output: plate_text + confidence
   └────────┬────────┘
            │
@@ -2069,7 +2068,7 @@ User (HTTP POST /api/agent/chat or WS /ws/agent)
            ▼
   ┌─────────────────┐
   │ AgentLoop       │ → ReAct: Think → Act → Observe → Repeat
-  │ (max 10 iter)   │ → LLM: Qwen 3.5 9B via Ollama
+  │ (max 10 iter)   │ → LLM: Gemma 4 E2B via Ollama
   └────────┬────────┘
            │
      ┌─────┤ (per iteration)
@@ -2177,7 +2176,7 @@ make pipeline                     # Start processing pipeline
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `UV_OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
-| `UV_OLLAMA_MODEL` | `qwen3.5:9b-q4_K_M` | Model name |
+| `UV_OLLAMA_MODEL` | `gemma4:e2b` | Model name |
 | `UV_OLLAMA_TIMEOUT_S` | `5` | HTTP timeout |
 | `UV_OLLAMA_NUM_CTX` | `4096` | Context window (tokens) |
 | `UV_OLLAMA_TEMPERATURE` | `0.1` | Generation temperature |
@@ -2259,7 +2258,7 @@ make pipeline                     # Start processing pipeline
 | 7 | `adjust_threshold` | target, value | Confirmation with old/new values |
 | 8 | `get_current_config` | — | Runtime config snapshot |
 | 9 | `search_audit_log` | camera_id?, failure_reason?, limit? | List[AuditEntry] |
-| 10 | `analyze_plate_patterns` | — | Pattern frequency analysis |
+| 10 | `analyze_detection_patterns` | — | Pattern frequency analysis |
 
 ### Pipeline Control Tools (6)
 
@@ -2282,13 +2281,13 @@ make pipeline                     # Start processing pipeline
 | 20 | `get_all_camera_profiles` | — | Dict[camera_id → CameraErrorProfile] |
 | 21 | `get_cross_camera_plates` | — | List[(plate_text, [camera_ids])] |
 | 22 | `get_ocr_error_patterns` | — | List[(pattern, frequency)] |
-| 23 | `detect_plate_anomalies` | — | List[AnomalyReport] |
+| 23 | `detect_detection_anomalies` | — | List[AnomalyReport] |
 
 ### Additional Tools (7)
 
 | # | Tool | Parameters | Returns |
 |---|------|-----------|---------|
-| 24 | `record_plate_feedback` | plate_text, feedback_type, corrected_text? | Confirmation |
+| 24 | `record_detection_feedback` | plate_text, feedback_type, corrected_text? | Confirmation |
 | 25 | `get_recent_feedback` | limit? | List[FeedbackEntry] |
 | 26 | `get_camera_hints` | camera_id | ML-derived camera positioning hints |
 | 27 | `save_knowledge` | — | Knowledge base snapshot saved to DB |

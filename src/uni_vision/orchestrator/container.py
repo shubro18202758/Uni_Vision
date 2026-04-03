@@ -204,6 +204,7 @@ def _build_manager_agent(
     from uni_vision.manager.component_registry import ComponentRegistry
     from uni_vision.manager.component_resolver import ComponentResolver
     from uni_vision.manager.conflict_resolver import ConflictResolver
+    from uni_vision.manager.dependency_resolver import DependencyConflictResolver
     from uni_vision.manager.context_analyzer import ContextAnalyzer
     from uni_vision.manager.fallback_chain import FallbackChainManager
     from uni_vision.manager.feedback_loop import FeedbackLoop
@@ -215,13 +216,14 @@ def _build_manager_agent(
     from uni_vision.manager.quality_scorer import QualityScorer
     from uni_vision.manager.scene_detector import SceneTransitionDetector
     from uni_vision.manager.temporal_tracker import TemporalTracker
+    from uni_vision.manager.job_lifecycle import JobLifecycleManager
 
     mgr_cfg = config.manager
 
     # 1. Component Registry
     registry = ComponentRegistry()
 
-    # 2. Register builtin ANPR components as CVComponent wrappers
+    # 2. Register builtin detection components as CVComponent wrappers
     builtin_vehicle_det = BuiltinDetectorComponent(
         component_id="builtin.vehicle_detector",
         name="YOLOv8n Vehicle Detector",
@@ -295,13 +297,19 @@ def _build_manager_agent(
         gpu_profiler=gpu_profiler,
     )
 
-    # 5. Component Resolver (with lifecycle for auto-loading after provision)
+    # 5. Dependency Conflict Resolver (LLM-driven pip version conflict resolution)
+    #    Created early so it's ready before ComponentResolver uses it.
+    #    LLM client is wired in after _LLMAdapter is built (deferred set below).
+    dep_resolver = DependencyConflictResolver(llm_client=None)
+
+    # 5b. Component Resolver (with lifecycle for auto-loading after provision)
     resolver = ComponentResolver(
         registry=registry,
         hub_client=hub_client,
         vram_limit_mb=lifecycle.vram_budget_mb,
         prefer_trusted=mgr_cfg.prefer_trusted,
         lifecycle=lifecycle,
+        dependency_resolver=dep_resolver,
     )
 
     # 6. Conflict Resolver
@@ -334,6 +342,10 @@ def _build_manager_agent(
             return resp.content
 
     llm_client = _LLMAdapter(_raw_llm)
+
+    # Wire LLM into the dependency resolver (created earlier before LLM adapter)
+    dep_resolver._llm = llm_client
+
     from uni_vision.manager.schemas import SceneType as _SceneType
     context_analyzer = ContextAnalyzer(
         llm_client=llm_client,
@@ -367,6 +379,15 @@ def _build_manager_agent(
     compat_matrix = CompatibilityMatrix()
     temporal_tracker = TemporalTracker()
 
+    # 10b. Job Lifecycle Manager (per-job component tracking + flushing)
+    from uni_vision.orchestrator.pipeline_events import pipeline_broadcaster
+
+    job_lifecycle = JobLifecycleManager(
+        registry=registry,
+        lifecycle=lifecycle,
+        broadcaster=pipeline_broadcaster,
+    )
+
     # 11. Manager Agent
     agent = ManagerAgent(
         llm_client=llm_client,
@@ -386,6 +407,10 @@ def _build_manager_agent(
         gpu_profiler=gpu_profiler,
         compat_matrix=compat_matrix,
         temporal_tracker=temporal_tracker,
+        job_lifecycle=job_lifecycle,
     )
+
+    # Attach job_lifecycle to the agent for external access
+    agent._exposed_job_lifecycle = job_lifecycle  # type: ignore[attr-defined]
 
     return agent

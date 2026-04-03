@@ -82,7 +82,7 @@ def create_app(
         model_router = OllamaModelRouter(
             ollama_base_url=config.ollama.base_url,
             navarasa_model=config.navarasa.model if hasattr(config, "navarasa") else "uni-vision-navarasa",
-            qwen_model=config.ollama.model,
+            primary_model=config.ollama.model,
         )
         app.state.model_router = model_router
 
@@ -247,7 +247,7 @@ def create_app(
     app = FastAPI(
         title="Uni_Vision API",
         version="0.1.0",
-        description="Real-time ANPR pipeline management and query API",
+        description="Real-time detection pipeline management and query API",
         lifespan=lifespan,
     )
 

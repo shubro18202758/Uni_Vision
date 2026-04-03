@@ -1,6 +1,6 @@
 """Agent tools for inspecting and mutating the dynamic pipeline graph.
 
-These tools give the Qwen 3.5 Manager Agent full awareness of the
+These tools give the Gemma 4 E2B Manager Agent full awareness of the
 user-defined pipeline topology so it can:
   * Describe what the current pipeline does.
   * Answer questions about connectivity and block configuration.

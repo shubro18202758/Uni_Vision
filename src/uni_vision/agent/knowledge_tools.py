@@ -1,7 +1,7 @@
 """Knowledge-base tools for the agentic subsystem.
 
 Provides tools that let the agent query and interact with the
-KnowledgeBase — plate patterns, error profiles, feedback, and
+KnowledgeBase — detection patterns, error profiles, feedback, and
 anomaly detection.
 """
 
@@ -31,7 +31,7 @@ def _get_pg_client(context: Any) -> Any:
     name="get_knowledge_stats",
     description=(
         "Get summary statistics of the knowledge base: total observations, "
-        "feedback entries, unique plates, and cameras profiled."
+        "feedback entries, unique detections, and cameras profiled."
     ),
 )
 async def get_knowledge_stats(context: Any = None) -> Dict[str, Any]:
@@ -40,22 +40,22 @@ async def get_knowledge_stats(context: Any = None) -> Dict[str, Any]:
 
 
 @tool(
-    name="get_frequent_plates",
+    name="get_frequent_detections",
     description=(
-        "Get the most frequently detected plates across all cameras. "
-        "Useful for identifying permanent/regular vehicles."
+        "Get the most frequently detected items across all cameras. "
+        "Useful for identifying recurring objects or patterns."
     ),
     param_descriptions={
-        "top_n": "Number of top plates to return (default: 20)",
+        "top_n": "Number of top detections to return (default: 20)",
     },
 )
-async def get_frequent_plates(
+async def get_frequent_detections(
     top_n: int = 20, context: Any = None
 ) -> Dict[str, Any]:
     kb = _get_kb(context)
     plates = kb.get_plate_frequency(top_n=top_n)
     return {
-        "top_plates": [{"plate": p, "count": c} for p, c in plates],
+        "top_detections": [{"detection": p, "count": c} for p, c in plates],
         "total_unique": len(kb._plate_frequency),
     }
 
@@ -121,16 +121,16 @@ async def get_all_camera_profiles(context: Any = None) -> Dict[str, Any]:
 
 
 @tool(
-    name="get_cross_camera_plates",
+    name="get_cross_camera_detections",
     description=(
-        "Find plates that have been detected across multiple cameras. "
-        "Useful for tracking vehicle movement through the coverage area."
+        "Find detections that have appeared across multiple cameras. "
+        "Useful for tracking movement through the coverage area."
     ),
     param_descriptions={
-        "min_cameras": "Minimum number of cameras a plate must appear on (default: 2)",
+        "min_cameras": "Minimum number of cameras a detection must appear on (default: 2)",
     },
 )
-async def get_cross_camera_plates(
+async def get_cross_camera_detections(
     min_cameras: int = 2, context: Any = None
 ) -> Dict[str, Any]:
     kb = _get_kb(context)
@@ -138,10 +138,10 @@ async def get_cross_camera_plates(
 
     results = []
     for plate, cameras in sorted(cross.items(), key=lambda x: -len(x[1])):
-        results.append({"plate": plate, "cameras": cameras, "camera_count": len(cameras)})
+        results.append({"detection": plate, "cameras": cameras, "camera_count": len(cameras)})
 
     return {
-        "cross_camera_plates": results[:50],
+        "cross_camera_detections": results[:50],
         "total_found": len(cross),
         "min_cameras_filter": min_cameras,
     }
@@ -175,17 +175,17 @@ async def get_ocr_error_patterns(
 
 
 @tool(
-    name="detect_plate_anomalies",
+    name="detect_detection_anomalies",
     description=(
-        "Detect anomalous plate activity in the recent time window. "
-        "Identifies frequency spikes, unusual patterns, and new plates."
+        "Detect anomalous detection activity in the recent time window. "
+        "Identifies frequency spikes, unusual patterns, and new detections."
     ),
     param_descriptions={
         "hours_back": "Hours to look back (default: 1)",
         "spike_threshold": "Factor above average to flag as spike (default: 3.0)",
     },
 )
-async def detect_plate_anomalies(
+async def detect_detection_anomalies(
     hours_back: float = 1.0,
     spike_threshold: float = 3.0,
     context: Any = None,
@@ -204,27 +204,27 @@ async def detect_plate_anomalies(
 
 
 @tool(
-    name="record_plate_feedback",
+    name="record_detection_feedback",
     description=(
         "Record operator feedback on a detection result. Use 'confirm' to "
-        "mark a reading as correct, 'correct' to provide the right plate, "
+        "mark a reading as correct, 'correct' to provide the right text, "
         "or 'reject' to mark a reading as invalid."
     ),
     param_descriptions={
         "detection_id": "ID of the detection to give feedback on",
         "feedback_type": "One of: confirm, correct, reject",
-        "corrected_plate": "The correct plate text (required for 'correct' type)",
+        "corrected_text": "The correct detection text (required for 'correct' type)",
         "camera_id": "Camera that captured the detection",
-        "original_plate": "The plate text that was detected",
+        "original_text": "The text that was detected",
         "notes": "Optional operator notes",
     },
 )
-async def record_plate_feedback(
+async def record_detection_feedback(
     detection_id: str,
     feedback_type: str,
-    original_plate: str,
+    original_text: str,
     camera_id: str = "unknown",
-    corrected_plate: str = "",
+    corrected_text: str = "",
     notes: str = "",
     context: Any = None,
 ) -> Dict[str, Any]:
@@ -235,13 +235,13 @@ async def record_plate_feedback(
     if feedback_type not in ("confirm", "correct", "reject"):
         return {"error": f"Invalid feedback_type: {feedback_type}. Must be confirm/correct/reject"}
 
-    if feedback_type == "correct" and not corrected_plate:
-        return {"error": "corrected_plate is required when feedback_type is 'correct'"}
+    if feedback_type == "correct" and not corrected_text:
+        return {"error": "corrected_text is required when feedback_type is 'correct'"}
 
     entry = FeedbackEntry(
         detection_id=detection_id,
-        original_plate=original_plate,
-        corrected_plate=corrected_plate or original_plate,
+        original_text=original_text,
+        corrected_text=corrected_text or original_text,
         feedback_type=feedback_type,
         camera_id=camera_id,
         notes=notes,
@@ -252,7 +252,7 @@ async def record_plate_feedback(
         "status": "recorded",
         "feedback_type": feedback_type,
         "detection_id": detection_id,
-        "plate": corrected_plate or original_plate,
+        "text": corrected_text or original_text,
     }
 
 
@@ -280,8 +280,8 @@ async def get_recent_feedback(
             {
                 "detection_id": e.detection_id,
                 "type": e.feedback_type,
-                "original": e.original_plate,
-                "corrected": e.corrected_plate,
+                "original": e.original_text,
+                "corrected": e.corrected_text,
                 "camera": e.camera_id,
                 "timestamp": e.timestamp,
                 "notes": e.notes,

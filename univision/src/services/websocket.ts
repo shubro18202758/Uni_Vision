@@ -17,27 +17,27 @@ function getWsBase(): string {
 }
 
 export function connectDetectionEvents(): void {
-  if (eventsWs?.readyState === WebSocket.OPEN) return;
+  if (eventsWs?.readyState === WebSocket.OPEN || eventsWs?.readyState === WebSocket.CONNECTING) return;
   eventsWs?.close();
 
   const ws = new WebSocket(`${getWsBase()}/ws/events`);
   eventsWs = ws;
 
   ws.onopen = () => {
-    eventsStatusListeners.forEach((fn) => fn(true));
+    eventsStatusListeners.forEach((fn) => { try { fn(true); } catch { /* */ } });
   };
 
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data) as WsDetectionEvent;
-      eventsListeners.forEach((fn) => fn(data));
+      eventsListeners.forEach((fn) => { try { fn(data); } catch { /* */ } });
     } catch {
       /* ignore malformed frames */
     }
   };
 
   ws.onclose = () => {
-    eventsStatusListeners.forEach((fn) => fn(false));
+    eventsStatusListeners.forEach((fn) => { try { fn(false); } catch { /* */ } });
     eventsReconnectTimer = setTimeout(connectDetectionEvents, 3000);
   };
 
@@ -55,9 +55,14 @@ export function onEventsConnectionChange(cb: (connected: boolean) => void): Unsu
 }
 
 export function disconnectDetectionEvents(): void {
-  if (eventsReconnectTimer) clearTimeout(eventsReconnectTimer);
-  eventsWs?.close();
-  eventsWs = null;
+  if (eventsReconnectTimer) { clearTimeout(eventsReconnectTimer); eventsReconnectTimer = null; }
+  if (eventsWs) {
+    eventsWs.onclose = null;
+    eventsWs.onerror = null;
+    eventsWs.onmessage = null;
+    eventsWs.close();
+    eventsWs = null;
+  }
 }
 
 // ── Agent Reasoning WebSocket (/ws/agent) ────────────────────────
@@ -68,27 +73,27 @@ const agentListeners = new Set<(frame: AgentStreamFrame) => void>();
 const agentStatusListeners = new Set<(connected: boolean) => void>();
 
 export function connectAgentStream(): void {
-  if (agentWs?.readyState === WebSocket.OPEN) return;
+  if (agentWs?.readyState === WebSocket.OPEN || agentWs?.readyState === WebSocket.CONNECTING) return;
   agentWs?.close();
 
   const ws = new WebSocket(`${getWsBase()}/ws/agent`);
   agentWs = ws;
 
   ws.onopen = () => {
-    agentStatusListeners.forEach((fn) => fn(true));
+    agentStatusListeners.forEach((fn) => { try { fn(true); } catch { /* */ } });
   };
 
   ws.onmessage = (e) => {
     try {
       const frame = JSON.parse(e.data) as AgentStreamFrame;
-      agentListeners.forEach((fn) => fn(frame));
+      agentListeners.forEach((fn) => { try { fn(frame); } catch { /* */ } });
     } catch {
       /* ignore malformed frames */
     }
   };
 
   ws.onclose = () => {
-    agentStatusListeners.forEach((fn) => fn(false));
+    agentStatusListeners.forEach((fn) => { try { fn(false); } catch { /* */ } });
     agentReconnectTimer = setTimeout(connectAgentStream, 3000);
   };
 
@@ -100,12 +105,25 @@ export function sendAgentMessage(message: string, sessionId?: string): void {
   agentWs.send(JSON.stringify({ message, session_id: sessionId }));
 }
 
-export function sendWorkflowDesignMessage(
+function waitForAgentWsOpen(timeoutMs = 5000): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (agentWs?.readyState === WebSocket.OPEN) { resolve(true); return; }
+    if (!agentWs || agentWs.readyState === WebSocket.CLOSED || agentWs.readyState === WebSocket.CLOSING) {
+      resolve(false); return;
+    }
+    const timer = setTimeout(() => { resolve(false); }, timeoutMs);
+    const onOpen = () => { clearTimeout(timer); agentWs?.removeEventListener("open", onOpen); resolve(true); };
+    agentWs.addEventListener("open", onOpen);
+  });
+}
+
+export async function sendWorkflowDesignMessage(
   description: string,
   language: string = "auto",
   sessionId?: string,
-): void {
-  if (agentWs?.readyState !== WebSocket.OPEN) return;
+): Promise<void> {
+  const ready = await waitForAgentWsOpen();
+  if (!ready || agentWs?.readyState !== WebSocket.OPEN) return;
   agentWs.send(
     JSON.stringify({
       type: "design_workflow",
@@ -127,44 +145,78 @@ export function onAgentConnectionChange(cb: (connected: boolean) => void): Unsub
 }
 
 export function disconnectAgentStream(): void {
-  if (agentReconnectTimer) clearTimeout(agentReconnectTimer);
-  agentWs?.close();
-  agentWs = null;
+  if (agentReconnectTimer) { clearTimeout(agentReconnectTimer); agentReconnectTimer = null; }
+  if (agentWs) {
+    agentWs.onclose = null;
+    agentWs.onerror = null;
+    agentWs.onmessage = null;
+    agentWs.close();
+    agentWs = null;
+  }
 }
 
 // ── Pipeline Visibility WebSocket (/ws/pipeline) ─────────────────
 
 let pipelineWs: WebSocket | null = null;
 let pipelineReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let pipelinePingInterval: ReturnType<typeof setInterval> | null = null;
 const pipelineListeners = new Set<(event: PipelineStageEvent) => void>();
 const pipelineStatusListeners = new Set<(connected: boolean) => void>();
 
 export function connectPipelineStream(): void {
-  if (pipelineWs?.readyState === WebSocket.OPEN) return;
+  // Prevent reconnect loop: skip if already OPEN or still CONNECTING
+  if (
+    pipelineWs?.readyState === WebSocket.OPEN ||
+    pipelineWs?.readyState === WebSocket.CONNECTING
+  )
+    return;
   pipelineWs?.close();
 
   const ws = new WebSocket(`${getWsBase()}/ws/pipeline`);
   pipelineWs = ws;
 
   ws.onopen = () => {
-    pipelineStatusListeners.forEach((fn) => fn(true));
+    pipelineStatusListeners.forEach((fn) => {
+      try { fn(true); } catch { /* */ }
+    });
+    // Periodic ping every 15s to keep connection alive & detect stale links
+    if (pipelinePingInterval) clearInterval(pipelinePingInterval);
+    pipelinePingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try { ws.send("ping"); } catch { /* */ }
+      }
+    }, 15_000);
   };
 
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data) as PipelineStageEvent;
-      pipelineListeners.forEach((fn) => fn(data));
+      // Skip heartbeat/pong frames
+      if ((data as { type?: string }).type === "heartbeat") return;
+      // Error-isolated listener dispatch — one failing listener cannot stop others
+      pipelineListeners.forEach((fn) => {
+        try { fn(data); } catch (err) { console.error("[pipeline-ws] listener error:", err); }
+      });
     } catch {
-      /* ignore malformed frames */
+      /* ignore malformed frames (pong responses, etc.) */
     }
   };
 
   ws.onclose = () => {
-    pipelineStatusListeners.forEach((fn) => fn(false));
+    if (pipelinePingInterval) { clearInterval(pipelinePingInterval); pipelinePingInterval = null; }
+    pipelineStatusListeners.forEach((fn) => {
+      try { fn(false); } catch { /* */ }
+    });
+    // Auto-reconnect after 3s
+    if (pipelineReconnectTimer) clearTimeout(pipelineReconnectTimer);
     pipelineReconnectTimer = setTimeout(connectPipelineStream, 3000);
   };
 
   ws.onerror = () => ws.close();
+}
+
+export function isPipelineConnected(): boolean {
+  return pipelineWs?.readyState === WebSocket.OPEN;
 }
 
 export function onPipelineEvent(cb: (event: PipelineStageEvent) => void): Unsubscribe {
@@ -178,7 +230,14 @@ export function onPipelineConnectionChange(cb: (connected: boolean) => void): Un
 }
 
 export function disconnectPipelineStream(): void {
-  if (pipelineReconnectTimer) clearTimeout(pipelineReconnectTimer);
-  pipelineWs?.close();
-  pipelineWs = null;
+  if (pipelineReconnectTimer) { clearTimeout(pipelineReconnectTimer); pipelineReconnectTimer = null; }
+  if (pipelinePingInterval) { clearInterval(pipelinePingInterval); pipelinePingInterval = null; }
+  if (pipelineWs) {
+    // Remove handlers BEFORE close to prevent zombie reconnect from onclose
+    pipelineWs.onclose = null;
+    pipelineWs.onerror = null;
+    pipelineWs.onmessage = null;
+    pipelineWs.close();
+    pipelineWs = null;
+  }
 }

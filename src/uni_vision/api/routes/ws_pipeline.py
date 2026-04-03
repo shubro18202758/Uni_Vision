@@ -10,7 +10,9 @@ frame ingestion, vehicle detection, plate localisation, OCR, etc.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -38,8 +40,18 @@ async def websocket_pipeline(websocket: WebSocket) -> None:
 
     try:
         while True:
-            # Keep-alive: wait for client pings
-            await websocket.receive_text()
+            try:
+                # Wait for client message (ping) with a 30s timeout
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                # No client message received — send heartbeat to keep connection alive
+                # and detect dead clients (send will raise if connection is gone)
+                try:
+                    await websocket.send_text(
+                        json.dumps({"type": "heartbeat", "timestamp": time.time()})
+                    )
+                except Exception:
+                    break  # Connection is dead, exit loop
     except WebSocketDisconnect:
         pass
     except Exception:

@@ -14,8 +14,8 @@ class TestComputeBudget:
         report = compute_budget()
         assert report.fits is True
         assert report.ceiling_mb == 8192
-        assert report.total_allocated_mb == 7168
-        assert report.headroom_mb == 1024
+        assert report.total_allocated_mb == 6024
+        assert report.headroom_mb == 2168
         assert report.quantization == "Q4_K_M"
         assert report.context_window_tokens == 4096
 
@@ -96,8 +96,8 @@ class TestMaxContextForBudget:
     def test_no_room_returns_zero(self):
         from uni_vision.monitoring.vram_budget import max_context_for_budget
 
-        tokens = max_context_for_budget(ceiling_mb=5120)
-        # With 5120 LLM + 1024 vision + 512 system + 256 safety = 6912 > 5120
+        tokens = max_context_for_budget(ceiling_mb=5000)
+        # With 5000 LLM + 256 vision + 512 system + 256 safety > 5000
         assert tokens == 0
 
     def test_larger_ceiling_more_tokens(self):
@@ -116,10 +116,10 @@ class TestConstants:
 
         assert VRAM_CEILING_MB == 8192
 
-    def test_qwen_weight_size(self):
-        from uni_vision.monitoring.vram_budget import QWEN_9B_Q4_KM_WEIGHTS_MB
+    def test_gemma4_weight_size(self):
+        from uni_vision.monitoring.vram_budget import GEMMA4_E2B_WEIGHTS_MB
 
-        assert QWEN_9B_Q4_KM_WEIGHTS_MB == 5120
+        assert GEMMA4_E2B_WEIGHTS_MB == 5000
 
     def test_yolov8n_engine_size(self):
         from uni_vision.monitoring.vram_budget import YOLOV8N_INT8_SINGLE_MB

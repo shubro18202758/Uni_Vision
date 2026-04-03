@@ -12,7 +12,7 @@ from uni_vision.contracts.dtos import DetectionContext, OCRResult
 
 @runtime_checkable
 class OCREngine(Protocol):
-    """Extracts plate text from an enhanced plate image.
+    """Extracts text from an enhanced image region.
 
     Implementations: EasyOCRFallback (default), ComponentOCREngine
     (adapter for Manager-provisioned models — PaddleOCR, TrOCR, etc.).

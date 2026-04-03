@@ -5,7 +5,7 @@ PLATE_OCR capability into the ``OCREngine`` Protocol.  The Manager
 Agent provisions OCR models from HuggingFace, PyPI, or TorchHub,
 and this adapter makes them usable by the pipeline.
 
-Qwen 3.5 9B is the Manager Agent brain ONLY — it reasons about which
+Gemma 4 E2B is the Manager Agent brain ONLY — it reasons about which
 components to provision, resolves conflicts, and monitors health.
 ALL image processing (including OCR) is performed by dedicated
 pre-trained models and libraries (EasyOCR, PaddleOCR, TrOCR, etc.).

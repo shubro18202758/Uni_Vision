@@ -43,6 +43,12 @@ class PipelineEventType(str, Enum):
     PIPELINE_IDLE = "pipeline_idle"
     QUEUE_STATUS = "queue_status"
     ANALYSIS_RESULT = "analysis_result"
+    # Manager Agent job lifecycle events
+    JOB_CREATED = "job_created"
+    JOB_PHASE_CHANGED = "job_phase_changed"
+    COMPONENT_PROVISIONED = "component_provisioned"
+    JOB_FLUSHING = "job_flushing"
+    JOB_FLUSH_COMPLETE = "job_flush_complete"
 
 
 # Ordered stage definitions for the generic CV analysis pipeline
@@ -329,6 +335,21 @@ class PipelineEventBroadcaster:
             status="flagged" if analysis.get("anomaly_detected") else "complete",
             details=analysis,
             thumbnail_b64=thumbnail,
+        )
+        await self._broadcast(event)
+
+    async def emit_custom(
+        self,
+        event_type: str,
+        data: Dict[str, Any],
+    ) -> None:
+        """Broadcast a custom event (job lifecycle, component status, etc.)."""
+        event = PipelineEvent(
+            type=event_type,
+            frame_id="",
+            camera_id=data.get("camera_id", ""),
+            timestamp=time.time(),
+            details=data,
         )
         await self._broadcast(event)
 

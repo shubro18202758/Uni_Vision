@@ -1,7 +1,7 @@
 """Working memory for the agentic reasoning loop.
 
 Manages the conversation history within the LLM's context window
-(typically 4096 tokens for Qwen 3.5 9B Q4_K_M), implementing:
+(typically 4096 tokens for Gemma 4 E2B Q4_K_M), implementing:
 
   * Fixed-capacity message buffer with FIFO eviction.
   * System prompt pinning (never evicted).

@@ -7,7 +7,7 @@ export const STARTER_TEMPLATES: ProjectGraph[] = [
     connections: [],
   },
   {
-    project: { name: "Detection Starter", version: "0.1.0" },
+    project: { name: "General Surveillance Starter", version: "0.1.0" },
     blocks: [
       {
         id: "block-input",
@@ -15,7 +15,105 @@ export const STARTER_TEMPLATES: ProjectGraph[] = [
         label: "RTSP Stream",
         category: "Input",
         position: { x: 40, y: 180 },
-        config: { instruction: "Connect to the parking lot entrance camera and stream live video at 3 FPS", streamUrl: "rtsp://camera.local/stream", fps: 3 },
+        config: { instruction: "Connect to the facility security camera and stream live video at 3 FPS", streamUrl: "rtsp://camera.local/stream", fps: 3 },
+        status: "configured",
+      },
+      {
+        id: "block-sampler",
+        type: "frame-sampler",
+        label: "Frame Sampler",
+        category: "Ingestion",
+        position: { x: 260, y: 180 },
+        config: { instruction: "Sample every 3rd frame to keep processing manageable while maintaining coverage", sampleRate: 3 },
+        status: "configured",
+      },
+      {
+        id: "block-scene",
+        type: "scene-classifier",
+        label: "Scene Classifier",
+        category: "Detection",
+        position: { x: 480, y: 120 },
+        config: { instruction: "Classify the scene type and detect key objects of interest — people, vehicles, hazards, anomalies — with ≥50% confidence", model: "yolov8n.pt", confidence: 0.5 },
+        status: "configured",
+      },
+      {
+        id: "block-anomaly",
+        type: "anomaly-detector",
+        label: "Anomaly Detector",
+        category: "Detection",
+        position: { x: 700, y: 120 },
+        config: { instruction: "Flag unusual patterns — unexpected objects, safety violations, environmental hazards, behavioural anomalies", confidence: 0.6 },
+        status: "configured",
+      },
+      {
+        id: "block-preprocess",
+        type: "image-enhancer",
+        label: "Image Enhancer",
+        category: "Preprocessing",
+        position: { x: 920, y: 120 },
+        config: { instruction: "Enhance regions of interest — adjust contrast, sharpen, and normalise for analysis", clahe: true, targetWidth: 640 },
+        status: "configured",
+      },
+      {
+        id: "block-ocr",
+        type: "paddleocr",
+        label: "Text Extractor",
+        category: "OCR",
+        position: { x: 1140, y: 120 },
+        config: { instruction: "Extract any visible text, labels, signs, or identifiers from highlighted regions", useAngleClassifier: true, language: "en" },
+        status: "configured",
+      },
+      {
+        id: "block-dedup",
+        type: "deduplicator",
+        label: "Deduplicator",
+        category: "PostProcessing",
+        position: { x: 1360, y: 120 },
+        config: { instruction: "Remove duplicate detections within a 10-second window using perceptual hashing", windowSeconds: 10, hashThreshold: 8 },
+        status: "configured",
+      },
+      {
+        id: "block-dispatch",
+        type: "dispatcher",
+        label: "Dispatcher",
+        category: "Output",
+        position: { x: 1580, y: 180 },
+        config: { instruction: "Save all validated detections to the database and notify via WebSocket broadcast", sinks: "database,websocket" },
+        status: "configured",
+      },
+      {
+        id: "block-annotator",
+        type: "annotator",
+        label: "Annotator",
+        category: "Output",
+        position: { x: 700, y: 320 },
+        config: { instruction: "Draw bounding boxes and detection labels on the live video feed for monitoring", showLabels: true },
+        status: "configured",
+      },
+    ],
+    connections: [
+      { id: "e-input-sampler", source: "block-input", sourceHandle: "frame-out", target: "block-sampler", targetHandle: "frame-in" },
+      { id: "e-sampler-scene", source: "block-sampler", sourceHandle: "frame-out", target: "block-scene", targetHandle: "frame-in" },
+      { id: "e-scene-anomaly-frame", source: "block-scene", sourceHandle: "frame-out", target: "block-anomaly", targetHandle: "frame-in" },
+      { id: "e-scene-anomaly-boxes", source: "block-scene", sourceHandle: "boxes-out", target: "block-anomaly", targetHandle: "boxes-in" },
+      { id: "e-anomaly-preprocess", source: "block-anomaly", sourceHandle: "frame-out", target: "block-preprocess", targetHandle: "frame-in" },
+      { id: "e-preprocess-ocr", source: "block-preprocess", sourceHandle: "frame-out", target: "block-ocr", targetHandle: "frame-in" },
+      { id: "e-ocr-dedup", source: "block-ocr", sourceHandle: "text-out", target: "block-dedup", targetHandle: "text-in" },
+      { id: "e-dedup-dispatch", source: "block-dedup", sourceHandle: "text-out", target: "block-dispatch", targetHandle: "text-in" },
+      { id: "e-scene-annotator-frame", source: "block-scene", sourceHandle: "frame-out", target: "block-annotator", targetHandle: "frame-in" },
+      { id: "e-scene-annotator-boxes", source: "block-scene", sourceHandle: "boxes-out", target: "block-annotator", targetHandle: "boxes-in" },
+    ],
+  },
+  {
+    project: { name: "ANPR Pipeline (Example)", version: "0.1.0" },
+    blocks: [
+      {
+        id: "block-input",
+        type: "rtsp-stream",
+        label: "RTSP Stream",
+        category: "Input",
+        position: { x: 40, y: 180 },
+        config: { instruction: "Connect to the entrance camera and stream live video at 3 FPS", streamUrl: "rtsp://camera.local/stream", fps: 3 },
         status: "configured",
       },
       {
@@ -69,7 +167,7 @@ export const STARTER_TEMPLATES: ProjectGraph[] = [
         label: "Regex Validator",
         category: "PostProcessing",
         position: { x: 1360, y: 60 },
-        config: { instruction: "Validate detected plates against Indian number plate format XX00XX0000", pattern: "^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$" },
+        config: { instruction: "Validate detected plates against expected format patterns", pattern: "^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$" },
         status: "configured",
       },
       {
@@ -87,7 +185,7 @@ export const STARTER_TEMPLATES: ProjectGraph[] = [
         label: "Dispatcher",
         category: "Output",
         position: { x: 1580, y: 200 },
-        config: { instruction: "Save all validated plate readings to the database and notify via Redis pub/sub", sinks: "database,redis" },
+        config: { instruction: "Save all validated readings to the database and notify via Redis pub/sub", sinks: "database,redis" },
         status: "configured",
       },
       {
@@ -96,30 +194,20 @@ export const STARTER_TEMPLATES: ProjectGraph[] = [
         label: "Annotator",
         category: "Output",
         position: { x: 700, y: 320 },
-        config: { instruction: "Draw bounding boxes and plate labels on the live video feed for monitoring", showLabels: true },
+        config: { instruction: "Draw bounding boxes and detection labels on the live video feed for monitoring", showLabels: true },
         status: "configured",
       },
     ],
     connections: [
-      // Stream → Sampler
       { id: "e-input-sampler", source: "block-input", sourceHandle: "frame-out", target: "block-sampler", targetHandle: "frame-in" },
-      // Sampler → Vehicle Detector
       { id: "e-sampler-vdet", source: "block-sampler", sourceHandle: "frame-out", target: "block-vehicle-det", targetHandle: "frame-in" },
-      // Vehicle Detector → Plate Detector (frame)
       { id: "e-vdet-pdet-frame", source: "block-vehicle-det", sourceHandle: "frame-out", target: "block-plate-det", targetHandle: "frame-in" },
-      // Vehicle Detector → Plate Detector (boxes)
       { id: "e-vdet-pdet-boxes", source: "block-vehicle-det", sourceHandle: "boxes-out", target: "block-plate-det", targetHandle: "boxes-in" },
-      // Plate Detector → Preprocessor
       { id: "e-pdet-preprocess", source: "block-plate-det", sourceHandle: "plates-out", target: "block-preprocess", targetHandle: "frame-in" },
-      // Preprocessor → OCR
       { id: "e-preprocess-ocr", source: "block-preprocess", sourceHandle: "frame-out", target: "block-ocr", targetHandle: "frame-in" },
-      // OCR → Regex Validator
       { id: "e-ocr-validator", source: "block-ocr", sourceHandle: "text-out", target: "block-validator", targetHandle: "text-in" },
-      // Validator → Deduplicator
       { id: "e-validator-dedup", source: "block-validator", sourceHandle: "text-out", target: "block-dedup", targetHandle: "text-in" },
-      // Deduplicator → Dispatcher
       { id: "e-dedup-dispatch", source: "block-dedup", sourceHandle: "text-out", target: "block-dispatch", targetHandle: "text-in" },
-      // Vehicle Detector → Annotator (visual branch)
       { id: "e-vdet-annotator-frame", source: "block-vehicle-det", sourceHandle: "frame-out", target: "block-annotator", targetHandle: "frame-in" },
       { id: "e-vdet-annotator-boxes", source: "block-vehicle-det", sourceHandle: "boxes-out", target: "block-annotator", targetHandle: "boxes-in" },
     ],

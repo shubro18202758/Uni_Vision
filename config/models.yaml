@@ -25,7 +25,7 @@ frame_sampling:
   phash_size: 32
   hamming_distance_threshold: 5
 
-# ─── Plate Preprocessing Pipeline (S4 → S6) ───
+# ─── Detection Preprocessing Pipeline (S4 → S6) ───
 preprocessing:
   padding_px: 5
 

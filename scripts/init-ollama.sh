@@ -2,7 +2,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Uni_Vision — Ollama Model Initializer
 #
-# Pulls the Qwen 3.5 9B Q4_K_M base model, then creates
+# Pulls the Gemma 4 E2B Q4_K_M base model, then creates
 # three custom Modelfile variants:
 #   1. uni-vision-ocr         (primary OCR engine)
 #   2. uni-vision-adjudicator (spatial reasoning adjudicator)
@@ -15,7 +15,7 @@
 #   ./scripts/init-ollama.sh                     # local Ollama
 #   OLLAMA_HOST=http://ollama:11434 ./scripts/init-ollama.sh  # Docker
 #
-# OCR and Adjudicator share the same Q4_K_M Qwen weights (hard-linked
+# OCR and Adjudicator share the same Q4_K_M Gemma 4 weights (hard-linked
 # by Ollama).  Navarasa uses a separate Gemma-7B GGUF from HuggingFace.
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 set -e
@@ -48,7 +48,7 @@ wait_for_ollama() {
 
 # ── Pull base model ──────────────────────────────────────────────
 pull_base_model() {
-    local model="qwen3.5:9b-q4_K_M"
+    local model="gemma4:e2b"
     log "Pulling base model: ${model} ..."
     curl -sf "${OLLAMA_HOST}/api/pull" \
         -d "{\"name\": \"${model}\", \"stream\": false}" \
@@ -120,7 +120,7 @@ main() {
 
     wait_for_ollama
 
-    # Step 1: Pull the Qwen 3.5 9B Q4_K_M base
+    # Step 1: Pull the Gemma 4 E2B Q4_K_M base
     pull_base_model
 
     # Step 2: Create OCR variant

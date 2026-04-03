@@ -335,12 +335,16 @@ class ImpactAnalysisEngine:
         camera_id: str,
         telemetry: Dict[str, Any],
         recent_detections: List[Dict[str, Any]],
+        anomaly_type: str = "",
+        anomaly_severity: str = "",
+        anomaly_description: str = "",
     ) -> ImpactAnalysis:
         t0 = time.perf_counter()
 
         # Step 1: Impact dimensions (7 domains)
         dimensions = self._compute_dimensions(
             validation_status, ocr_confidence, camera_id, telemetry, recent_detections,
+            anomaly_type, anomaly_severity, anomaly_description,
         )
 
         # Step 2: Overall impact score
@@ -420,22 +424,32 @@ class ImpactAnalysisEngine:
         camera_id: str,
         telemetry: Dict[str, Any],
         recent: List[Dict[str, Any]],
+        anomaly_type: str = "",
+        anomaly_severity: str = "",
+        anomaly_description: str = "",
     ) -> List[ImpactDimension]:
         dims: List[ImpactDimension] = []
+
+        # ── Anomaly-type severity multiplier ──
+        sev_mult = {"low": 0.7, "medium": 1.0, "high": 1.3, "critical": 1.6}.get(
+            anomaly_severity.lower() if anomaly_severity else "", 1.0,
+        )
+        atype = anomaly_type.lower() if anomaly_type else ""
+        atype_label = anomaly_type or "detected anomaly"
 
         # 1. Operational throughput
         latency = telemetry.get("pipeline_latency_ms", 500)
         n_total = max(len(recent), 1)
         n_flags = sum(1 for d in recent if d.get("validation_status", "valid") != "valid")
         throughput_loss = (n_flags / n_total) * 100
-        op_score = min(100, throughput_loss * 1.5 + (latency / 50))
+        op_score = min(100, (throughput_loss * 1.5 + (latency / 50)) * sev_mult)
         dims.append(ImpactDimension(
             domain=ImpactDomain.OPERATIONAL.value,
-            title="Operational Throughput Impact",
+            title=f"Operational Impact — {atype_label}",
             score=round(op_score, 1),
             severity=self._score_to_severity(op_score),
             description=(
-                f"Pipeline processing {n_flags}/{n_total} flagged frames. "
+                f"'{atype_label}' detected: pipeline processing {n_flags}/{n_total} flagged frames. "
                 f"Throughput degradation at {throughput_loss:.1f}% with {latency:.0f}ms latency."
             ),
             affected_components=["Pipeline Orchestrator", "Frame Ingestion", "Queue Manager"],
@@ -444,6 +458,7 @@ class ImpactAnalysisEngine:
                 "latency_ms": round(latency, 1),
                 "flagged_ratio": round(n_flags / n_total, 3),
                 "frames_processed": n_total,
+                "anomaly_type": anomaly_type,
             },
         ))
 
@@ -452,14 +467,18 @@ class ImpactAnalysisEngine:
         cam_flags = sum(1 for d in cam_dets if d.get("validation_status", "valid") != "valid")
         cam_total = max(len(cam_dets), 1)
         coverage_loss = (cam_flags / cam_total) * 100
-        surv_score = min(100, coverage_loss * 1.8)
+        # Physical/structural anomalies have higher surveillance impact
+        surv_mult = sev_mult
+        if atype in ("structural_damage", "physical_intrusion", "vandalism", "obstruction"):
+            surv_mult *= 1.3
+        surv_score = min(100, coverage_loss * 1.8 * surv_mult)
         dims.append(ImpactDimension(
             domain=ImpactDomain.SURVEILLANCE.value,
-            title="Surveillance Coverage Integrity",
+            title=f"Surveillance Impact — {atype_label}",
             score=round(surv_score, 1),
             severity=self._score_to_severity(surv_score),
             description=(
-                f"Camera {camera_id}: {cam_flags}/{cam_total} frames flagged — "
+                f"Camera {camera_id}: '{atype_label}' affecting {cam_flags}/{cam_total} frames — "
                 f"{coverage_loss:.1f}% coverage loss. "
                 f"{'Total blind spot risk.' if coverage_loss > 60 else 'Intermittent gaps.'}"
             ),
@@ -468,6 +487,7 @@ class ImpactAnalysisEngine:
                 "coverage_loss_pct": round(coverage_loss, 1),
                 "cam_flag_count": cam_flags,
                 "cam_total_frames": cam_total,
+                "anomaly_type": anomaly_type,
             },
         ))
 
@@ -476,37 +496,41 @@ class ImpactAnalysisEngine:
         if recent:
             confs = [d.get("ocr_confidence", 0.7) for d in recent]
             avg_conf = sum(confs) / len(confs)
-        dq_score = min(100, (1.0 - avg_conf) * 130 + throughput_loss * 0.5)
+        dq_score = min(100, ((1.0 - avg_conf) * 130 + throughput_loss * 0.5) * sev_mult)
         dims.append(ImpactDimension(
             domain=ImpactDomain.DATA_QUALITY.value,
-            title="Data Quality Degradation",
+            title=f"Data Quality — {atype_label}",
             score=round(dq_score, 1),
             severity=self._score_to_severity(dq_score),
             description=(
-                f"Average OCR confidence at {avg_conf:.1%}. "
+                f"'{atype_label}' detection confidence at {confidence:.1%}. "
                 f"Data quality index: {100 - dq_score:.1f}/100. "
                 f"{'Forensic reliability compromised.' if dq_score > 50 else 'Acceptable with caveats.'}"
             ),
-            affected_components=["OCR Engine", "Detection Log", "Analytics", "Forensics"],
+            affected_components=["Detection Engine", "Detection Log", "Analytics", "Forensics"],
             metrics={
                 "avg_confidence": round(avg_conf, 3),
                 "current_confidence": round(confidence, 3),
                 "quality_index": round(100 - dq_score, 1),
+                "anomaly_type": anomaly_type,
             },
         ))
 
         # 4. Cascading failure potential
         vram = telemetry.get("vram_utilisation_pct", 50)
         err_rate = telemetry.get("component_error_rate", 0.01)
-        casc_score = min(100, (vram - 50) * 1.5 + err_rate * 300 + (1.0 - confidence) * 30)
-        casc_score = max(0, casc_score)
+        casc_base = (vram - 50) * 1.5 + err_rate * 300 + (1.0 - confidence) * 30
+        # Environmental hazards escalate cascading risk
+        if atype in ("fire", "flooding", "gas_leak", "environmental_hazard"):
+            casc_base += 20
+        casc_score = min(100, max(0, casc_base * sev_mult))
         dims.append(ImpactDimension(
             domain=ImpactDomain.CASCADING.value,
-            title="Cascading Failure Potential",
+            title=f"Cascade Risk — {atype_label}",
             score=round(casc_score, 1),
             severity=self._score_to_severity(casc_score),
             description=(
-                f"VRAM at {vram:.0f}%, error rate {err_rate:.1%}. "
+                f"'{atype_label}' impact: VRAM at {vram:.0f}%, error rate {err_rate:.1%}. "
                 f"{'HIGH cascade risk — domino failure likely.' if casc_score > 60 else 'Contained — cascade unlikely.'}"
             ),
             affected_components=["GPU / VRAM", "All Models", "Pipeline Orchestrator"],
@@ -514,21 +538,27 @@ class ImpactAnalysisEngine:
                 "vram_pct": round(vram, 1),
                 "error_rate": round(err_rate, 4),
                 "cascade_probability": round(min(1, casc_score / 100), 2),
+                "anomaly_type": anomaly_type,
             },
         ))
 
         # 5. Temporal escalation risk
         trend = self._flag_trend(camera_id, recent)
         temp_base = 30 if trend == "stable" else 60 if trend == "worsening" else 15
-        temp_score = min(100, temp_base + (n_flags / n_total) * 50)
+        # Certain anomaly types escalate faster
+        if atype in ("fire", "structural_damage", "gas_leak"):
+            temp_base += 25
+        elif atype in ("crowd_anomaly", "traffic_congestion"):
+            temp_base += 10
+        temp_score = min(100, (temp_base + (n_flags / n_total) * 50) * sev_mult)
         dims.append(ImpactDimension(
             domain=ImpactDomain.TEMPORAL.value,
-            title="Temporal Escalation Risk",
+            title=f"Temporal Escalation — {atype_label}",
             score=round(temp_score, 1),
             severity=self._score_to_severity(temp_score),
             description=(
-                f"Flag trend: {trend}. On a live feed, "
-                f"{'rapid escalation expected' if trend == 'worsening' else 'condition may stabilise' if trend == 'improving' else 'unclear trajectory'}. "
+                f"'{atype_label}' trend: {trend}. "
+                f"{'Rapid escalation expected' if trend == 'worsening' else 'Condition may stabilise' if trend == 'improving' else 'Unclear trajectory'}. "
                 f"Each second without resolution {'' if temp_score < 40 else 'significantly '}"
                 f"increases cumulative damage."
             ),
@@ -537,15 +567,16 @@ class ImpactAnalysisEngine:
                 "trend": trend,
                 "escalation_rate": round(temp_score / 100, 2),
                 "flag_ratio": round(n_flags / n_total, 3),
+                "anomaly_type": anomaly_type,
             },
         ))
 
         # 6. Resource utilisation impact
         cpu = telemetry.get("cpu_utilisation_pct", 40)
-        res_score = min(100, max(0, (vram - 40) * 1.2 + (cpu - 40) * 0.5 + latency / 100))
+        res_score = min(100, max(0, ((vram - 40) * 1.2 + (cpu - 40) * 0.5 + latency / 100) * sev_mult))
         dims.append(ImpactDimension(
             domain=ImpactDomain.RESOURCE.value,
-            title="Resource Utilisation Impact",
+            title=f"Resource Impact — {atype_label}",
             score=round(res_score, 1),
             severity=self._score_to_severity(res_score),
             description=(
@@ -570,14 +601,14 @@ class ImpactAnalysisEngine:
             compliance_score += 20
         if status == "unreadable":
             compliance_score += 25
-        compliance_score = min(100, compliance_score)
+        compliance_score = min(100, compliance_score * sev_mult)
         dims.append(ImpactDimension(
             domain=ImpactDomain.COMPLIANCE.value,
-            title="Compliance & SLA Impact",
+            title=f"Compliance & SLA — {atype_label}",
             score=round(compliance_score, 1),
             severity=self._score_to_severity(compliance_score),
             description=(
-                f"SLA risk score: {compliance_score:.0f}/100. "
+                f"'{atype_label}' SLA risk score: {compliance_score:.0f}/100. "
                 f"{'SLA violation imminent.' if compliance_score > 60 else 'SLA at risk.' if compliance_score > 30 else 'Within SLA bounds.'} "
                 f"Detection accuracy and coverage requirements may not be met."
             ),

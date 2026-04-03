@@ -107,8 +107,14 @@ async def start_processing(
         "sampler": sampler,
     }
 
+    # Register job with the Manager Agent's JobLifecycleManager
+    job_lifecycle = getattr(pipeline, "_job_lifecycle", None)
+    if job_lifecycle is not None:
+        await job_lifecycle.create_job(job_id, camera_id)
+        await job_lifecycle.update_phase(job_id, _get_processing_phase())
+
     # Background task: auto-cleanup when video ends
-    asyncio.create_task(_wait_for_completion(job_id, source, sampler))
+    asyncio.create_task(_wait_for_completion(job_id, source, sampler, pipeline))
 
     logger.info(
         "video_processing_started job_id=%s camera_id=%s source=%s",
@@ -161,6 +167,18 @@ async def stop_all_jobs() -> Dict[str, Any]:
     return {"stopped": stopped, "count": len(stopped)}
 
 
+@router.get("/jobs/lifecycle")
+async def get_job_lifecycle_status(request: Request) -> Dict[str, Any]:
+    """Return Manager Agent job lifecycle state for all tracked jobs."""
+    pipeline = getattr(request.app.state, "pipeline", None)
+    if pipeline is None:
+        return {"jobs": {}, "manager_enabled": False}
+    job_lifecycle = getattr(pipeline, "_job_lifecycle", None)
+    if job_lifecycle is None:
+        return {"jobs": {}, "manager_enabled": False}
+    return {"jobs": job_lifecycle.status(), "manager_enabled": True}
+
+
 # ── Internal helpers ──────────────────────────────────────────────
 
 def _cleanup_job(job: Dict[str, Any]) -> None:
@@ -174,10 +192,17 @@ def _cleanup_job(job: Dict[str, Any]) -> None:
     job["status"] = "stopped"
 
 
+def _get_processing_phase():
+    """Import lazily to avoid circular import."""
+    from uni_vision.manager.job_lifecycle import JobPhase
+    return JobPhase.PROCESSING
+
+
 async def _wait_for_completion(
     job_id: str,
     source: RTSPFrameSource,
     sampler: TemporalSampler,
+    pipeline: Any = None,
 ) -> None:
     """Background coroutine — waits for video EOF then cleans up."""
     max_wait_s = 600  # 10-minute safety timeout
@@ -209,6 +234,23 @@ async def _wait_for_completion(
         job = _active_jobs.get(job_id)
         if job is not None:
             job["status"] = "completed" if elapsed < max_wait_s else "timeout"
+
+        # Flush dynamically-provisioned packages for this job
+        if pipeline is not None:
+            job_lifecycle = getattr(pipeline, "_job_lifecycle", None)
+            if job_lifecycle is not None:
+                try:
+                    summary = await job_lifecycle.flush_job(job_id)
+                    logger.info(
+                        "job_packages_flushed job_id=%s unloaded=%s uninstalled=%s",
+                        job_id,
+                        summary.get("unloaded", []),
+                        summary.get("uninstalled", []),
+                    )
+                except Exception:
+                    logger.warning(
+                        "job_flush_failed job_id=%s", job_id, exc_info=True,
+                    )
 
         logger.info("video_processing_completed job_id=%s elapsed=%.0fs", job_id, elapsed)
     except Exception:

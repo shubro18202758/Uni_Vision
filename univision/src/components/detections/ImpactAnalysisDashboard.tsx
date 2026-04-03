@@ -48,9 +48,11 @@ import type {
   CorrelationPair,
 } from "../../types/api";
 import { fetchImpactAnalysis } from "../../services/api";
+import type { DetectionContext } from "../../services/api";
 
 interface Props {
   detectionId: string;
+  context?: DetectionContext;
 }
 
 /* ── Palette ──────────────────────────────────────────────────── */
@@ -278,7 +280,7 @@ const DarkTooltipStyle = {
 
 /* ── Main Dashboard ───────────────────────────────────────────── */
 
-export function ImpactAnalysisDashboard({ detectionId }: Props) {
+export function ImpactAnalysisDashboard({ detectionId, context }: Props) {
   const [data, setData] = useState<ImpactAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -287,7 +289,7 @@ export function ImpactAnalysisDashboard({ detectionId }: Props) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchImpactAnalysis(detectionId)
+    fetchImpactAnalysis(detectionId, context)
       .then((r) => { if (!cancelled) setData(r); })
       .catch((e) => { if (!cancelled) setError(e.message || "Failed to load impact analysis"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -662,7 +664,7 @@ export function ImpactAnalysisDashboard({ detectionId }: Props) {
                     <span className="text-slate-500">Zone: <span className="text-slate-400">{g.zone_affected}</span></span>
                     <span className="text-slate-500">Duration: <span className="text-slate-400">{g.duration_estimate}</span></span>
                     <span className="text-slate-500">Start: <span className="text-slate-400">{g.start_offset}</span></span>
-                    <span className="text-slate-500">Vehicles missed: <span className="text-rose-400 font-bold">~{g.vehicles_missed_estimate}</span></span>
+                    <span className="text-slate-500">Detections missed: <span className="text-rose-400 font-bold">~{g.vehicles_missed_estimate}</span></span>
                   </div>
                 </div>
               );

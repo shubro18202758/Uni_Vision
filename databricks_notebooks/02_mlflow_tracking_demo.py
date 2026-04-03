@@ -55,7 +55,7 @@ mlflow.set_experiment(EXPERIMENT_NAME)
 # MAGIC Each run represents processing a batch of video frames through the multi-stage pipeline:
 # MAGIC - **Stage S2**: Object Detection (YOLOv8)
 # MAGIC - **Stage S3**: Region of Interest Extraction
-# MAGIC - **Stage S7**: LLM Vision Analysis (Qwen 3.5 9B)
+# MAGIC - **Stage S7**: LLM Vision Analysis (Gemma 4 E2B)
 # MAGIC - **Stage S8**: Anomaly Validation & Scoring
 
 # COMMAND ----------
@@ -64,7 +64,7 @@ PIPELINE_STAGES = ["S2_object_detect", "S3_roi_extract", "S7_llm_analysis", "S8_
 
 MODEL_CONFIGS = [
     {
-        "name": "qwen3.5-9b-q4km",
+        "name": "gemma4-e2b-q4km",
         "architecture": "Qwen 9B Vision",
         "quantization": "Q4_K_M",
         "vram_mb": 5600,

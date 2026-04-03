@@ -7,7 +7,7 @@ This module provides two analysis strategies:
    camera metadata to infer the scene type without an LLM call.
 
 2. **LLM-assisted** (deep path):
-   Sends a low-res thumbnail to Qwen 3.5 9B with the
+   Sends a low-res thumbnail to Gemma 4 E2B with the
    CONTEXT_ANALYSIS_PROMPT to get a structured scene description
    and required capabilities.
 
@@ -78,6 +78,13 @@ _SCENE_CAPABILITIES: Dict[SceneType, FrozenSet[ComponentCapability]] = {
     }),
     SceneType.UNKNOWN: frozenset({
         ComponentCapability.OBJECT_DETECTION,
+        ComponentCapability.ANOMALY_DETECTION,
+        ComponentCapability.SCENE_CLASSIFICATION,
+    }),
+    SceneType.GENERAL: frozenset({
+        ComponentCapability.OBJECT_DETECTION,
+        ComponentCapability.ANOMALY_DETECTION,
+        ComponentCapability.SCENE_CLASSIFICATION,
     }),
 }
 
@@ -98,7 +105,7 @@ class ContextAnalyzer:
         self,
         llm_client: Optional[Any] = None,
         *,
-        default_scene: SceneType = SceneType.TRAFFIC,
+        default_scene: SceneType = SceneType.UNKNOWN,
     ) -> None:
         self._llm = llm_client
         self._default_scene = default_scene
@@ -187,14 +194,20 @@ class ContextAnalyzer:
         h, w = frame.shape[:2]
         brightness = float(np.mean(frame))
 
-        # Wide aspect ratio + outdoor brightness → traffic
+        # Wide aspect ratio + outdoor brightness — don't assume traffic
+        # for uploaded videos; default to UNKNOWN so we get broad detection.
         aspect = w / max(h, 1)
-        if aspect > 1.5 and brightness > 60:
-            return SceneType.TRAFFIC
 
         # Dark scene → surveillance at night
         if brightness < 40:
             return SceneType.SURVEILLANCE
+
+        # Very high brightness with warm tones could indicate fire/industrial
+        if brightness > 150 and frame.shape[2] >= 3:
+            # Check red-channel dominance (fire heuristic)
+            mean_bgr = np.mean(frame, axis=(0, 1))
+            if len(mean_bgr) >= 3 and mean_bgr[2] > mean_bgr[0] * 1.3:
+                return SceneType.INDUSTRIAL
 
         return self._default_scene
 
@@ -227,11 +240,11 @@ class ContextAnalyzer:
         camera_id: Optional[str],
         metadata: Dict[str, Any],
     ) -> Optional[FrameContext]:
-        """Use Qwen 3.5 9B for OPEN-ENDED scene understanding.
+        """Use Gemma 4 E2B for OPEN-ENDED scene understanding.
 
         Unlike the heuristic path, this method does NOT constrain the
         returned capabilities to the fixed ComponentCapability enum.
-        Qwen reasons freely about what the frame needs, producing both
+        Gemma 4 reasons freely about what the frame needs, producing both
         standard capabilities (mapped to the enum) and dynamic
         capabilities (free-form strings for open internet discovery).
         It also generates search queries that drive unbounded component

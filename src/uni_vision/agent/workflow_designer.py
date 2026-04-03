@@ -1,7 +1,7 @@
 """Autonomous NL → Pipeline workflow designer.
 
 Takes natural-language input (in any of 16 supported languages),
-translates to English via Navarasa if needed, then uses structured
+translates to English via LLM if needed, then uses structured
 LLM reasoning to design a complete block-node pipeline workflow.
 
 The designer operates in phases, each reported via an optional
@@ -16,10 +16,9 @@ progress callback so the UI can stream real-time status:
 
 Architecture note
 -----------------
-* The *Navarasa 2.0 7B* model handles multilingual translation.
-* The *Qwen 3.5 9B* model (AgentLLMClient) handles the reasoning /
-  block selection via a single structured JSON prompt.
-* Both share VRAM on the same GPU; sequencing is handled by Ollama.
+* The *Gemma 4 E2B* model (AgentLLMClient) handles both multilingual
+  translation and the reasoning / block selection via structured JSON.
+* All models run via Ollama on the local GPU.
 """
 
 from __future__ import annotations
@@ -42,6 +41,7 @@ ProgressFn = Callable[[str, str], Coroutine[Any, Any, None]]
 # ── Compact block catalog (encoded for the LLM prompt) ──────────
 
 BLOCK_CATALOG: List[Dict[str, Any]] = [
+    # ── Input ──────────────────────────────────────────────────────
     {
         "type": "image-input", "label": "Image Input", "category": "Input",
         "desc": "Load a single image file into the pipeline.",
@@ -53,16 +53,75 @@ BLOCK_CATALOG: List[Dict[str, Any]] = [
         "inputs": [], "outputs": [{"id": "frame-out", "type": "frame"}],
     },
     {
+        "type": "video-file", "label": "Video File", "category": "Input",
+        "desc": "Load and decode a local video file frame-by-frame.",
+        "inputs": [], "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+
+    # ── Ingestion ──────────────────────────────────────────────────
+    {
         "type": "frame-sampler", "label": "Frame Sampler", "category": "Ingestion",
-        "desc": "Down-sample frames to reduce processing load.",
+        "desc": "Down-sample frames to a target rate to reduce processing load.",
         "inputs": [{"id": "frame-in", "type": "frame"}],
         "outputs": [{"id": "frame-out", "type": "frame"}],
     },
     {
+        "type": "roi-crop", "label": "ROI Crop", "category": "Ingestion",
+        "desc": "Crop frames to a region-of-interest for focused analysis.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+
+    # ── Preprocessing ──────────────────────────────────────────────
+    {
+        "type": "grayscale", "label": "Grayscale", "category": "Preprocessing",
+        "desc": "Convert frames to grayscale.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+    {
+        "type": "contrast-enhance", "label": "Contrast Enhance", "category": "Preprocessing",
+        "desc": "Enhance contrast via CLAHE adaptive histogram equalisation.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+    {
+        "type": "denoise", "label": "Denoise", "category": "Preprocessing",
+        "desc": "Apply noise reduction (bilateral or NLM) for cleaner frames.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+    {
+        "type": "resize", "label": "Resize", "category": "Preprocessing",
+        "desc": "Resize frames to a target resolution for uniform processing.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+
+    # ── Detection ──────────────────────────────────────────────────
+    {
         "type": "yolo-detector", "label": "YOLO Detector", "category": "Detection",
-        "desc": "Generic object detection (YOLOv8).",
+        "desc": "General-purpose object detection (YOLOv8) — detects people, vehicles, animals, objects.",
         "inputs": [{"id": "frame-in", "type": "frame"}],
         "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "boxes-out", "type": "bounding_box_list"}],
+    },
+    {
+        "type": "motion-detector", "label": "Motion Detector", "category": "Detection",
+        "desc": "Detect motion and moving objects via frame differencing or optical flow.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "boxes-out", "type": "bounding_box_list"}],
+    },
+    {
+        "type": "fire-smoke-detector", "label": "Fire & Smoke Detector", "category": "Detection",
+        "desc": "Detect fire, smoke, and thermal anomalies in visual feeds.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "boxes-out", "type": "bounding_box_list"}],
+    },
+    {
+        "type": "crowd-density", "label": "Crowd Density Analyzer", "category": "Detection",
+        "desc": "Estimate crowd density and count people in a scene.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "score-out", "type": "score"}],
     },
     {
         "type": "vehicle-detector", "label": "Vehicle Detector", "category": "Detection",
@@ -76,64 +135,128 @@ BLOCK_CATALOG: List[Dict[str, Any]] = [
         "inputs": [{"id": "frame-in", "type": "frame"}, {"id": "boxes-in", "type": "bounding_box_list"}],
         "outputs": [{"id": "plates-out", "type": "frame"}, {"id": "boxes-out", "type": "bounding_box_list"}],
     },
+
+    # ── Analysis ───────────────────────────────────────────────────
     {
-        "type": "grayscale", "label": "Grayscale", "category": "Preprocessing",
-        "desc": "Convert frames to grayscale.",
+        "type": "scene-classifier", "label": "Scene Classifier", "category": "Analysis",
+        "desc": "Classify the scene type (indoor/outdoor, industrial, residential, etc.).",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "score-out", "type": "score"}],
+    },
+    {
+        "type": "anomaly-scorer", "label": "Anomaly Scorer", "category": "Analysis",
+        "desc": "Score frame anomaly level using learned baselines and deviation patterns.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "score-out", "type": "score"}],
+    },
+    {
+        "type": "pose-estimator", "label": "Pose Estimator", "category": "Analysis",
+        "desc": "Estimate human body pose keypoints for posture and activity analysis.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "boxes-out", "type": "bounding_box_list"}],
+    },
+    {
+        "type": "ppe-detector", "label": "PPE / Safety Gear Detector", "category": "Analysis",
+        "desc": "Detect personal protective equipment (helmets, vests, goggles, gloves).",
+        "inputs": [{"id": "frame-in", "type": "frame"}, {"id": "boxes-in", "type": "bounding_box_list"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "score-out", "type": "score"}],
+    },
+    {
+        "type": "zone-intrusion", "label": "Zone Intrusion Detector", "category": "Analysis",
+        "desc": "Detect objects or people entering restricted / defined zones.",
+        "inputs": [{"id": "frame-in", "type": "frame"}, {"id": "boxes-in", "type": "bounding_box_list"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "score-out", "type": "score"}],
+    },
+    {
+        "type": "llm-vision", "label": "LLM Vision Analyzer", "category": "Analysis",
+        "desc": "Multipurpose AI vision analysis (Gemma 4) — scene understanding, anomaly reasoning, threat assessment.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "score-out", "type": "score"}, {"id": "text-out", "type": "text"}],
+    },
+
+    # ── Tracking ───────────────────────────────────────────────────
+    {
+        "type": "object-tracker", "label": "Object Tracker", "category": "Tracking",
+        "desc": "Track detected objects across frames (SORT / DeepSORT).",
+        "inputs": [{"id": "frame-in", "type": "frame"}, {"id": "boxes-in", "type": "bounding_box_list"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}, {"id": "boxes-out", "type": "bounding_box_list"}],
+    },
+    {
+        "type": "optical-flow", "label": "Optical Flow", "category": "Tracking",
+        "desc": "Compute dense optical flow to visualise motion patterns and velocity.",
         "inputs": [{"id": "frame-in", "type": "frame"}],
         "outputs": [{"id": "frame-out", "type": "frame"}],
     },
+
+    # ── OCR / Reading ──────────────────────────────────────────────
     {
-        "type": "plate-preprocessor", "label": "Plate Preprocessor", "category": "Preprocessing",
+        "type": "text-reader", "label": "Text Reader (OCR)", "category": "OCR",
+        "desc": "Read text from image regions — signs, labels, plates, documents.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
+        "outputs": [{"id": "text-out", "type": "text"}],
+    },
+    {
+        "type": "plate-preprocessor", "label": "Plate Preprocessor", "category": "OCR",
         "desc": "Deskew, enhance contrast, resize plate crops for OCR.",
         "inputs": [{"id": "frame-in", "type": "frame"}],
         "outputs": [{"id": "frame-out", "type": "frame"}],
     },
-    {
-        "type": "easy-ocr", "label": "EasyOCR", "category": "OCR",
-        "desc": "Read text from image regions using EasyOCR engine.",
-        "inputs": [{"id": "frame-in", "type": "frame"}],
-        "outputs": [{"id": "text-out", "type": "text"}],
-    },
-    {
-        "type": "paddleocr", "label": "PaddleOCR", "category": "OCR",
-        "desc": "High-accuracy OCR for license plate recognition.",
-        "inputs": [{"id": "frame-in", "type": "frame"}],
-        "outputs": [{"id": "text-out", "type": "text"}],
-    },
-    {
-        "type": "regex-validator", "label": "Regex Validator", "category": "PostProcessing",
-        "desc": "Validate text against a regex pattern (e.g. plate format).",
-        "inputs": [{"id": "text-in", "type": "text"}],
-        "outputs": [{"id": "text-out", "type": "text"}],
-    },
+
+    # ── PostProcessing ─────────────────────────────────────────────
     {
         "type": "deduplicator", "label": "Deduplicator", "category": "PostProcessing",
-        "desc": "Filter duplicate plate detections via perceptual hashing.",
+        "desc": "Filter duplicate detections using perceptual hashing within a time window.",
         "inputs": [{"id": "text-in", "type": "text"}],
         "outputs": [{"id": "text-out", "type": "text"}],
     },
     {
-        "type": "adjudicator", "label": "Adjudicator", "category": "PostProcessing",
-        "desc": "Multi-engine OCR adjudication — pick best plate reading.",
-        "inputs": [{"id": "text-in", "type": "text"}],
-        "outputs": [{"id": "text-out", "type": "text"}],
+        "type": "threshold-gate", "label": "Threshold Gate", "category": "PostProcessing",
+        "desc": "Pass events only when confidence or anomaly score exceeds a threshold.",
+        "inputs": [{"id": "score-in", "type": "score"}],
+        "outputs": [{"id": "score-out", "type": "score"}],
     },
+    {
+        "type": "face-anonymizer", "label": "Face Anonymizer", "category": "PostProcessing",
+        "desc": "Blur or pixelate detected faces for privacy compliance.",
+        "inputs": [{"id": "frame-in", "type": "frame"}, {"id": "boxes-in", "type": "bounding_box_list"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+    {
+        "type": "heatmap-generator", "label": "Heatmap Generator", "category": "PostProcessing",
+        "desc": "Generate spatial heatmaps from accumulated detection or motion data.",
+        "inputs": [{"id": "frame-in", "type": "frame"}, {"id": "boxes-in", "type": "bounding_box_list"}],
+        "outputs": [{"id": "frame-out", "type": "frame"}],
+    },
+
+    # ── Output ─────────────────────────────────────────────────────
     {
         "type": "annotator", "label": "Annotator", "category": "Output",
-        "desc": "Draw bounding boxes and labels onto frames for visualisation.",
+        "desc": "Draw bounding boxes, labels, and overlays onto frames for visualisation.",
         "inputs": [{"id": "frame-in", "type": "frame"}, {"id": "boxes-in", "type": "bounding_box_list"}],
         "outputs": [{"id": "frame-out", "type": "frame"}],
     },
     {
         "type": "dispatcher", "label": "Dispatcher", "category": "Output",
-        "desc": "Dispatch validated detections to database / Redis / alerting.",
+        "desc": "Dispatch validated detections to database, Redis, webhook, or alerting sinks.",
         "inputs": [{"id": "text-in", "type": "text"}],
         "outputs": [],
     },
     {
+        "type": "alert-trigger", "label": "Alert Trigger", "category": "Output",
+        "desc": "Fire real-time alerts via webhook, email, or push notification on detection events.",
+        "inputs": [{"id": "score-in", "type": "score"}],
+        "outputs": [],
+    },
+    {
         "type": "console-logger", "label": "Console Logger", "category": "Output",
-        "desc": "Log text output to the console for monitoring.",
+        "desc": "Log text output to the console for monitoring and debugging.",
         "inputs": [{"id": "text-in", "type": "text"}],
+        "outputs": [],
+    },
+    {
+        "type": "video-recorder", "label": "Video Recorder", "category": "Output",
+        "desc": "Record annotated video clips of flagged events for review.",
+        "inputs": [{"id": "frame-in", "type": "frame"}],
         "outputs": [],
     },
 ]
@@ -142,8 +265,10 @@ BLOCK_CATALOG: List[Dict[str, Any]] = [
 CATEGORY_COLOURS: Dict[str, str] = {
     "Input": "#22d3ee",
     "Ingestion": "#06b6d4",
-    "Detection": "#f43f5e",
     "Preprocessing": "#fb923c",
+    "Detection": "#f43f5e",
+    "Analysis": "#a78bfa",
+    "Tracking": "#2dd4bf",
     "OCR": "#4ade80",
     "PostProcessing": "#facc15",
     "Output": "#60a5fa",
@@ -157,58 +282,51 @@ _START_Y = 80
 
 # ── LLM prompt for pipeline design ──────────────────────────────
 
-_BLOCK_CATALOG_STR = json.dumps(BLOCK_CATALOG, indent=2)
+def _build_compact_catalog() -> str:
+    """Build a compact block catalog string for the LLM prompt.
+
+    Only includes type, category, and port IDs to stay within context limits.
+    """
+    lines: List[str] = []
+    for b in BLOCK_CATALOG:
+        ins = ",".join(p["id"] for p in b.get("inputs", []))
+        outs = ",".join(p["id"] for p in b.get("outputs", []))
+        lines.append(f'- {b["type"]} [{b["category"]}] in:[{ins}] out:[{outs}]')
+    return "\n".join(lines)
+
+
+_COMPACT_CATALOG = _build_compact_catalog()
 
 WORKFLOW_DESIGN_SYSTEM_PROMPT = f"""\
-You are an expert computer vision pipeline architect.
-Given a natural-language description from the user, design a complete processing
-pipeline by selecting blocks from the catalog and wiring them together.
+You are a computer vision pipeline architect. Design a processing pipeline from the block catalog below.
 
-## Block catalog
-{_BLOCK_CATALOG_STR}
+## Available blocks (type [category] in:[ports] out:[ports])
+{_COMPACT_CATALOG}
 
-## Connection rules
-- A connection goes from a block's output port to another block's input port.
-- The port **type** must match: "frame" → "frame", "bounding_box_list" → "bounding_box_list", "text" → "text".
-- A block with NO inputs is a *source* (Input category).
-- A block with NO outputs is a *sink* (Output category).
-- You may use a block type more than once (e.g. two OCR engines feeding an Adjudicator).
+## Rules
+- Connect output ports to matching input ports (frame→frame, bounding_box_list→bounding_box_list, text→text, score→score).
+- Order: Input → Ingestion → Preprocessing → Detection → Analysis → Tracking → PostProcessing → Output.
+- Use "rtsp-stream" for camera/live/stream, "video-file" for video, "image-input" for images.
+- Use "yolo-detector" for people/vehicles/objects, "llm-vision" for general anomaly/scene analysis.
+- Include at least one Input, one Detection/Analysis block, and one Output block.
 
-## Standard phase ordering
-Input → Ingestion → Detection → Preprocessing → OCR → PostProcessing → Output
-
-## Output format
-Return ONLY a JSON object (no markdown, no explanation) with this schema:
-{{
-  "pipeline_name": "<short name>",
+## Output: Return ONLY a JSON object with this exact structure:
+{{{{
+  "pipeline_name": "descriptive name",
   "blocks": [
-    {{
-      "type": "<block-type from catalog>",
-      "label": "<user-friendly label>",
-      "config": {{ "<key>": "<value>", ... }}
-    }}
+    {{{{"type": "rtsp-stream", "label": "Camera Feed", "config": {{}}}}}},
+    {{{{"type": "frame-sampler", "label": "Sampler", "config": {{"sampleRate": 5}}}}}},
+    {{{{"type": "yolo-detector", "label": "Detector", "config": {{"confidence": 0.5}}}}}},
+    {{{{"type": "dispatcher", "label": "Output", "config": {{}}}}}}
   ],
   "connections": [
-    {{
-      "from_block_index": <0-based index into blocks array>,
-      "from_port": "<output port id>",
-      "to_block_index": <0-based index into blocks array>,
-      "to_port": "<input port id>"
-    }}
+    {{{{"from_block_index": 0, "from_port": "frame-out", "to_block_index": 1, "to_port": "frame-in"}}}},
+    {{{{"from_block_index": 1, "from_port": "frame-out", "to_block_index": 2, "to_port": "frame-in"}}}},
+    {{{{"from_block_index": 2, "from_port": "boxes-out", "to_block_index": 3, "to_port": "text-in"}}}}
   ]
-}}
+}}}}
 
-## Important
-- Always include at least: one Input, one Detection, and one Output block.
-- If the user mentions RTSP/camera/live/stream use "rtsp-stream"; if image/file use "image-input".
-- If the user mentions vehicles/cars use "vehicle-detector" → "plate-detector".
-- If the user mentions accuracy/best OCR, use both "easy-ocr" and "paddleocr" feeding "adjudicator".
-- Add "frame-sampler" when using RTSP streams.
-- Add preprocessing blocks when the task benefits from image enhancement.
-- Include "dispatcher" as the primary output for database storage.
-- Include "annotator" when visualisation/display is mentioned.
-- Set realistic config values (confidence 0.5-0.7, sampleRate 3-5, etc.).
-- Return ONLY the JSON object. No extra text.
+Design the pipeline for the user's request. Use appropriate blocks and connections. Return ONLY the JSON.
 """
 
 
@@ -282,7 +400,7 @@ class WorkflowDesigner:
     Parameters
     ----------
     llm_client:
-        AgentLLMClient (Qwen 3.5 9B) for structured reasoning.
+        AgentLLMClient (Gemma 4 E2B) for structured reasoning.
     navarasa_client:
         NavarasaClient (Gemma 7B) for multilingual translation.
         May be None if Navarasa is disabled.
@@ -359,13 +477,13 @@ class WorkflowDesigner:
                 language = detect_language(nl_input)
             result.detected_language = language
 
-            if language != "en" and self._navarasa:
+            if language != "en":
                 if progress_fn:
                     await progress_fn(
                         "translating",
                         f"Translating from {language} to English…",
                     )
-                english = await self._navarasa.translate_to_english(
+                english = await self._translate(
                     nl_input, source_language=language,
                 )
                 result.english_input = english
@@ -382,16 +500,16 @@ class WorkflowDesigner:
                     elapsed_ms=(time.perf_counter() - phase_t) * 1000,
                 ))
 
-            # ── Phase 1.5: Switch model to Qwen for design ─────
+            # ── Phase 1.5: Switch model to primary LLM for design ─────
             if self._model_router:
                 try:
                     if progress_fn:
                         await progress_fn(
                             "designing",
-                            "Activating Qwen model for pipeline design…",
+                            "Activating Gemma 4 model for pipeline design…",
                         )
-                    await self._model_router.activate_qwen()
-                    logger.info("workflow_design_model_switched_to_qwen")
+                    await self._model_router.activate_primary()
+                    logger.info("workflow_design_model_switched_to_primary")
                 except Exception as mr_exc:
                     logger.warning(
                         "workflow_design_model_switch_failed: %s", mr_exc,
@@ -483,19 +601,46 @@ class WorkflowDesigner:
 
         result.total_elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        # ── Restore Navarasa model for chat after design ─────────
-        if self._model_router:
-            try:
-                await self._model_router.activate_navarasa()
-                logger.info("workflow_design_model_restored_navarasa")
-            except Exception as mr_exc:
-                logger.warning(
-                    "workflow_design_navarasa_restore_failed: %s", mr_exc,
-                )
-
         return result
 
     # ── Internal helpers ─────────────────────────────────────────
+
+    async def _translate(
+        self, text: str, *, source_language: str = "auto",
+    ) -> str:
+        """Translate non-English text to English using the primary LLM."""
+        import httpx as _httpx
+
+        prompt = (
+            f"Translate the following {source_language} text to English. "
+            f"Return ONLY the English translation, nothing else.\n\n"
+            f"{text}"
+        )
+        messages = [
+            {"role": "system", "content": "You are an expert translator. Translate to English accurately and concisely. Return ONLY the translation."},
+            {"role": "user", "content": prompt},
+        ]
+
+        cfg = self._llm._cfg
+        payload = {
+            "model": cfg.model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "num_ctx": cfg.num_ctx,
+                "temperature": 0.1,
+                "num_predict": 1024,
+            },
+        }
+
+        base_url = str(self._llm._client.base_url).rstrip("/")
+        url = f"{base_url}/api/chat"
+
+        async with _httpx.AsyncClient(timeout=_httpx.Timeout(60.0, connect=10.0)) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("message", {}).get("content", text).strip()
 
     async def _call_llm(
         self,
@@ -503,7 +648,7 @@ class WorkflowDesigner:
         *,
         progress_fn: Optional[ProgressFn] = None,
     ) -> str:
-        """Send the pipeline design prompt to the Qwen LLM with streaming.
+        """Send the pipeline design prompt to the LLM with streaming.
 
         Uses Ollama's streaming API so tokens are forwarded in real-time
         to the frontend via ``progress_fn("designing_stream", chunk)``.
@@ -513,9 +658,7 @@ class WorkflowDesigner:
         import asyncio as _asyncio
         import httpx as _httpx
 
-        # Append /nothink to suppress Qwen 3.5's internal chain-of-thought
-        # so it outputs the JSON directly without wasting tokens on reasoning.
-        user_content = english_input.rstrip() + "\n/nothink"
+        user_content = english_input.rstrip()
 
         messages = [
             {"role": "system", "content": WORKFLOW_DESIGN_SYSTEM_PROMPT},
@@ -524,7 +667,7 @@ class WorkflowDesigner:
 
         cfg = self._llm._cfg
         options: Dict[str, Any] = {
-            "num_ctx": cfg.num_ctx,
+            "num_ctx": max(cfg.num_ctx, 8192),
             "temperature": 0.10,
             "num_predict": 4096,
         }
@@ -541,7 +684,7 @@ class WorkflowDesigner:
             "model": cfg.model,
             "messages": messages,
             "stream": True,
-            "think": False,
+            "format": "json",
             "options": options,
         }
 
@@ -551,10 +694,9 @@ class WorkflowDesigner:
         last_exc: Optional[Exception] = None
         for attempt in range(2):
             try:
-                accumulated: List[str] = []  # only content tokens (the JSON)
+                accumulated: List[str] = []
                 token_count = 0
                 buffer: List[str] = []
-                in_thinking = False
 
                 async with _httpx.AsyncClient(
                     timeout=_httpx.Timeout(120.0, connect=10.0),
@@ -577,43 +719,9 @@ class WorkflowDesigner:
                                 continue
 
                             msg = chunk.get("message", {})
-                            thinking = msg.get("thinking", "")
                             content = msg.get("content", "")
 
-                            # Qwen 3.5 streams reasoning in "thinking"
-                            # field before the actual content begins.
-                            if thinking:
-                                if not in_thinking and progress_fn:
-                                    await progress_fn(
-                                        "designing_thinking",
-                                        "🧠 Model is reasoning...\n\n",
-                                    )
-                                    in_thinking = True
-                                buffer.append(thinking)
-                                token_count += 1
-                                if progress_fn and token_count % 3 == 0:
-                                    await progress_fn(
-                                        "designing_thinking",
-                                        "".join(buffer),
-                                    )
-                                    buffer.clear()
-
                             if content:
-                                if in_thinking:
-                                    # Transition: flush thinking buffer, emit separator
-                                    if progress_fn:
-                                        remaining = "".join(buffer)
-                                        if remaining:
-                                            await progress_fn(
-                                                "designing_thinking", remaining,
-                                            )
-                                        await progress_fn(
-                                            "designing_stream",
-                                            "\n\n━━━ Generating Pipeline JSON ━━━\n\n",
-                                        )
-                                    buffer.clear()
-                                    in_thinking = False
-
                                 accumulated.append(content)
                                 buffer.append(content)
                                 token_count += 1
@@ -627,8 +735,7 @@ class WorkflowDesigner:
                             if chunk.get("done"):
                                 # Flush remaining buffer
                                 if progress_fn and buffer:
-                                    phase = "designing_thinking" if in_thinking else "designing_stream"
-                                    await progress_fn(phase, "".join(buffer))
+                                    await progress_fn("designing_stream", "".join(buffer))
                                 break
 
                 return "".join(accumulated)
@@ -777,8 +884,8 @@ class WorkflowDesigner:
 
         # Group blocks by category for layout
         category_order = [
-            "Input", "Ingestion", "Detection",
-            "Preprocessing", "OCR", "PostProcessing", "Output",
+            "Input", "Ingestion", "Preprocessing", "Detection",
+            "Analysis", "Tracking", "OCR", "PostProcessing", "Output",
         ]
         category_columns: Dict[str, List[int]] = {c: [] for c in category_order}
 

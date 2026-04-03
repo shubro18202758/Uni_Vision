@@ -229,8 +229,8 @@ class PipelineComposer:
         )
         return blueprint
 
-    def compose_anpr_default(self) -> PipelineBlueprint:
-        """Shortcut: compose the default ANPR pipeline.
+    def compose_default_pipeline(self) -> PipelineBlueprint:
+        """Shortcut: compose the default detection pipeline.
 
         This recreates the original hardcoded S0-S8 pipeline using
         the new dynamic system — useful for backward compatibility.

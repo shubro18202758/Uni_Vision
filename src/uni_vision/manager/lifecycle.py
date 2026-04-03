@@ -7,8 +7,8 @@ Manager decides:
   * When to unload entirely (free memory)
   * LRU eviction when VRAM is tight
 
-The Ollama server (Qwen 3.5 9B Q4_K_M) takes ~5.8 GiB.  That
-leaves ~2.2 GiB for all other components.  The lifecycle manager
+The Ollama server (Gemma 4 E2B Q4_K_M) takes ~5.0 GiB.  That
+leaves ~3.0 GiB for all other components.  The lifecycle manager
 keeps a running tally and enforces the budget.
 
 Integrates with ``GPUProfiler`` (when available) for real VRAM

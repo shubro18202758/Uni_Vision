@@ -14,12 +14,14 @@ interface UiState {
   chatOpen: boolean;
   layoutMode: LayoutAlgorithm;
   quickAdd: QuickAddState | null;
+  pipelineTheater: boolean;
   setRightPanelTab: (tab: RightPanelTab) => void;
   setPaletteQuery: (query: string) => void;
   toggleChat: () => void;
   setLayoutMode: (mode: LayoutAlgorithm) => void;
   openQuickAdd: (screen: { x: number; y: number }, canvas: { x: number; y: number }) => void;
   closeQuickAdd: () => void;
+  setPipelineTheater: (open: boolean) => void;
 }
 
 const LAYOUT_KEY = "univision:layoutMode";
@@ -38,6 +40,7 @@ export const useUiStore = create<UiState>((set) => ({
   chatOpen: false,
   layoutMode: getStoredLayout(),
   quickAdd: null,
+  pipelineTheater: false,
   setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
   setPaletteQuery: (paletteQuery) => set({ paletteQuery }),
   toggleChat: () => set((s) => ({ chatOpen: !s.chatOpen })),
@@ -47,4 +50,5 @@ export const useUiStore = create<UiState>((set) => ({
   },
   openQuickAdd: (screen, canvas) => set({ quickAdd: { screen, canvas } }),
   closeQuickAdd: () => set({ quickAdd: null }),
+  setPipelineTheater: (pipelineTheater) => set({ pipelineTheater }),
 }));

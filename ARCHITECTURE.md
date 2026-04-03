@@ -1,6 +1,6 @@
 # Uni_Vision — System Architecture
 
-> **Date:** 2026-03-26 · **Hardware Target:** NVIDIA RTX 4070 (8 GB VRAM) · **LLM:** Qwen 3.5 9B Q4_K_M via Ollama
+> **Date:** 2026-03-26 · **Hardware Target:** NVIDIA RTX 4070 (8 GB VRAM) · **LLM:** Gemma 4 E2B Q4_K_M via Ollama
 
 ---
 
@@ -95,15 +95,15 @@ The entire system operates within a hard **8192 MB ceiling**. Memory is partitio
 ```
  0 MB                                                          8192 MB
   ├──────────── Region A ──────────────┤─ B ─┤─── C ───┤─ D ─┤ Headroom ┤
-  │      LLM Weights (5120 MB)        │512 MB│1024 MB  │512MB│ 1024 MB  │
-  │      Qwen 3.5 9B Q4_K_M          │ KV   │ CV      │CUDA │ Safety   │
+  │      LLM Weights (5000 MB)        │512 MB│1024 MB  │512MB│ 1024 MB  │
+  │      Gemma 4 E2B Q4_K_M           │ KV   │ CV      │CUDA │ Safety   │
   │                                    │cache │ models  │ drvr│ margin   │
   └────────────────────────────────────┴──────┴─────────┴─────┴──────────┘
 ```
 
 | Region | Size | Contents | Managed By |
 |--------|------|----------|-----------|
-| **A — LLM Weights** | 5120 MB | Qwen 3.5 9B Q4_K_M parameters | Ollama (never evicted) |
+| **A — LLM Weights** | 5000 MB | Gemma 4 E2B Q4_K_M parameters | Ollama (never evicted) |
 | **B — KV Cache** | 512 MB | 4096-token sliding window | Ollama (grows/shrinks per request) |
 | **C — Vision** | 1024 MB | YOLO, OCR, downloaded models | `LifecycleManager` + `GPUMemoryManager` |
 | **D — System** | 512 MB | CUDA runtime, driver allocations | OS/driver (uncontrollable) |
@@ -458,7 +458,7 @@ ComponentResolver.resolve_capabilities()
 │                    (ReAct Engine)                             │
 │                                                              │
 │   Iteration 1:                                               │
-│   ├─ LLM (Ollama /api/chat, think=false)                    │
+│   ├─ LLM (Ollama /api/chat)                              │
 │   ├─ Parse JSON: {action, action_input} or {answer}          │
 │   ├─ If action: ToolRegistry.invoke(action, action_input)    │
 │   ├─ Format Observation                                      │
@@ -484,7 +484,7 @@ ComponentResolver.resolve_capabilities()
 │  │ get_pipeline_stats    get_system_health         │ │
 │  │ list_cameras          manage_camera             │ │
 │  │ adjust_threshold      get_current_config        │ │
-│  │ search_audit_log      analyze_plate_patterns    │ │
+│  │ search_audit_log      analyze_detection_patterns│ │
 │  │ diagnose_camera       run_analytics_query       │ │
 │  └─────────────────────────────────────────────────┘ │
 │                                                     │
@@ -492,7 +492,7 @@ ComponentResolver.resolve_capabilities()
 │  │ get_knowledge_stats      get_frequent_plates    │ │
 │  │ get_camera_error_profile get_all_camera_profiles│ │
 │  │ get_cross_camera_plates  get_ocr_error_patterns │ │
-│  │ detect_plate_anomalies   record_plate_feedback  │ │
+│  │ detect_detection_anomalies   record_detection_feedback  │ │
 │  │ get_recent_feedback      save_knowledge         │ │
 │  └─────────────────────────────────────────────────┘ │
 │                                                     │
@@ -593,16 +593,16 @@ ComponentResolver.resolve_capabilities()
                           ┌──────────────┐
                           │  ollama-init │
                           │  (curl)      │
-                          │ Pull Qwen,   │
-                          │ create       │
-                          │ Modelfiles   │
+                          │ Pull Gemma 4  │
+                          │ E2B, create   │
+                          │ Modelfiles    │
                           └──────┬───────┘
                                  │ depends_on
                                  ▼
 ┌───────────┐  depends   ┌──────────────┐
 │  grafana  │◄───────────│   ollama     │  GPU reservation
 │  :3000    │            │  :11434      │  Volume: ollama_data
-│ dashboard │            │  Qwen 3.5   │
+│ dashboard │            │  Gemma 4    │
 │ provision │            └──────────────┘
 └─────┬─────┘                    │
       │ datasource               │
@@ -857,7 +857,7 @@ WebSocket Endpoints:
 
 | # | Invariant | Enforcement |
 |---|-----------|------------|
-| 1 | **Qwen never sees images** | No image data in Ollama API calls; only text/JSON reasoning |
+| 1 | **Gemma 4 E2B handles images natively** | Multimodal model processes text + images directly; dedicated CV models used for specialized detection tasks |
 | 2 | **VRAM ≤ 8192 MB** | `VRAMBudgets` config, `LifecycleManager` LRU eviction, `GPUMemoryManager` offload tiers |
 | 3 | **Single GPU consumer** | One inference task drains the queue; no parallel CUDA kernels |
 | 4 | **Memory fence at vision↔LLM boundary** | `torch.cuda.synchronize()` + `empty_cache()` before every LLM call |

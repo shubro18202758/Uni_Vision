@@ -40,9 +40,11 @@ import type {
   IgnoredAlertConsequence,
 } from "../../types/api";
 import { fetchRiskAnalysis } from "../../services/api";
+import type { DetectionContext } from "../../services/api";
 
 interface Props {
   detectionId: string;
+  context?: DetectionContext;
 }
 
 /* ── Palette ──────────────────────────────────────────────────── */
@@ -239,7 +241,7 @@ function RadarTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 
 /* ── Main Dashboard ───────────────────────────────────────────── */
 
-export function RiskAnalysisDashboard({ detectionId }: Props) {
+export function RiskAnalysisDashboard({ detectionId, context }: Props) {
   const [data, setData] = useState<RiskAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -248,7 +250,7 @@ export function RiskAnalysisDashboard({ detectionId }: Props) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchRiskAnalysis(detectionId)
+    fetchRiskAnalysis(detectionId, context)
       .then((r) => { if (!cancelled) setData(r); })
       .catch((e) => { if (!cancelled) setError(e.message || "Failed to load risk analysis"); })
       .finally(() => { if (!cancelled) setLoading(false); });

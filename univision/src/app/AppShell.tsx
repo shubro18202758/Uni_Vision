@@ -4,14 +4,17 @@ import { RightPanel } from "../components/layout/RightPanel";
 import { Topbar } from "../components/layout/Topbar";
 import { StatusBar } from "../components/layout/StatusBar";
 import { WorkbenchCanvas } from "../components/canvas/WorkbenchCanvas";
+import { PipelineVisionTheater } from "../components/pipeline/PipelineVisionTheater";
 import { ToastContainer } from "../components/feedback/ToastContainer";
 import { AgenticOverlay } from "../components/chat/AgenticOverlay";
 import { usePipelineMonitorStore } from "../store/pipelineMonitorStore";
+import { useUiStore } from "../store/uiStore";
 
 export function AppShell() {
   // Keep pipeline WebSocket connected at all times so events are never
   // missed regardless of which right-panel tab is active.
   const startMonitoring = usePipelineMonitorStore((s) => s.startMonitoring);
+  const pipelineTheater = useUiStore((s) => s.pipelineTheater);
   useEffect(() => {
     const cleanup = startMonitoring();
     return cleanup;
@@ -22,7 +25,7 @@ export function AppShell() {
       <main className="grid flex-1 grid-cols-[300px_1fr_360px] gap-px px-0 pb-0 pt-0 overflow-hidden min-h-0 bg-slate-800/30">
         <LeftSidebar />
         <section className="overflow-hidden bg-[#0a1628] relative h-full">
-          <WorkbenchCanvas />
+          {pipelineTheater ? <PipelineVisionTheater /> : <WorkbenchCanvas />}
         </section>
         <RightPanel />
       </main>

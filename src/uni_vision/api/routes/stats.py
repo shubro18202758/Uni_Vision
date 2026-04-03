@@ -45,9 +45,19 @@ async def pipeline_stats(request: Request) -> JSONResponse:
             stats[key] = value
 
     # Compute friendly summary keys
-    active = sum(1 for k in stats if k.startswith("uv_frames_total|"))
-    stats["active_streams"] = active
-    stats["total_detections"] = stats.get("uv_detections_total_count", 0)
-    stats["total_frames"] = stats.get("uv_frames_total_count", 0)
+    # Active streams: count distinct camera_id labels that have ingested frames
+    stats["active_streams"] = sum(
+        1 for k in stats if k.startswith("uv_frames_ingested_total|")
+    )
+    # Total detections: sum counter values across all camera_id labels
+    stats["total_detections"] = sum(
+        v for k, v in stats.items()
+        if k.startswith("uv_detections_total|") and isinstance(v, (int, float))
+    )
+    # Total frames: sum counter values across all camera_id labels
+    stats["total_frames"] = sum(
+        v for k, v in stats.items()
+        if k.startswith("uv_frames_ingested_total|") and isinstance(v, (int, float))
+    )
 
     return JSONResponse(stats)

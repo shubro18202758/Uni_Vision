@@ -46,15 +46,18 @@ class HardwareConfig(BaseSettings):
 class VRAMBudgets(BaseSettings):
     """Static VRAM region budgets — spec §2.1, revised §7.3.
 
-    Region A: LLM weights (Qwen 3.5 9B Q4_K_M GGUF).
-    Region B: KV-cache (36 layers × 2 × 4096 ctx × 128 dim × FP16).
+    Region A: LLM weights (Gemma 4 E2B Q4_K_M GGUF, 7.2 GB disk).
+    Region B: KV-cache (4096 tokens, Ollama-managed scratch).
     Region C: Vision workspace (2× YOLOv8n INT8 TensorRT engines).
     Region D: OS + driver + CUDA context overhead.
+
+    Gemma 4 E2B (5.1B total / 2.3B effective MoE) fits entirely
+    on an 8 GB GPU with ~2168 MB headroom — no CPU offload needed.
     """
 
-    llm_weights_mb: int = 5120
-    kv_cache_mb: int = 512
-    vision_workspace_mb: int = 1024
+    llm_weights_mb: int = 5000
+    kv_cache_mb: int = 256
+    vision_workspace_mb: int = 256
     system_overhead_mb: int = 512
 
 
@@ -79,12 +82,12 @@ class OllamaConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="UV_OLLAMA_")
 
     base_url: str = "http://localhost:11434"
-    model: str = "qwen3.5:9b-q4_K_M"
+    model: str = "gemma4:e2b"
     timeout_s: int = 5
     num_ctx: int = 4096
-    temperature: float = 0.1
-    top_p: float = 0.9
-    top_k: int = 20
+    temperature: float = 1.0
+    top_p: float = 0.95
+    top_k: int = 64
     repeat_penalty: float = 1.15
     repeat_last_n: int = 128
     num_predict: int = 256
@@ -116,7 +119,7 @@ class QuantizationConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="UV_QUANT_")
 
     llm_format: str = "Q4_K_M"  # GGUF mixed 4-bit K-quants
-    llm_model_tag: str = "qwen3.5:9b-q4_K_M"
+    llm_model_tag: str = "gemma4:e2b"
     vision_format: str = "INT8"  # TensorRT INT8 calibrated
     vision_engine_ext: str = ".engine"
 
@@ -229,7 +232,7 @@ class EnhanceConfig(BaseSettings):
 
 
 class PreprocessingConfig(BaseSettings):
-    """Plate preprocessing chain — spec §4 S4-S6."""
+    """Detection preprocessing chain — spec §4 S4-S6."""
 
     padding_px: int = 5
     deskew: DeskewConfig = Field(default_factory=DeskewConfig)
@@ -293,7 +296,7 @@ class AdjudicationConfig(BaseSettings):
 class DeduplicationConfig(BaseSettings):
     """Sliding-window temporal deduplication — spec §4 S8.
 
-    Suppresses redundant detections of the same plate across
+    Suppresses redundant detections of the same object across
     consecutive frames within the configured time window.
     """
 
@@ -339,9 +342,9 @@ class RetentionConfig(BaseSettings):
 class ManagerConfig(BaseSettings):
     """Manager Agent configuration — dynamic CV pipeline orchestrator.
 
-    Controls the Qwen 3.5 9B Manager Agent that discovers, downloads,
+    Controls the Gemma 4 E2B Manager Agent that discovers, downloads,
     loads, and composes specialised CV components into context-adaptive
-    pipelines.  Qwen acts as a meta-orchestrator, not a direct OCR or
+    pipelines.  Gemma 4 acts as a meta-orchestrator, not a direct OCR or
     reasoning model — it decides *which* open-source models and
     libraries to load for each frame context.
     """
@@ -351,10 +354,10 @@ class ManagerConfig(BaseSettings):
     enabled: bool = True
     hub_cache_dir: str = "~/.cache/uni_vision/hub"
     vram_total_mb: int = 8192
-    vram_reserved_for_llm_mb: int = 5800
+    vram_reserved_for_llm_mb: int = 5500
     max_search_results: int = 10
     http_timeout_s: float = 30.0
-    default_scene: str = "traffic"
+    default_scene: str = "unknown"
     prefer_trusted: bool = True
     auto_download: bool = True
     max_concurrent_downloads: int = 2
@@ -367,17 +370,17 @@ class NavarasaConfig(BaseSettings):
 
     Navarasa (Telugu-LLM-Labs/Indic-gemma-7b-finetuned-sft-Navarasa-2.0)
     is a Gemma 7B model fine-tuned on 15 Indian languages + English.
-    It runs alongside Qwen 3.5 9B via Ollama (sequential model swapping).
+    It runs alongside Gemma 4 E2B via Ollama (sequential model swapping).
 
     Role:
       - Conversational and interactive generative LLM for the frontend.
         Converses naturally with users in any of the 15 supported
         Indian languages, translates between Indian languages and
-        English for Qwen processing, explains system status, and
+        English for Gemma 4 processing, explains system status, and
         guides users through the interface.
       - All pipeline / CV intelligence (plate interpretation, OCR,
         state codes, detection enrichment, component management)
-        remains with the Qwen 3.5 9B Manager Agent.
+        remains with the Gemma 4 E2B Manager Agent.
     """
 
     model_config = SettingsConfigDict(env_prefix="UV_NAVARASA_")
@@ -404,7 +407,7 @@ class NavarasaConfig(BaseSettings):
 class AgentConfig(BaseSettings):
     """Agentic sub-system parameters — Phase 21+.
 
-    Controls the ReAct reasoning loop that lets Qwen 3.5 9B
+    Controls the ReAct reasoning loop that lets Gemma 4 E2B
     autonomously manage pipelines and answer natural-language queries.
     """
 
@@ -467,8 +470,8 @@ class FAISSConfig(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="UV_FAISS_")
 
-    index_path: str = "./data/faiss/plate_index.bin"
-    metadata_path: str = "./data/faiss/plate_metadata.json"
+    index_path: str = "./data/faiss/detection_index.bin"
+    metadata_path: str = "./data/faiss/detection_metadata.json"
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_dim: int = 384
     nprobe: int = 10

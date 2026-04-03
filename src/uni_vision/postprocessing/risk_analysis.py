@@ -289,6 +289,9 @@ class RiskAnalysisEngine:
         char_corrections: Optional[Dict[str, str]] = None,
         recent_detections: Optional[List[Dict[str, Any]]] = None,
         pipeline_telemetry: Optional[Dict[str, Any]] = None,
+        anomaly_type: str = "",
+        anomaly_severity: str = "",
+        anomaly_description: str = "",
     ) -> RiskAnalysis:
         t0 = time.perf_counter()
 
@@ -299,6 +302,7 @@ class RiskAnalysisEngine:
         dimensions = self._compute_risk_dimensions(
             ocr_confidence, validation_status, camera_id,
             recent, telemetry, char_corrections,
+            anomaly_type, anomaly_severity, anomaly_description,
         )
 
         # 2. Overall risk
@@ -365,47 +369,82 @@ class RiskAnalysisEngine:
         recent: List[Dict[str, Any]],
         telemetry: Dict[str, Any],
         char_corrections: Optional[Dict[str, str]],
+        anomaly_type: str = "",
+        anomaly_severity: str = "",
+        anomaly_description: str = "",
     ) -> List[RiskDimension]:
         dims: List[RiskDimension] = []
 
-        # Axis 1: OCR Reliability
-        ocr_risk = max(0, (1.0 - ocr_confidence) * 100)
+        # ── Anomaly-type severity multiplier ──
+        sev_mult = {"low": 0.6, "medium": 1.0, "high": 1.4, "critical": 1.8}.get(
+            anomaly_severity.lower(), 1.0,
+        )
+        atype = anomaly_type.lower() if anomaly_type else ""
+
+        # Axis 1: Detection Confidence Risk
+        conf_risk = max(0, (1.0 - ocr_confidence) * 100)
+        # Anomaly-specific: structural/physical anomalies have higher confidence risk
+        if atype in ("structural_damage", "physical_intrusion", "equipment_failure"):
+            conf_risk = min(100, conf_risk * 1.3)
         dims.append(RiskDimension(
-            axis="OCR Reliability",
-            score=round(ocr_risk, 1),
+            axis="Detection Confidence",
+            score=round(min(100, conf_risk * sev_mult), 1),
             label=f"{ocr_confidence:.0%} confidence",
-            description=f"OCR engine confidence inverted to risk: higher = less reliable",
+            description=(
+                f"Detection confidence risk for {anomaly_type or 'general anomaly'}: "
+                f"lower confidence = higher risk"
+            ),
             trend=self._confidence_trend(camera_id, recent),
         ))
 
-        # Axis 2: Format Compliance
-        format_risk = 85.0 if validation_status in ("regex_fail", "parse_fail") else 15.0
+        # Axis 2: Anomaly Severity Risk
+        sev_score = {"low": 20, "medium": 45, "high": 70, "critical": 95}.get(
+            anomaly_severity.lower(), 40,
+        )
         dims.append(RiskDimension(
-            axis="Format Compliance",
-            score=round(format_risk, 1),
-            label="Failed" if format_risk > 50 else "Passed",
-            description="Whether the plate text matches known locale format patterns",
-            trend="stable",
+            axis="Anomaly Severity",
+            score=round(float(sev_score), 1),
+            label=anomaly_severity.capitalize() if anomaly_severity else "Unknown",
+            description=(
+                f"Inherent severity of '{anomaly_type or 'detected anomaly'}' — "
+                f"{'immediate response required' if sev_score > 60 else 'monitoring recommended'}"
+            ),
+            trend="degrading" if sev_score > 60 else "stable",
         ))
 
-        # Axis 3: Character Integrity
-        n_corr = len(char_corrections) if char_corrections else 0
-        char_risk = min(100.0, n_corr * 25.0)  # Each correction adds 25 risk points
+        # Axis 3: Scene Context Risk
+        format_risk = 85.0 if validation_status in ("regex_fail", "parse_fail", "unreadable") else 15.0
+        # Anomaly-type adjustments
+        if atype in ("environmental_hazard", "fire", "flooding", "gas_leak"):
+            format_risk = min(100, format_risk + 30)
+        elif atype in ("unusual_activity", "loitering", "crowd_anomaly"):
+            format_risk = min(100, format_risk + 15)
         dims.append(RiskDimension(
-            axis="Character Integrity",
-            score=round(char_risk, 1),
-            label=f"{n_corr} corrections",
-            description="Risk from character confusion corrections applied",
+            axis="Scene Context",
+            score=round(min(100, format_risk * sev_mult), 1),
+            label="Elevated" if format_risk > 50 else "Normal",
+            description=(
+                f"Environmental and scene context risk for {anomaly_type or 'anomaly'}"
+            ),
             trend="stable",
         ))
 
         # Axis 4: Temporal Consistency
         temporal_risk = self._compute_temporal_risk(camera_id, recent)
+        # Recurring anomalies of same type increase temporal risk
+        if atype:
+            same_type_count = sum(
+                1 for d in recent
+                if d.get("anomaly_type", "").lower() == atype
+            )
+            temporal_risk = min(100, temporal_risk + same_type_count * 8)
         dims.append(RiskDimension(
             axis="Temporal Consistency",
-            score=round(temporal_risk, 1),
+            score=round(min(100, temporal_risk * sev_mult), 1),
             label="Anomalous" if temporal_risk > 60 else "Consistent",
-            description="Deviation from this camera's historical detection pattern",
+            description=(
+                f"Temporal pattern deviation for {anomaly_type or 'anomaly'} on camera {camera_id}"
+            ),
             trend="degrading" if temporal_risk > 60 else "stable",
         ))
 
@@ -429,22 +468,30 @@ class RiskAnalysisEngine:
             trend=self._reliability_trend(camera_id, recent),
         ))
 
-        # Axis 7: Adjudication Risk
-        adj_risk = 70.0 if validation_status in ("llm_error", "unreadable") else 20.0
+        # Axis 7: Escalation Potential
+        esc_base = 70.0 if anomaly_severity in ("high", "critical") else 30.0
+        if atype in ("fire", "structural_damage", "gas_leak", "flooding"):
+            esc_base = min(100, esc_base + 25)
         dims.append(RiskDimension(
-            axis="Adjudication Risk",
-            score=round(adj_risk, 1),
-            label="Failed" if adj_risk > 50 else "OK",
-            description="Risk from LLM adjudication failure or unavailability",
+            axis="Escalation Potential",
+            score=round(esc_base, 1),
+            label="High" if esc_base > 50 else "Low",
+            description=(
+                f"Likelihood that '{anomaly_type or 'anomaly'}' escalates if unattended"
+            ),
         ))
 
         # Axis 8: Environmental Factor
         env_risk = 50.0 if validation_status == "unreadable" else 20.0
+        if atype in ("environmental_hazard", "weather_event", "lighting_anomaly"):
+            env_risk = min(100, env_risk + 35)
         dims.append(RiskDimension(
             axis="Environmental Factor",
-            score=round(env_risk, 1),
+            score=round(min(100, env_risk * sev_mult), 1),
             label="Poor" if env_risk > 40 else "Good",
-            description="Estimated environmental impact (lighting, weather, camera angle)",
+            description=(
+                f"Environmental conditions impact for {anomaly_type or 'anomaly'} detection"
+            ),
         ))
 
         return dims
@@ -456,15 +503,15 @@ class RiskAnalysisEngine:
         """Weighted geometric mean of all risk dimensions."""
         if not dimensions:
             return 0.0
-        # Use weighted approach: OCR and Format have higher weight
+        # Use weighted approach: Severity and Confidence have higher weight
         weights = {
-            "OCR Reliability": 2.0,
-            "Format Compliance": 1.8,
-            "Character Integrity": 1.2,
+            "Detection Confidence": 2.0,
+            "Anomaly Severity": 2.2,
+            "Scene Context": 1.5,
             "Temporal Consistency": 1.5,
-            "System Health": 1.3,
+            "System Health": 1.0,
             "Detection Reliability": 1.5,
-            "Adjudication Risk": 1.0,
+            "Escalation Potential": 1.8,
             "Environmental Factor": 0.8,
         }
         total_weight = 0.0

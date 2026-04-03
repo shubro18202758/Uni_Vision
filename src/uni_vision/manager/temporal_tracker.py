@@ -277,7 +277,7 @@ class TemporalTracker:
         if summary.get("avg_pipeline_latency_ms", 0) > 150:
             hints.add("lightweight_models")
 
-        # Many vehicles → suggest ANPR-specific
+        # Many vehicles → suggest vehicle-specific detection
         classes = summary.get("object_classes", {})
         if classes.get("vehicle", 0) + classes.get("car", 0) + classes.get("truck", 0) > 5:
             hints.add("plate_detection")

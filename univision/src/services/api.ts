@@ -237,7 +237,7 @@ export interface ModelStateResponse {
   phase: string;
   active_model: string | null;
   navarasa_loaded: boolean;
-  qwen_loaded: boolean;
+  primary_loaded: boolean;
 }
 
 export function fetchModelState(): Promise<ModelStateResponse> {
@@ -259,15 +259,40 @@ export function fetchFlagReasoning(detectionId: string): Promise<FlagReasoningRe
   );
 }
 
-export function fetchRiskAnalysis(detectionId: string): Promise<RiskAnalysisResponse> {
+export interface DetectionContext {
+  camera_id: string;
+  risk_level: string;
+  confidence: number;
+  scene_description: string;
+  anomaly_detected: boolean;
+  detected_at_utc: string;
+  validation_status: string;
+  anomaly_type?: string;
+  anomaly_severity?: string;
+  anomaly_description?: string;
+  anomaly_location?: string;
+}
+
+export function fetchRiskAnalysis(detectionId: string, context?: DetectionContext): Promise<RiskAnalysisResponse> {
   return request<RiskAnalysisResponse>(
     `/api/analysis/risk-analysis/${encodeURIComponent(detectionId)}`,
+    { method: "POST", body: JSON.stringify(context ?? {}) },
   );
 }
 
-export function fetchImpactAnalysis(detectionId: string): Promise<ImpactAnalysisResponse> {
+export function fetchImpactAnalysis(detectionId: string, context?: DetectionContext): Promise<ImpactAnalysisResponse> {
   return request<ImpactAnalysisResponse>(
     `/api/analysis/impact-analysis/${encodeURIComponent(detectionId)}`,
+    { method: "POST", body: JSON.stringify(context ?? {}) },
+  );
+}
+
+import type { TechnicalMetricsResponse } from "../types/api";
+
+export function fetchTechnicalMetrics(detectionId: string, context?: DetectionContext): Promise<TechnicalMetricsResponse> {
+  return request<TechnicalMetricsResponse>(
+    `/api/analysis/technical-metrics/${encodeURIComponent(detectionId)}`,
+    { method: "POST", body: JSON.stringify(context ?? {}) },
   );
 }
 
@@ -282,7 +307,7 @@ export interface DatabricksOverview {
 }
 
 export interface VectorSearchResult {
-  plate_text: string;
+  detection_text: string;
   similarity: number;
   camera_id: string;
   confidence: number;
@@ -324,7 +349,7 @@ export function fetchSparkOverview(): Promise<Record<string, unknown>> {
   return request<Record<string, unknown>>("/api/databricks/spark/overview");
 }
 
-export function searchSimilarPlates(query: string, topK = 20, threshold = 0.65): Promise<{ query: string; results: VectorSearchResult[]; count: number }> {
+export function searchSimilarDetections(query: string, topK = 20, threshold = 0.65): Promise<{ query: string; results: VectorSearchResult[]; count: number }> {
   return request<{ query: string; results: VectorSearchResult[]; count: number }>(
     "/api/databricks/vector/search",
     { method: "POST", body: JSON.stringify({ query, top_k: topK, threshold }) },
@@ -347,7 +372,7 @@ export function fetchVectorClusters(nClusters = 8): Promise<Record<string, unkno
   );
 }
 
-export function searchPlatesByTimeRange(
+export function searchDetectionsByTimeRange(
   query: string, startTs: number, endTs: number, topK = 20, threshold = 0.65,
 ): Promise<{ query: string; results: VectorSearchResult[]; count: number }> {
   return request<{ query: string; results: VectorSearchResult[]; count: number }>(

@@ -3,7 +3,7 @@
     Uni_Vision — Ollama Model Initializer (Windows)
 
 .DESCRIPTION
-    Pulls the Qwen 3.5 9B Q4_K_M base model, then creates three custom
+    Pulls the Gemma 4 E2B Q4_K_M base model, then creates three custom
     Modelfile variants: OCR, Adjudicator, and Navarasa (Indian contextualizer).
 
     The Navarasa model pulls its weights directly from HuggingFace GGUF
@@ -59,7 +59,7 @@ function Wait-ForOllama {
 
 # ── Pull base model ──────────────────────────────────────────────
 function Pull-BaseModel {
-    $model = "qwen3.5:9b-q4_K_M"
+    $model = "gemma4:e2b"
     Write-Log "Pulling base model: $model (this may take several minutes on first run) ..."
 
     try {
@@ -142,7 +142,7 @@ Write-Host ""
 
 Wait-ForOllama
 
-# Step 1: Pull Qwen 3.5 9B Q4_K_M
+# Step 1: Pull Gemma 4 E2B Q4_K_M
 Pull-BaseModel
 
 # Step 2: Create OCR variant

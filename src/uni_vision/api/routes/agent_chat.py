@@ -59,8 +59,8 @@ class AgentStatus(BaseModel):
 class FeedbackRequest(BaseModel):
     detection_id: str = Field(..., min_length=1, max_length=200)
     feedback_type: str = Field(..., pattern="^(confirm|correct|reject)$")
-    original_plate: str = Field(..., min_length=1, max_length=20)
-    corrected_plate: str = Field(default="", max_length=20)
+    original_text: str = Field(..., min_length=1, max_length=200)
+    corrected_text: str = Field(default="", max_length=200)
     camera_id: str = Field(default="unknown", max_length=100)
     notes: str = Field(default="", max_length=500)
 
@@ -79,7 +79,7 @@ async def agent_chat(body: ChatRequest, request: Request) -> ChatResponse:
     """Send a natural-language message to the agent.
 
     The agent uses a multi-step ReAct reasoning loop to answer queries
-    about the ANPR pipeline, detection history, system health, and more.
+    about the detection pipeline, detection history, system health, and more.
     """
     coordinator = getattr(request.app.state, "agent_coordinator", None)
     if coordinator is None or not coordinator.is_running:
@@ -143,7 +143,7 @@ async def submit_feedback(body: FeedbackRequest, request: Request) -> FeedbackRe
 
     Use to confirm correct readings, provide corrections for misreads,
     or reject invalid detections.  Feedback is stored in the knowledge
-    base and used to improve per-camera OCR accuracy.
+    base and used to improve detection accuracy.
     """
     coordinator = getattr(request.app.state, "agent_coordinator", None)
     if coordinator is None or not coordinator.is_running:
@@ -153,16 +153,16 @@ async def submit_feedback(body: FeedbackRequest, request: Request) -> FeedbackRe
 
     kb = coordinator._knowledge
 
-    if body.feedback_type == "correct" and not body.corrected_plate:
+    if body.feedback_type == "correct" and not body.corrected_text:
         raise HTTPException(
             status_code=422,
-            detail="corrected_plate required when feedback_type is 'correct'",
+            detail="corrected_text required when feedback_type is 'correct'",
         )
 
     entry = FeedbackEntry(
         detection_id=body.detection_id,
-        original_plate=body.original_plate,
-        corrected_plate=body.corrected_plate or body.original_plate,
+        original_text=body.original_text,
+        corrected_text=body.corrected_text or body.original_text,
         feedback_type=body.feedback_type,
         camera_id=body.camera_id,
         notes=body.notes,

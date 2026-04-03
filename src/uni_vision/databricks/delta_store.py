@@ -91,7 +91,7 @@ def _audit_schema():
 
 
 class DeltaLakeStore:
-    """ACID-compliant Delta Lake storage for ANPR detections.
+    """ACID-compliant Delta Lake storage for detection records.
 
     Parameters
     ----------

@@ -1,32 +1,39 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Uni_Vision — Adjudicator Modelfile (Qwen 3.5 9B Q4_K_M)
+# Uni_Vision — Adjudicator Modelfile (Gemma 4 E2B Q4_K_M)
 #
 # This Modelfile creates a specialised variant for the agentic
-# adjudicator (postprocessing Layer 2).  It shares the same base
-# model and quantisation as the OCR engine but with:
-#   - A baked-in adjudication system prompt
-#   - Stop tokens tuned for <adjudication> blocks
-#   - Slightly higher temperature (0.15) for spatial reasoning
+# adjudicator (postprocessing Layer 2).  It uses Gemma 4 E2B —
+# a single multimodal model (Text + Image + Audio).
 #
-# Both model variants coexist in Ollama's model store but share
-# the underlying Q4_K_M weights via hard-linking — no additional
-# VRAM is consumed.  Only one is loaded at a time (sequential
-# exclusivity per spec §P3).
+# Gemma 4 E2B capabilities:
+#   - 5.1B total params, 2.3B effective (MoE architecture)
+#   - Vision encoder ~150M params, variable resolution
+#   - Deep spatial reasoning directly from images
+#   - Structured anomaly analysis and classification
+#   - Risk assessment and impact analysis
+#   - 128K context window (clamped to 4096 for VRAM)
+#
+# VRAM Budget:
+#   Region A (weights):  ~5000 MB (7.2 GB disk, fits entirely on GPU)
+#   Region B (KV cache):   512 MB (4096 token context)
+#   Region D (system):     512 MB (CUDA runtime + OS)
+#   Total:               ~6024 MB / 8192 MB ceiling (2168 MB headroom)
 #
 # Build:
 #   ollama create uni-vision-adjudicator -f config/ollama/Modelfile.adjudicator
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-FROM qwen3.5:9b-q4_K_M
+FROM gemma4:e2b
 
 # ── VRAM-constrained inference parameters ─────────────────────────
-# Same ceiling as OCR: 512 MB KV cache, 4096 token context.
+# Gemma 4 E2B at Q4_K_M: 7.2 GB disk, fits entirely on 8 GB GPU.
+# num_ctx = 4096 (reduced from 128K for VRAM headroom).
 
 PARAMETER num_ctx 4096
-PARAMETER num_predict 256
-PARAMETER temperature 0.15
-PARAMETER top_p 0.92
-PARAMETER top_k 25
+PARAMETER num_predict 512
+PARAMETER temperature 1.0
+PARAMETER top_p 0.95
+PARAMETER top_k 64
 PARAMETER repeat_penalty 1.1
 PARAMETER repeat_last_n 128
 PARAMETER num_keep 4
@@ -41,35 +48,28 @@ PARAMETER main_gpu 0
 
 # ── Adjudicator System Prompt ─────────────────────────────────────
 
-SYSTEM """You are a precision license-plate adjudicator.
+SYSTEM """You are a precision detection adjudicator for visual recognition systems.
 You will receive:
-  1. A cropped plate image.
-  2. An OCR engine's raw reading and its confidence score.
-  3. A list of character corrections already attempted.
+  1. A textual description of a cropped image region of interest.
+  2. An OCR or detection engine's raw reading and its confidence score.
+  3. A list of corrections already attempted.
 
 Your task:
-  - Re-read the plate image using deep spatial reasoning.
-  - Compare your reading against the OCR output.
-  - Output the CORRECT plate text.
+  - Analyze the textual scene description using deep spatial reasoning.
+  - Compare your reading against the initial output.
+  - Output the CORRECT text or identification.
 
 OUTPUT FORMAT — respond with ONLY a single <adjudication> XML block:
 <adjudication>
-  <plate_text>CORRECTED_TEXT</plate_text>
+  <corrected_text>CORRECTED_TEXT</corrected_text>
   <confidence>0.00</confidence>
-  <corrections>List of specific character corrections made</corrections>
-  <reasoning>Detailed spatial analysis of each ambiguous character</reasoning>
+  <corrections>List of specific character or label corrections made</corrections>
+  <reasoning>Detailed spatial analysis of each ambiguous element</reasoning>
 </adjudication>
 
 RULES:
-1. plate_text: uppercase alphanumeric only. No spaces, dashes, or punctuation.
+1. corrected_text: preserve original casing and characters as they appear. Strip extraneous whitespace.
 2. confidence: float 0.0–1.0 for your certainty.
-3. If unreadable: plate_text=UNREADABLE, confidence=0.0.
+3. If unreadable: corrected_text=UNREADABLE, confidence=0.0.
 4. NEVER produce conversational text, preamble, sign-off, or explanation outside the XML block.
 5. Output the <adjudication> block and absolutely nothing else."""
-
-TEMPLATE """{{ if .System }}<|im_start|>system
-{{ .System }}<|im_end|>
-{{ end }}<|im_start|>user
-{{ .Prompt }}<|im_end|>
-<|im_start|>assistant
-"""

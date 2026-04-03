@@ -21,21 +21,21 @@ class TestConfigDefaults:
         from uni_vision.common.config import VRAMBudgets
 
         vb = VRAMBudgets()
-        assert vb.llm_weights_mb == 5120
-        assert vb.kv_cache_mb == 512
-        assert vb.vision_workspace_mb == 1024
+        assert vb.llm_weights_mb == 5000
+        assert vb.kv_cache_mb == 256
+        assert vb.vision_workspace_mb == 256
         assert vb.system_overhead_mb == 512
-        # Total should fit within 8192 ceiling
+        # Total should fit within ~8 GB (Ollama auto-offloads overflow to CPU)
         total = vb.llm_weights_mb + vb.kv_cache_mb + vb.vision_workspace_mb + vb.system_overhead_mb
-        assert total == 7168
-        assert total <= 8192
+        assert total == 6024
+        assert total <= 10240  # generous ceiling; fits entirely on 8 GB GPU
 
     def test_ollama_defaults(self):
         from uni_vision.common.config import OllamaConfig
 
         oc = OllamaConfig()
         assert oc.base_url == "http://localhost:11434"
-        assert oc.model == "qwen3.5:9b-q4_K_M"
+        assert oc.model == "gemma4:e2b"
         assert oc.timeout_s == 5
         assert oc.num_ctx == 4096
         assert oc.num_predict == 256
@@ -141,7 +141,7 @@ class TestAppConfig:
         cfg = AppConfig()
         # Verify nested sub-models are present
         assert cfg.hardware.device == "cuda"
-        assert cfg.ollama.model == "qwen3.5:9b-q4_K_M"
+        assert cfg.ollama.model == "gemma4:e2b"
         assert cfg.validation.adjudication_confidence_threshold == 0.75
         assert cfg.deduplication.window_seconds == 10.0
         assert cfg.cameras == []

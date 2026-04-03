@@ -40,7 +40,7 @@
 
 ### 1.1 Governing Principles
 
-The Uni_Vision architecture is governed by five non-negotiable axioms derived from the hardware constraint of a single 8GB VRAM GPU operating a multi-stage visual intelligence pipeline alongside a 9-billion-parameter multimodal language model:
+The Uni_Vision architecture is governed by five non-negotiable axioms derived from the hardware constraint of a single 8GB VRAM GPU operating a multi-stage visual intelligence pipeline alongside a 5.1-billion-parameter (2.3B effective, MoE) multimodal language model:
 
 **P1 — Memory is the Primary Constraint, Not Compute.**
 Every architectural decision is subordinate to the 8192 MB VRAM ceiling. Compute throughput is secondary. A pipeline that is fast but exceeds VRAM by a single megabyte is a pipeline that crashes. Designs that trade latency for memory predictability are always preferred.
@@ -52,7 +52,7 @@ Tensor data must never be duplicated across memory domains without explicit just
 No two neural network forward passes may occupy VRAM simultaneously unless their combined resident footprint has been statically verified to fit within the allocation budget. The vision models and the LLM orchestrator must be time-sliced, not concurrent. The GPU is a single-tenant resource during inference.
 
 **P4 — The LLM is the Orchestrator, Not Middleware.**
-No framework-level orchestration layer (LangChain, LlamaIndex, AutoGen, or equivalent) exists in this architecture. The Qwen 3.5 9B model, served via Ollama, is the reasoning engine. The application layer is a thin, deterministic Python harness that issues prompts, parses structured responses, catches failures, and re-prompts with error context. Agentic control flow lives in the prompt, not in Python abstractions.
+No framework-level orchestration layer (LangChain, LlamaIndex, AutoGen, or equivalent) exists in this architecture. The Gemma 4 E2B model, served via Ollama, is the reasoning engine. The application layer is a thin, deterministic Python harness that issues prompts, parses structured responses, catches failures, and re-prompts with error context. Agentic control flow lives in the prompt, not in Python abstractions.
 
 **P5 — Every Stage is a Replaceable Unit.**
 Each pipeline stage adheres to a strict interface contract. The vehicle detector, the plate localizer, the enhancement chain, and the OCR/LLM orchestrator are independently substitutable without modifying adjacent stages. This is achieved through protocol-based typing (Python `Protocol` classes), not inheritance hierarchies.
@@ -81,7 +81,7 @@ The 8192 MB VRAM is partitioned into four non-overlapping regions. Overflow in a
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌───────────────────────────────────────────────┐              │
-│  │  REGION A — LLM Weights (Qwen 3.5 9B Q4_K_M) │  5632 MB    │
+│  │  REGION A — LLM Weights (Gemma 4 E2B Q4_K_M) │  5000 MB     │
 │  │  Static. Loaded once at boot. Never evicted.  │  (5.5 GB)   │
 │  └───────────────────────────────────────────────┘              │
 │                                                                 │
@@ -169,7 +169,7 @@ CPU RAM:
          ▼
 GPU VRAM (Region A+B):
   ┌──────────────────┐
-  │ Qwen 3.5 9B      │ ← Multimodal inference: image tokens + prompt
+  │ Gemma 4 E2B      │ ← Multimodal inference: image tokens + prompt
   │ forward pass      │    KV cache grows within Region B budget
   │ (Ollama-managed)  │    Output: structured plate text + confidence
   └──────┬───────────┘
@@ -222,7 +222,7 @@ Each arrow below represents a data movement between hardware domains. Each trans
               │                          │   FREE Region C tensors
   S5 (deskew) │
   S6 (enhance)│
-              │── HTTP POST (base64) ───────────────────────▶ S7 (Qwen 3.5 OCR)
+              │── HTTP POST (base64) ───────────────────────▶ S7 (Gemma 4 E2B OCR)
               │                                              │
               │◀── HTTP RESPONSE ────────────────────────────│
   S8 (post-   │
@@ -349,7 +349,7 @@ The LLM invocation (S7) occurs over HTTP to the Ollama process, which manages it
 
 | Property | Specification |
 |---|---|
-| Model | Qwen 3.5 9B (Q4_K_M GGUF) served by Ollama |
+| Model | Gemma 4 E2B (Q4_K_M GGUF) served by Ollama |
 | Invocation | HTTP POST to `http://localhost:11434/api/chat` (Ollama API) |
 | Input | System prompt + user message containing base64-encoded enhanced plate image |
 | Multimodal | Early-fusion native vision — image tokens processed natively, no secondary vision encoder |
@@ -358,7 +358,7 @@ The LLM invocation (S7) occurs over HTTP to the Ollama process, which manages it
 | Output parsing | Application layer parses response. On parse failure: append error to context, re-prompt (max 2 retries) |
 | Latency target | ≤ 2000ms per plate (including HTTP round-trip, tokenization, generation) |
 | KV cache management | Ollama manages KV cache internally. Cache cleared between requests to prevent VRAM drift. |
-| VRAM | Regions A + B: 5632 MB (weights) + 512–1024 MB (KV cache) |
+| VRAM | Regions A + B: 5000 MB (weights) + 256 MB (KV cache) + 256 MB (Vision) |
 | Fallback | If Ollama is unresponsive after 5s timeout: log error, skip LLM OCR, emit `low_confidence` record |
 
 ### S8 — Post-Processing & Dispatch (CPU)
@@ -545,7 +545,7 @@ A lightweight daemon coroutine polls VRAM usage at 500ms intervals using `torch.
 
 ### 8.1 Architecture — LLM as Orchestrator, Not Middleware
 
-The Qwen 3.5 9B model does not merely perform OCR. It serves as the **intelligent orchestrator** for the final stage of the pipeline. Given an enhanced plate image and structured context (camera ID, timestamp, vehicle class, detection confidence), it:
+The Gemma 4 E2B model does not merely perform OCR. It serves as the **intelligent orchestrator** for the final stage of the pipeline. Given an enhanced plate image and structured context (camera ID, timestamp, vehicle class, detection confidence), it:
 
 1. **Reads** the plate image using its native early-fusion vision capability.
 2. **Extracts** the alphanumeric text with per-character confidence reasoning.
@@ -565,7 +565,7 @@ The system prompt is the control plane. It must:
 │    engine for vehicle license plates."                         │
 │                                                                │
 │ 2. Output format: Explicitly defined, flat structure.          │
-│    Favour XML tags matching Qwen 3.5's training format.        │
+│    Favour XML tags matching Gemma 4 E2B's training format.        │
 │    Example:                                                    │
 │    <result>                                                    │
 │      <plate_text>MH12AB1234</plate_text>                       │
@@ -616,7 +616,7 @@ return OCRResult(plate_text="PARSE_FAIL", confidence=0.0, status="llm_error")
 
 | Parameter | Value | Rationale |
 |---|---|---|
-| `model` | `qwen3.5:9b-q4_K_M` | Q4_K_M quantization for 8GB budget |
+| `model` | `gemma4:e2b` | Q4_K_M quantization for 8GB budget |
 | `num_ctx` | `4096` | Hard cap on context window to constrain KV cache |
 | `temperature` | `0.1` | Near-deterministic for OCR extraction |
 | `top_p` | `0.9` | Mild nucleus sampling |
@@ -781,7 +781,7 @@ uni_vision/
 │       │
 │       ├── ocr/                        # S7: LLM-based OCR + fallback engines
 │       │   ├── __init__.py
-│       │   ├── llm_ocr.py             # Qwen 3.5 via Ollama — primary OCR engine
+│       │   ├── llm_ocr.py             # Gemma 4 E2B via Ollama — primary OCR engine
 │       │   ├── prompt_templates.py     # System prompts, output format definitions
 │       │   ├── response_parser.py      # XML response parser + validation
 │       │   └── fallback_ocr.py         # EasyOCR/CRNN/PaddleOCR fallback (strategy pattern)
@@ -873,7 +873,7 @@ uni_vision/
 │
 ├── docker/
 │   ├── Dockerfile                      # Application container
-│   ├── Dockerfile.ollama               # Ollama sidecar (Qwen 3.5 9B pre-loaded)
+│   ├── Dockerfile.ollama               # Ollama sidecar (Gemma 4 E2B pre-loaded)
 │   └── docker-compose.yaml             # Full stack: app + ollama + postgres + redis
 │
 └── docs/
@@ -1013,7 +1013,7 @@ All log entries are JSON-formatted with mandatory fields:
   "camera_id": "cam_01",
   "plate_text": "MH12AB1234",
   "confidence": 0.94,
-  "engine": "qwen3.5",
+  "engine": "gemma4",
   "latency_ms": 1842,
   "stage": "S7"
 }
@@ -1075,7 +1075,7 @@ Detailed VRAM trace for a single detection event on the RTX 4070 (8192 MB):
 ```
 TIME    VRAM USED    EVENT
 ────    ─────────    ─────
-t=0     6144 MB      Baseline: LLM weights loaded (5632 MB) + system overhead (512 MB)
+t=0     5512 MB      Baseline: LLM weights loaded (5000 MB) + system overhead (512 MB)
 t=1     6148 MB      Frame uploaded to GPU (4 MB, 640×640 float32 after resize)
 t=2     6548 MB      YOLOv8 forward pass: weights loaded + activations (~400 MB transient)
 t=3     6152 MB      YOLOv8 activations freed. BBox results retained (~4 KB).

@@ -116,10 +116,18 @@ async function _doLoad(): Promise<void> {
           block.defaults.instruction = "";
         }
       }
+      // Merge: static defaults as base, backend data overrides by type.
+      // This ensures block types only defined in the frontend (used by the
+      // workflow designer) are always available even if the backend hasn't
+      // registered them yet.
+      const byType = new Map<string, BlockDefinition>();
+      for (const b of STATIC_BLOCK_DEFAULTS) byType.set(b.type, b);
+      for (const b of data) byType.set(b.type, b);
+      const merged = Array.from(byType.values());
       _blocks.length = 0;
-      _blocks.push(...data);
+      _blocks.push(...merged);
       blockRegistry.length = 0;
-      blockRegistry.push(...data);
+      blockRegistry.push(...merged);
     }
 
     if (catsRes.ok) {

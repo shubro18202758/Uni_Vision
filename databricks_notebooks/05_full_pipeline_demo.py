@@ -78,7 +78,7 @@ ANOMALY_TYPES = [
     "perimeter_breach", "loitering_detected", "tailgating",
 ]
 ZONES = ["zone-A", "zone-B", "zone-C", "zone-D"]
-MODELS = ["qwen3.5-9b-vision", "navarasa-2.0-7b"]
+MODELS = ["gemma4-e2b-vision", "navarasa-2.0-7b"]
 STATUSES = ["confirmed", "pending", "rejected"]
 
 DESCRIPTIONS = [
@@ -232,7 +232,7 @@ run_ids = []
 for batch_idx, batch in enumerate(batches):
     with mlflow.start_run(run_name=f"pipeline-batch-{batch_idx + 1}") as run:
         # Model parameters
-        mlflow.log_param("model_primary", "qwen3.5-9b-vision")
+        mlflow.log_param("model_primary", "gemma4-e2b-vision")
         mlflow.log_param("model_secondary", "navarasa-2.0-7b")
         mlflow.log_param("batch_size", len(batch))
         mlflow.log_param("cameras", len(CAMERAS))

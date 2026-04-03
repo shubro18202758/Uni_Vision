@@ -27,8 +27,8 @@ export function StatusBar() {
   const successCount = Object.values(executionStates).filter((s) => s === "success").length;
   const errorCount = Object.values(executionStates).filter((s) => s === "error").length;
 
-  const modelLabel = activeModel === "navarasa" ? "Navarasa 2.0 7B" : activeModel === "qwen" ? "Qwen 3.5 9B" : "None";
-  const modelColor = activeModel === "navarasa" ? "text-emerald-400" : activeModel === "qwen" ? "text-violet-400" : "text-slate-500";
+  const modelLabel = activeModel ? "Gemma 4 E2B" : "None";
+  const modelColor = activeModel ? "text-violet-400" : "text-slate-500";
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-3 border-t border-slate-800/60 bg-[#080e1a] px-4 text-[10px] font-normal text-slate-500 select-none">

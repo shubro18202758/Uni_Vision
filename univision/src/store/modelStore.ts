@@ -7,14 +7,14 @@ interface ModelState {
   phase: ModelPhase;
   activeModel: string | null;
   navarasaLoaded: boolean;
-  qwenLoaded: boolean;
+  primaryLoaded: boolean;
   transitioning: boolean;
   error: string | null;
 
   /** Poll current model state from backend. */
   refresh: () => Promise<void>;
 
-  /** Swap to Qwen for pipeline processing (post-launch). */
+  /** Swap to primary model for pipeline processing (post-launch). */
   activateForLaunch: () => Promise<boolean>;
 
   /** Swap back to Navarasa for design / chat (pre-launch). */
@@ -25,7 +25,7 @@ export const useModelStore = create<ModelState>((set) => ({
   phase: "pre_launch",
   activeModel: null,
   navarasaLoaded: false,
-  qwenLoaded: false,
+  primaryLoaded: false,
   transitioning: false,
   error: null,
 
@@ -36,7 +36,7 @@ export const useModelStore = create<ModelState>((set) => ({
         phase: data.phase as ModelPhase,
         activeModel: data.active_model,
         navarasaLoaded: data.navarasa_loaded,
-        qwenLoaded: data.qwen_loaded,
+        primaryLoaded: data.primary_loaded,
         error: null,
       });
     } catch {
@@ -52,7 +52,7 @@ export const useModelStore = create<ModelState>((set) => ({
         phase: data.phase as ModelPhase,
         activeModel: data.active_model,
         navarasaLoaded: data.navarasa_loaded,
-        qwenLoaded: data.qwen_loaded,
+        primaryLoaded: data.primary_loaded,
         transitioning: false,
       });
       return true;
@@ -71,7 +71,7 @@ export const useModelStore = create<ModelState>((set) => ({
         phase: data.phase as ModelPhase,
         activeModel: data.active_model,
         navarasaLoaded: data.navarasa_loaded,
-        qwenLoaded: data.qwen_loaded,
+        primaryLoaded: data.primary_loaded,
         transitioning: false,
       });
       return true;

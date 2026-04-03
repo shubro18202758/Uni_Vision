@@ -17,6 +17,8 @@ interface GraphState {
   deploying: boolean;
   lastDeployError: string | null;
   executionStates: Record<string, ExecState>;
+  /** Monotonically increasing counter — bumped each time setGraph replaces the full graph */
+  graphVersion: number;
   addBlock: (type: string, position?: { x: number; y: number }) => void;
   removeBlock: (blockId: string) => void;
   duplicateBlock: (blockId: string) => void;
@@ -34,7 +36,7 @@ interface GraphState {
   clearExecStates: () => void;
 }
 
-const initialGraph = loadGraph() ?? STARTER_TEMPLATES[1];
+const initialGraph = loadGraph() ?? STARTER_TEMPLATES[0];
 
 export const useGraphStore = create<GraphState>((set, get) => ({
   projectName: initialGraph.project.name,
@@ -44,6 +46,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   deploying: false,
   lastDeployError: null,
   executionStates: {},
+  graphVersion: 0,
   addBlock: (type, position = { x: 160, y: 160 }) => {
     const definition = getBlockDefinition(type) ?? blockRegistry[0];
     const block: GraphBlock = {
@@ -137,13 +140,21 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     });
   },
   setGraph: (graph) => {
-    saveGraph(graph);
-    set({
+    // Update Zustand state FIRST so the UI reflects the change immediately,
+    // then persist to localStorage separately.  If saveGraph throws
+    // (e.g. quota exceeded) the in-memory state still updates.
+    set((s) => ({
       projectName: graph.project.name,
-      blocks: graph.blocks,
-      connections: graph.connections,
+      blocks: [...graph.blocks],
+      connections: [...graph.connections],
       selectedBlockId: graph.blocks[0]?.id ?? null,
-    });
+      graphVersion: s.graphVersion + 1,
+    }));
+    try {
+      saveGraph(graph);
+    } catch (e) {
+      console.warn("[graphStore] saveGraph failed — state updated in memory only", e);
+    }
   },
   addConnection: (connection) => {
     set((state) => {

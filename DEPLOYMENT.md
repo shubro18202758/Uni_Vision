@@ -130,7 +130,7 @@ the `app` service on port 8000.
 **Caddy example** (`Caddyfile`):
 
 ```
-anpr.example.com {
+univision.example.com {
     reverse_proxy localhost:8000
 }
 ```
@@ -248,6 +248,6 @@ Docker log driver or sidecar.
 | `429 Too Many Requests` | Rate limit exceeded | Lower request rate or increase `UV_API_RATE_LIMIT_RPM` |
 | Pipeline stalls | VRAM exhaustion | Lower `UV_VRAM_CEILING_MB` or use INT8 TensorRT engines |
 | `connection refused` on DB | PostgreSQL not ready | Check `docker compose logs postgres`; increase `start_period` |
-| Ollama timeout | Model not loaded | Run `ollama run qwen3.5:9b-q4_K_M` manually or wait for `ollama-init` |
+| Ollama timeout | Model not loaded | Run `ollama run gemma4:e2b` manually or wait for `ollama-init` |
 | WebSocket disconnects | Reverse proxy buffering | Enable `proxy_buffering off` in NGINX |
 | Images not archived | MinIO bucket missing | Create via `mc mb minio/uni-vision-images` |

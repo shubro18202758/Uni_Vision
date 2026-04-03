@@ -3,6 +3,7 @@ import { Activity, BarChart3, Camera, Eye, Gauge, RefreshCw, ShieldCheck, Trendi
 import { fetchStats } from "../../services/api";
 import { useDetectionStore } from "../../store/detectionStore";
 import { useGraphStore } from "../../store/graphStore";
+import { usePipelineMonitorStore } from "../../store/pipelineMonitorStore";
 import clsx from "clsx";
 
 interface StatsSnapshot {
@@ -97,6 +98,15 @@ export function AnalyticsDashboard() {
   const blocks = useGraphStore((s) => s.blocks);
   const executionStates = useGraphStore((s) => s.executionStates);
 
+  // Live pipeline metrics from the /ws/pipeline stream
+  const pipelineFps = usePipelineMonitorStore((s) => s.fps);
+  const pipelineTotalProcessed = usePipelineMonitorStore((s) => s.totalProcessed);
+  const pipelineMetrics = usePipelineMonitorStore((s) => s.metrics);
+  const pipelineConnected = usePipelineMonitorStore((s) => s.connected);
+  const recentFrames = usePipelineMonitorStore((s) => s.recentFrames);
+  const lastFlag = usePipelineMonitorStore((s) => s.lastFlag);
+  const queueDepth = usePipelineMonitorStore((s) => s.queueDepth);
+
   const refresh = async () => {
     setLoading(true);
     setError(null);
@@ -121,10 +131,13 @@ export function AnalyticsDashboard() {
     return () => clearInterval(id);
   }, []);
 
-  // Sparkline rolling histories
-  const detectionHistory = useRollingHistory(detections.length);
+  // Sparkline rolling histories — use live pipeline data when available
+  const detectionHistory = useRollingHistory(detections.length + pipelineMetrics.anomalyCount);
   const streamHistory = useRollingHistory(stats?.active_streams ?? 0);
-  const frameHistory = useRollingHistory(stats?.total_frames ?? 0);
+  const frameHistory = useRollingHistory(stats?.total_frames ?? pipelineTotalProcessed);
+  const fpsHistory = useRollingHistory(pipelineFps);
+  const latencyHistory = useRollingHistory(pipelineMetrics.avgPipelineLatency);
+  const queueHistory = useRollingHistory(queueDepth);
 
   // Pipeline execution summary
   const execSummary = useMemo(() => {
@@ -174,7 +187,7 @@ export function AnalyticsDashboard() {
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[8px] text-slate-600 tabular-nums">
-            {detections.length} events
+            {detections.length + pipelineTotalProcessed} events
           </span>
           <button onClick={refresh} className="rounded p-1 hover:bg-slate-800" title="Refresh stats">
             <RefreshCw size={12} className={clsx("text-slate-400", loading && "animate-spin")} />
@@ -186,38 +199,80 @@ export function AnalyticsDashboard() {
         <div className="rounded border border-rose-800/40 bg-rose-950/30 px-2 py-1 text-[10px] text-rose-400">{error}</div>
       )}
 
-      {/* KPI Cards — now with sparklines */}
+      {/* KPI Cards — live pipeline metrics + Prometheus stats */}
       <div className="grid grid-cols-2 gap-2">
         <StatCard
           icon={Camera}
           label="Active Streams"
           value={stats?.active_streams ?? "—"}
+          sub={pipelineConnected ? "Pipeline connected" : undefined}
           sparkData={streamHistory}
           sparkColor="#60a5fa"
         />
         <StatCard
           icon={Eye}
-          label="Total Detections"
-          value={stats?.total_detections ?? "—"}
+          label="Anomalies"
+          value={Math.max(stats?.total_detections ?? 0, pipelineMetrics.anomalyCount)}
+          sub={lastFlag ? `Last: ${lastFlag.validation_status}` : undefined}
           sparkData={detectionHistory}
           sparkColor="#4ade80"
         />
         <StatCard
           icon={Gauge}
-          label="Total Frames"
-          value={stats?.total_frames ?? "—"}
+          label="Frames Processed"
+          value={stats?.total_frames ?? pipelineTotalProcessed}
+          sub={pipelineFps > 0 ? `${pipelineFps} FPS` : undefined}
           sparkData={frameHistory}
           sparkColor="#60a5fa"
         />
         <StatCard
           icon={TrendingUp}
-          label="Recent (local)"
-          value={detections.length}
-          sub="In detection feed"
-          sparkData={detectionHistory}
+          label="Pipeline FPS"
+          value={pipelineFps}
+          sub={pipelineMetrics.avgPipelineLatency > 0 ? `${pipelineMetrics.avgPipelineLatency.toFixed(0)}ms avg` : undefined}
+          sparkData={fpsHistory}
           sparkColor="#facc15"
         />
       </div>
+
+      {/* Live Pipeline Metrics Strip */}
+      {(pipelineTotalProcessed > 0 || pipelineConnected) && (
+        <div className="rounded-xl border border-slate-700/40 bg-[#111e36] px-3 py-2.5">
+          <div className="flex items-center gap-2 mb-2">
+            <Timer size={12} className="text-slate-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Pipeline Telemetry
+            </span>
+            {pipelineConnected && <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-[9px]">
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-slate-500">Throughput</span>
+              <span className="font-bold text-slate-200 tabular-nums">{pipelineMetrics.throughput.toFixed(2)}/s</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-slate-500">Avg Latency</span>
+              <span className="font-bold text-slate-200 tabular-nums">{pipelineMetrics.avgPipelineLatency.toFixed(0)}ms</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-slate-500">Queue Depth</span>
+              <span className="font-bold text-slate-200 tabular-nums">{queueDepth}</span>
+            </div>
+          </div>
+          {/* Latency sparkline */}
+          {pipelineMetrics.totalLatencyHistory.length >= 2 && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[8px] text-slate-600">Latency trend</span>
+              <Sparkline
+                data={pipelineMetrics.totalLatencyHistory.map((p) => p.latency_ms)}
+                color="#a78bfa"
+                width={120}
+                height={20}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pipeline Health Strip */}
       <div className="rounded-xl border border-slate-700/40 bg-[#111e36] px-3 py-2.5">
@@ -227,6 +282,24 @@ export function AnalyticsDashboard() {
             Pipeline Health
           </span>
         </div>
+        {/* Live processing status */}
+        {pipelineTotalProcessed > 0 && (
+          <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="text-[9px] text-slate-400">{pipelineTotalProcessed} processed</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-amber-400" />
+              <span className="text-[9px] text-slate-400">{pipelineMetrics.anomalyCount} anomalies</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-2 w-2 rounded-full bg-cyan-400" />
+              <span className="text-[9px] text-slate-400">{recentFrames.length} recent</span>
+            </div>
+          </div>
+        )}
+        {/* Workflow blocks status */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
@@ -261,6 +334,31 @@ export function AnalyticsDashboard() {
           </div>
         )}
       </div>
+
+      {/* Stage Latency Breakdown — from live pipeline */}
+      {Object.keys(pipelineMetrics.stageAvgLatency).length > 0 && (
+        <div className="rounded-xl border border-slate-700/40 bg-[#111e36] p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Timer size={12} className="text-slate-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Stage Latency (avg ms)
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {Object.entries(pipelineMetrics.stageAvgLatency)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([stage, avg]) => (
+                <MiniBar
+                  key={stage}
+                  label={stage.replace(/^S\d_/, "")}
+                  value={Math.round(avg)}
+                  max={Math.max(...Object.values(pipelineMetrics.stageAvgLatency), 1)}
+                  color="#a78bfa"
+                />
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Confidence Distribution */}
       <div className="rounded-xl border border-slate-700/40 bg-[#111e36] p-3">

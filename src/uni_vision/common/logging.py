@@ -8,7 +8,7 @@ Usage::
     from uni_vision.common.logging import get_logger
 
     log = get_logger()
-    log.info("ocr_complete", camera_id="cam_01", plate_text="MH12AB1234")
+    log.info("ocr_complete", camera_id="cam_01", detected_text="SAMPLE_TEXT_123")
 """
 
 from __future__ import annotations

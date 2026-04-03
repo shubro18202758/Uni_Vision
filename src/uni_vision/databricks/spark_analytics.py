@@ -1,14 +1,14 @@
 """PySpark batch analytics engine over Delta Lake tables.
 
 Provides aggregation queries that leverage Apache Spark's distributed
-compute engine to process ANPR detection data stored in Delta tables:
+compute engine to process detection data stored in Delta tables:
 
   * **Hourly rollups** — detection volume, avg confidence by hour.
-  * **Plate frequency analysis** — most/least frequently seen plates.
-  * **Cross-camera correlation** — plates appearing across cameras.
+  * **Detection frequency analysis** — most/least frequently seen detections.
+  * **Cross-camera correlation** — detections appearing across cameras.
   * **Confidence trend analysis** — OCR accuracy trends over time.
   * **Camera performance comparison** — throughput & error rates.
-  * **Temporal traffic patterns** — peak hours, quiet periods.
+  * **Temporal activity patterns** — peak hours, quiet periods.
 
 Runs locally with ``local[*]`` master by default but scales to
 a Databricks cluster by simply changing the ``master`` URI.

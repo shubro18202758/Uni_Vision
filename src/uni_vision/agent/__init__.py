@@ -1,4 +1,4 @@
-"""Agentic subsystem — Qwen 3.5 9B as an autonomous reasoning engine.
+"""Agentic subsystem — Gemma 4 E2B as an autonomous reasoning engine.
 
 This package transforms the Uni_Vision pipeline from a passive
 LLM-assisted OCR system into a truly agentic architecture where the
