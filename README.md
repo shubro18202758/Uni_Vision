@@ -26,12 +26,8 @@
 
 <br>
 
+<img width="3198" height="1797" alt="Screenshot 2026-04-03 034418" src="https://github.com/user-attachments/assets/635e815b-0086-4032-8e38-4316649cee18" />
 <img src="https://media1.tenor.com/m/eJEW4Mjno4IAAAAC/babu-rao-apte-paresh-rawal.gif" width="300">
-
-*"25 din mein paisa double!"*
-— Baburao, **Hera Pheri** (2000) 💰
-
-*^^ Except here, it's "1 GPU mein sab kuch!"*
 
 </div>
 
@@ -431,8 +427,9 @@ pytest --cov=src/uni_vision --cov-report=term-missing
 # Quick — stop on first failure
 pytest -x
 ```
-<img width="3199" height="1789" alt="Screenshot 2026-03-29 142406" src="https://github.com/user-attachments/assets/6102e9c0-548e-4505-bd3a-9d17a0340662" />
-<img width="3196" height="1798" alt="Screenshot 2026-03-29 142402" src="https://github.com/user-attachments/assets/9dd83250-9e33-40df-a6a2-e2b2526de544" />
+<img width="3199" height="1999" alt="Screenshot 2026-04-03 132521" src="https://github.com/user-attachments/assets/2a12c070-fea9-4861-b5eb-dc265e193200" />
+<img width="3199" height="1999" alt="Screenshot 2026-04-03 132518" src="https://github.com/user-attachments/assets/7a4c65a3-dc97-4079-840f-72a992c6abaa" />
+
 
 <div align="center">
 
