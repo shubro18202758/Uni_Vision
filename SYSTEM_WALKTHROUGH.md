@@ -1027,9 +1027,9 @@ Features:
 - **Context injection** — tools accepting a `context` parameter get pipeline state injected automatically
 - **Per-tool metrics** — invocation count, success/failure tracking
 
-### 16.5 Available Tools — 37 Total
+### 16.5 Available Tools — 39 Total
 
-The agent has access to 37 tools across four categories:
+The agent has access to 39 tools across four categories:
 
 #### Pipeline Tools (11 tools)
 | Tool | Purpose |

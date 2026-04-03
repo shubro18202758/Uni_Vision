@@ -83,7 +83,7 @@ logs-all: ## Tail all service logs
 
 # ── Ollama Model Management ──────────────────────────────────────
 .PHONY: ollama-init
-ollama-init: ## Pull Qwen base model and create OCR + Adjudicator variants
+ollama-init: ## Pull Gemma 4 E2B base model and create OCR + Adjudicator variants
 	./scripts/init-ollama.sh
 
 .PHONY: ollama-status

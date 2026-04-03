@@ -170,7 +170,7 @@ The entire system operates within a hard **8192 MB ceiling**. Memory is partitio
       │
  ┌────┴──────────────────────────────────────────────┐
  │                agent/  (16 files)                  │
- │   ReAct loop, 37 tools, sessions, knowledge        │
+ │   ReAct loop, 39 tools, sessions, knowledge        │
  └────┬──────────────────────────────────────────────┘
       │
  ┌────┴──────────────────────────────────────────────┐
@@ -195,7 +195,7 @@ The entire system operates within a hard **8192 MB ceiling**. Memory is partitio
 | `monitoring/` | 5 | VRAM monitor, Prometheus metrics, health, profiler, budget | No |
 | `orchestrator/` | 2 | Pipeline runner, DI container | Orchestrates |
 | `manager/` | 18 | Self-assembling pipeline: all 18 subsystems | Orchestrates |
-| `agent/` | 16 | ReAct loop, 37 tools, sessions, knowledge, audit | No |
+| `agent/` | 16 | ReAct loop, 39 tools, sessions, knowledge, audit | No |
 | `api/` | 12 | FastAPI routes (8 files), middleware (4 files) | No |
 | `visualizer/` | 8 | Streamlit debug pages | No |
 
@@ -445,7 +445,7 @@ ComponentResolver.resolve_capabilities()
 │   ┌────────┼─────────┬──────────────┬──────────────┐        │
 │   ▼        ▼         ▼              ▼              ▼        │
 │ OCR_QUALITY  ANALYTICS  OPERATIONS   GENERAL                │
-│ (12 tools)  (10 tools) (13 tools)   (37 tools)              │
+│ (12 tools)  (10 tools) (13 tools)   (39 tools)              │
 │                                                              │
 │   Each sub-agent gets:                                       │
 │   ├── Curated ToolRegistry subset                            │
@@ -477,7 +477,7 @@ ComponentResolver.resolve_capabilities()
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   37 Registered Tools                │
+│                   39 Registered Tools                │
 │                                                     │
 │  ┌─ Pipeline Tools (11) ──────────────────────────┐ │
 │  │ query_detections      get_detection_summary     │ │

@@ -539,7 +539,7 @@ class ManagerAgent:
         blueprint: PipelineBlueprint,
         report: Any,
     ) -> PipelineBlueprint:
-        """Ask Qwen for help resolving blocking conflicts."""
+        """Ask LLM for help resolving blocking conflicts."""
         from uni_vision.manager.prompts import CONFLICT_RESOLUTION_PROMPT
 
         conflicts_desc = "\n".join(

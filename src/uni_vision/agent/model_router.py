@@ -149,7 +149,7 @@ class OllamaModelRouter:
         return self._phase == ModelPhase.PRE_LAUNCH
 
     @property
-    def is_qwen_active(self) -> bool:
+    def is_primary_active(self) -> bool:
         return self._phase == ModelPhase.POST_LAUNCH
 
     # ── Internal Ollama API calls ─────────────────────────────────

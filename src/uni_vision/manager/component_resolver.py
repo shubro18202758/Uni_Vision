@@ -609,7 +609,7 @@ class ComponentResolver:
     ) -> Optional[ComponentCandidate]:
         """Ask the LLM to evaluate candidates and pick the best one.
 
-        Uses the CANDIDATE_EVALUATION_PROMPT to have Qwen reason about
+        Uses the CANDIDATE_EVALUATION_PROMPT to have Gemma 4 E2B reason about
         relevance, VRAM fit, trust, quality, efficiency, and compatibility.
         """
         if self._llm is None:

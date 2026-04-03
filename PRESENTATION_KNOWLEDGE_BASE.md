@@ -134,7 +134,7 @@ Uni Vision includes a **visual drag-and-drop pipeline editor** built with React 
 
 ## 4.1 Agentic AI — The Self-Managing System
 
-Uni Vision doesn't just run AI models — **it is managed by AI.** The platform includes an **autonomous AI agent** operating on the ReAct (Reason + Act) pattern with access to **37 specialized tools.**
+Uni Vision doesn't just run AI models — **it is managed by AI.** The platform includes an **autonomous AI agent** operating on the ReAct (Reason + Act) pattern with access to **39 specialized tools.**
 
 ### What the Agent Can Do:
 - **Self-Assemble Pipelines**: Tell the agent "monitor this parking lot for unauthorized vehicles" in natural language, and it autonomously selects models, configures detection parameters, sets up alert thresholds, and starts the pipeline
@@ -143,7 +143,7 @@ Uni Vision doesn't just run AI models — **it is managed by AI.** The platform 
 - **Self-Optimize**: Identifies performance bottlenecks and adjusts preprocessing intensity, detection confidence thresholds, and resource allocation
 - **Answer Questions**: Operators can ask the agent natural-language questions like "How many anomalies were detected in the last hour?" and receive instant answers
 
-### The 37 Tools Available to the Agent:
+### The 39 Tools Available to the Agent:
 
 The agent's toolkit spans five categories:
 
@@ -511,7 +511,7 @@ While Uni Vision processes video in real time at the edge, its optional **Databr
 | **Language Support** | English, maybe Hindi | 16 languages covering 96%+ of India |
 | **AI Reasoning** | Traditional ML (classification) | LLM-powered scene reasoning |
 | **Pipeline Customization** | Fixed workflows | Visual drag-and-drop pipeline builder |
-| **Self-Managing** | Manual configuration | Agentic AI with 37 tools — self-healing |
+| **Self-Managing** | Manual configuration | Agentic AI with 39 tools — self-healing |
 | **Hardware Requirement** | Often requires high-end servers | Single consumer GPU (₹50K) |
 
 ---
@@ -693,7 +693,7 @@ Uni Vision is built with responsibility at its core:
 | **Automated Tests** | 300+ |
 | **Modular Packages** | 15 |
 | **Pipeline Stages** | 8 |
-| **Agent Tools** | 37 |
+| **Agent Tools** | 39 |
 | **Supported Languages** | 16 Indian languages |
 | **Population Coverage (languages)** | 96%+ of India |
 | **Minimum GPU Requirement** | 8 GB VRAM (₹30-50K) |

@@ -134,7 +134,7 @@ class ContextAnalyzer:
         metadata:
             Additional metadata (e.g., GPS, timestamp).
         use_llm:
-            If True, use Qwen for deep scene understanding.
+            If True, use Gemma 4 E2B for deep scene understanding.
         """
         metadata = metadata or {}
 

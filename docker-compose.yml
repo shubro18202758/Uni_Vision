@@ -108,7 +108,7 @@ services:
       retries: 5
 
   # ── Ollama Model Initializer ────────────────────────────────────
-  # One-shot container: pulls the Qwen base model, then creates
+  # One-shot container: pulls the Gemma 4 E2B base model, then creates
   # three custom Modelfile variants (OCR, Adjudicator, Navarasa).
   ollama-init:
     image: curlimages/curl:latest

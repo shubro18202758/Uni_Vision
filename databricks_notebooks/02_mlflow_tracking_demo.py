@@ -65,10 +65,10 @@ PIPELINE_STAGES = ["S2_object_detect", "S3_roi_extract", "S7_llm_analysis", "S8_
 MODEL_CONFIGS = [
     {
         "name": "gemma4-e2b-q4km",
-        "architecture": "Qwen 9B Vision",
+        "architecture": "Gemma 4 E2B MoE",
         "quantization": "Q4_K_M",
-        "vram_mb": 5600,
-        "context_length": 4096,
+        "vram_mb": 7200,
+        "context_length": 131072,
     },
     {
         "name": "navarasa-2.0-7b-q4km",

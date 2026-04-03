@@ -139,7 +139,7 @@
 │  ┌──────────────────────────────────────────────────────────────────┐        │
 │  │              Agentic Control Plane                                │        │
 │  │  AgentCoordinator → MultiAgentRouter → ReAct Loop               │        │
-│  │  30 Tools │ 3 Sub-Agents │ KnowledgeBase │ AuditTrail           │        │
+│  │  39 Tools │ 4 Sub-Agents │ KnowledgeBase │ AuditTrail           │        │
 │  │  AutonomousMonitor → Self-Healing │ WebSocket Streaming         │        │
 │  └──────────────────────────────────────────────────────────────────┘        │
 │                                                                              │
@@ -1070,7 +1070,7 @@ User Query → IntentClassifier → AgentRole → SubAgentProfile → Filtered T
                     │ MONITORING   │──▶ Operations Agent
                     │ CONFIG       │──▶ Operations Agent
                     │ DIAGNOSTIC   │──▶ OCR Quality Agent
-                    │ GENERAL      │──▶ Full registry (all 30 tools)
+                    │ GENERAL      │──▶ Full registry (all 39 tools)
                     └──────────────┘
 ```
 
@@ -1206,7 +1206,7 @@ class AuditEntry:
 
 ### 11.9 Pipeline Control Tools
 
-**30 registered tools organized into 3 categories:**
+**39 registered tools organized into 4 categories:**
 
 **Pipeline Management (10 tools — `pipeline_tools.py`):**
 

@@ -609,7 +609,7 @@ class Pipeline:
                             )
             else:
                 # Dynamic pipeline failed (missing components, etc.)
-                # Fall through to VisionAnalyzer (Qwen LLM) as last resort.
+                # Fall through to VisionAnalyzer (Gemma 4 E2B) as last resort.
                 log.warning(
                     "dynamic_pipeline_degraded_falling_back",
                     camera_id=camera_id,
